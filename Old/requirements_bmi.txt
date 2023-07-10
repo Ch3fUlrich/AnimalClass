@@ -1,0 +1,11 @@
+nidaqmx
+pyaudio
+pypylon
+tqdm
+pandas
+matplotlib
+scikit-image
+scipy
+opencv-python
+parmap
+openpyxl
