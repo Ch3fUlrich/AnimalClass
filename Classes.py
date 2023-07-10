@@ -163,7 +163,7 @@ class Analyzer:
                 break
         return bad
 
-    def geldrying(self, mean_stds, minutes=0.7):
+    def geldrying(self, mean_stds, bad_minutes=1.5, not_bad_minutes=0.9):
         """
         Geldrying detection
         Check if the mean and standard deviation (std not used!!!!!!) of the data are within a certain threshold.
@@ -175,7 +175,7 @@ class Analyzer:
             bool: True if the standard deviation values are within the threshold, False otherwise.
         """
         #TODO: improve good bad detection currently only for geldrying used
-        bad, reason = self.cont_mean_increase(mean_stds, num_not_bad_means=30*60*minutes) 
+        bad, reason = self.cont_mean_increase(mean_stds, num_bad_means = 30*60*bad_minutes, num_not_bad_means=30*60*not_bad_minutes) 
         #if not bad:
         #    bad = self.all_stds_good(mean_stds)
         return bad, reason
