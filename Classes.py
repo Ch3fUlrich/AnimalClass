@@ -99,7 +99,7 @@ class Analyzer:
         return linreg.slope, linreg.intercept
 
     def cont_mean_increase(self, mean_stds, num_bad_means = 30*60*1.5, 
-                       num_not_bad_means=30*60*0.7):
+                       num_not_bad_means=30*60*0.9):
         """
         Check if the mean of the data increases for 1.5 minutes without a 0.7 minutes break (30fps)
 
@@ -119,7 +119,7 @@ class Analyzer:
         for pos, mean_std in enumerate(mean_stds[1:]):
             mean = mean_std[0]
             mean_diff = mean-old_mean
-            mean_diff -=  min_std/(1/(abs(mean_diff/mean)))#7000
+            mean_diff -=  min_std/(1/(abs(mean_diff/mean)))
             old_mean = mean
             if math.isnan(mean): #mean > max_plausible_mean or :
                 bad = True
@@ -176,34 +176,32 @@ class Analyzer:
         """
         #TODO: improve good bad detection currently only for geldrying used
         bad, reason = self.cont_mean_increase(mean_stds, num_bad_means = 30*60*bad_minutes, num_not_bad_means=30*60*not_bad_minutes) 
-        #if not bad:
-        #    bad = self.all_stds_good(mean_stds)
         return bad, reason
     
-    def sliding_window(self, arr, k):
+    def sliding_window(self, arr, window_size):
         """
-        Generate sliding windows of size k over an array.
+        Generate sliding windows of size window_size over an array.
 
         Args:
             arr (list): The input array.
             k (int): The size of the sliding window.
 
         Yields:
-            list: A sliding window of size k.
+            list: A sliding window of size window_size.
 
         Returns:
-            None: If the length of the array is less than k.
+            None: If the length of the array is less than window_size.
         """
         n = len(arr)
-        if n < k:
+        if n < window_size:
             return None
-        window = arr[:k]
+        window = arr[:window_size]
         yield window
-        for i in range(k, n):
+        for i in range(window_size, n):
             window = np.append(window[1:], arr[i])
             yield window
 
-    def sliding_mode(self, arr, k):
+    def sliding_mode(self, arr, window_size):
         """
         Compute the mode for each sliding window of size k over an array.
 
@@ -215,12 +213,12 @@ class Analyzer:
             list: A list of mode values for each sliding window.
         """
         modes = []
-        for window in self.sliding_window(arr, k):
+        for window in self.sliding_window(arr, window_size):
             mode, count = scipy.stats.mode(window)
             modes.append(mode[0])
         return modes
 
-    def sliding_mean_std(self, arr, k):
+    def sliding_mean_std(self, arr, window_size):
         """
         Compute the sliding window mean and standard deviation of an array.
 
@@ -231,9 +229,9 @@ class Analyzer:
         Returns:
         list: A list of tuples containing the mean and standard deviation of each window.
         """
-        num_windows = len(arr)-k+1
+        num_windows = len(arr)-window_size+1
         mean_stds = np.zeros([num_windows, 2])
-        for num, window in enumerate(self.sliding_window(arr, k)):
+        for num, window in enumerate(self.sliding_window(arr, window_size)):
             mean_stds[num, 0] = np.mean(window)
             mean_stds[num, 1] = np.std(window)
         return np.array(mean_stds)
