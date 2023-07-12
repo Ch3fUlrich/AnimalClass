@@ -54,7 +54,36 @@ import pathlib
 #sys.path.append(module_path)
 from Helper import *
 from manifolds.donlabtools.utils.calcium import calcium
+def load_all(root_dir, animal_ids=["all"], generate=False, regenerate=False, units="single", delete=False):
+    """
+    Loads animal data from the specified root directory for the given animal IDs.
 
+    Parameters:
+    - root_dir (string): The root directory path where the animal data is stored.
+    - animal_ids (list, optional): A list of animal IDs to load. Default is ["all"].
+    - generate (bool, optional): If True, generates new session data. Default is False.
+    - regenerate (bool, optional): If True, regenerates existing session data. Default is False.
+    - units (string, optional): Specifies the units. Default is "single".
+    - delete (bool, optional): If True, deletes session data. Default is False.
+
+    Returns:
+    - animals_dict (dict): A dictionary containing animal IDs as keys and corresponding Animal objects as values.
+    """
+    animal_ids = get_directories(root_dir)
+    animals_dict = {}
+
+    # Search for animal_ids
+    for animal_id in animal_ids:
+        if animal_id in animal_ids or animal_ids[0] == "all":
+            sessions_path = os.path.join(root_dir, animal_id)
+            sessions = get_directories(sessions_path)
+            yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
+            animal = Animal(yaml_file_name)
+            # Search for 2P Sessions
+            for session in sessions:
+                animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
+            animals_dict[animal_id] = animal
+    return animals_dict
 
 class Analyzer:
     # Pearson and histogram plot and save
@@ -121,11 +150,11 @@ class Analyzer:
             mean_diff = mean-old_mean
             mean_diff -=  min_std/(1/(abs(mean_diff/mean)))
             old_mean = mean
-            if math.isnan(mean): #mean > max_plausible_mean or :
+            if math.isnan(mean):
                 bad = True
                 reason = "nan"
                 break
-            if mean_diff > 0: #Analyzer.correct_mean + threshold:# or math.isnan(mean):
+            if mean_diff > 0: 
                 bad_mean_counter += 1
             else:
                 maybe_not_bad_counter += 1
@@ -251,12 +280,8 @@ class Analyzer:
             means = np.array(sliding_cell_F_mean_stds)[:,:,0]
             stds = np.array(sliding_cell_F_mean_stds)[:,:,1]
         """
-        sliding_cell_F_mean_stds = []
-        F_mean_stds = parmap.map(self.sliding_mean_std, fluoresence, window_size, pm_processes=processes, 
+        sliding_cell_F_mean_stds = parmap.map(self.sliding_mean_std, fluoresence, window_size, pm_processes=processes, 
                                 pm_pbar=True, pm_parallel=parallel)
-        
-        sliding_cell_F_mean_stds.append(F_mean_stds)
-        sliding_cell_F_mean_stds = np.array(sliding_cell_F_mean_stds)
         return sliding_cell_F_mean_stds
 
 class Session:
@@ -712,3 +737,365 @@ class Animal:
         print(overview_df)
         print("-----------------------------------------------")
         return overview_df
+
+class Vizualizer:
+    def __init__(self, animals={}, save_dir=Animal.root_dir):
+        self.animals = animals
+        self.save_dir = os.path.join(save_dir, "figures")
+        dir_exist_create(self.save_dir)
+        # Collor pallet for plotting
+        self.colors = mlp.colormaps["rainbow"](range(0,300))
+
+    def add_animal(self, animal):
+        self.animals[animal.animal_id] = animal
+
+    def create_colorsteps(self, min_value, max_value, max_color_number=300):
+        """
+        This function calculates the number of color steps between a minimum and maximum value.
+        
+        :param min_value: The minimum value in the range.
+        :type min_value: int or float
+        :param max_value: The maximum value in the range.
+        :type max_value: int or float
+        :param max_color_number: The maximum number of colors to use, defaults to 250.
+        :type max_color_number: int, optional
+        :return: The number of color steps between the minimum and maximum values.
+        :rtype: int
+        """
+        value_diff = max_value-min_value if max_value-min_value != 0 else 1
+        return round(max_color_number/(value_diff))
+
+    def plot_colorsteps_example(self):
+        # Colorexample
+        for num, c in enumerate(self.colors):
+            plt.plot([num, num], color=c, linewidth=2)
+
+        handles = []
+        for age in [0, 15, 30, 50, 75, 100, 125, 150, 180, 200, 220, 240]:
+                handles.append(Line2D([0], [0], color=self.colors[age], linewidth=2, linestyle='-', label=f"Age {age}"))
+
+        plt.legend(handles=handles)
+        plt.show()
+
+        #### save figures
+    
+    def bursts(self, animal_id, session_id, fluoresence_type="raw", num_cells="all", unit_id="all", dpi=300, fps="30"):
+
+        #TODO: insert possibility to filter for good cells?
+        #is_cells_ids = np.where(calcium_object.iscell==1)[0]
+        #is_not_cells_ids = np.where(calcium_object.iscell==0)[0]
+        #num_is_cells = is_cells_ids.shape[0] #get is cells
+        #calcium_object.plot_traces(calcium_object.F_filtered, np.arange(num_is_cells))
+    
+
+        #for s2p_folder in self.animals[animal_id].sessions[session].s2p_folder_paths:
+        bin_traces_zip = self.animals[animal_id].sessions[session_id].load_cabincorr_data(unit=unit_id)
+        fluorescence = bin_traces_zip[f"F_{fluoresence_type}"]
+        self.traces(fluorescence, animal_id, session_id, unit_id, num_cells, dpi, fps)
+        return fluorescence
+
+    def traces(self, fluorescence, animal_id, session_id, unit_id="all", num_cells="all", fit_line=False, dpi=300, fps="30",
+               xlabel=f"Frames ", 
+               ylabel='Fluoresence based on Ca in Cell',
+               title=f"Bursts from "):
+        # plot fluorescence
+        fluorescence = np.array(fluorescence)
+        fluorescence = np.transpose(fluorescence) if len(fluorescence.shape)==2 else fluorescence
+        plt.figure()
+        plt.figure(figsize=(12, 7))
+        if num_cells != "all":
+            plt.plot(fluorescence[:, :int(num_cells)])
+        else:
+            plt.plot(fluorescence)
+
+        if unit_id!="all":
+            file_name = f"{animal_id}_{session_id}_Unit_{unit_id}"
+        else:
+            file_name = f"{animal_id}_{session_id}"
+
+
+        seconds = 5
+        num_frames = 30*seconds
+        x_pos = np.arange(0, len(fluorescence), num_frames)
+        x_time = [int(frame/num_frames)*seconds for frame in range(len(fluorescence)) if frame%num_frames==0] 
+        num_written_labels = round(len(x_time)/100)
+        x_labels = [time if time%num_written_labels==0 else "" for time in x_time]
+        plt.xticks(x_pos, x_labels, rotation=40, fontsize=8)
+        
+        plt.title(title+f"{file_name}")
+        plt.xlabel(xlabel+f"({fps} FPS)")
+        plt.ylabel(ylabel)
+        file_title = title.replace(" ", "_")
+
+        if fit_line and len(fluorescence.shape)==1: #TODO: add to 2d data?
+            #TODO: move calculations to Analyzer
+            anz = Analyzer()
+            slope, intercept = anz.get_linreg_slope_intercept(fluorescence)
+            length = range(len(fluorescence))
+            plt.plot(length, intercept+length*slope, color = "r")
+
+        plt.savefig(os.path.join(self.save_dir, f"{file_title}{file_name}.png"),
+                    dpi=dpi)
+        plt.show()
+
+    def save_rasters_fig(self, calcium_object, animal_id, session_id, unit_id="all"): #TODO: Update to classes
+        #TODO: yes?
+        show_rasters_savelocation = os.path.join(calcium_object.data_dir, "figures")
+        show_rasters_savelocation_name = os.path.join(show_rasters_savelocation, "rasters.png")
+        own_location_name = os.path.join(self.save_dir, f"Rasters_{animal_id}_{session_id}_Unit_{unit_id}.png")
+
+        dir_exist_create(os.path.join(calcium_object.data_dir, "figures"))
+        del_present_file(own_location_name)
+        del_present_file(show_rasters_savelocation_name)
+
+        calcium_object.show_rasters(save_image=True)
+
+        #change picture location
+        os.rename(show_rasters_savelocation_name, own_location_name)    
+
+    def pearson_hist(self, animal_id, session_id, dpi=300, 
+                                title = "Pearson Correlation and Histogram",
+                                hist_title='Pearson Correlation Coefficient Histogram',
+                                hist_xlabel="Coefficients combined in 0.1 size bins",
+                                hist_ylabel="Number of coefficients in bin",
+                                facecolor="tab:blue"):
+        
+        # Create a figure and two subplots
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
+
+        corr_matrix, pval_matrix = self.animals[animal_id].sessions[session_id].load_corr_matrix()
+
+        # First subplot
+        sns.heatmap(corr_matrix, annot=False, cmap='YlGnBu', ax=ax1)
+        ax1.set_xlabel("Neuron id")
+        ax1.set_ylabel("Neuron id")
+        ax1.set_title('Pearson Correlation Matrix')
+
+        # Second subplot
+        hist_data = corr_matrix if isinstance(corr_matrix, np.ndarray) else corr_matrix.to_numpy()
+        sns.histplot(data=hist_data.flatten(), binwidth=0.1, ax=ax2, facecolor=facecolor)
+        ax2.set_title(hist_title)
+        ax2.set_xlabel(hist_xlabel)
+        ax2.set_ylabel(hist_ylabel)
+        plt.savefig(os.path.join(self.save_dir, title),
+                    dpi=dpi)
+        plt.show()
+        return corr_matrix, pval_matrix
+
+    def pearson_kde(self, filters=[], dpi=300):
+        # Plot Kernel density Estimation
+        filtered_animals = filter_animals(self.animals, filters)
+        unique_sorted_ages, min_age, max_age = get_age_range(filtered_animals)
+        colorsteps = self.create_colorsteps(min_age, max_age)
+        
+        plt.figure()
+        plt.figure(figsize=(12, 7))
+        
+        for animal_id, animal in filtered_animals.items():
+            for session_id, session in animal.sessions.items():
+                age = session.age
+                try:
+                    corr_matrix, pval_matrix = session.load_corr_matrix()
+                except:
+                    continue
+                sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
+        handles = []
+        line_plot_steps = 1
+        if len(unique_sorted_ages) > 17:
+            line_plot_steps = round(len(unique_sorted_ages)/17)
+
+        for age in np.unique(unique_sorted_ages[::line_plot_steps]):
+                handles.append(Line2D([0], [0], color=self.colors[(age-min_age)*colorsteps], linewidth=2, linestyle='-', label=f"Age {age}"))
+        #handles=[Patch(color="tab:red", label="Bad=mean+sigma > 0.3"), Patch(color="tab:blue", label="Good=mean+sigma < 0.3")]
+        plt.xlabel("Correlation")
+        plt.ylabel("Frequency")
+        plt.title(f"{filters} KDE of all cell correlations")
+        plt.legend(handles=handles)
+        plt.savefig(os.path.join(self.save_dir,f"All_Correlation_Coefficient_KDE_{filters}.png"), dpi=300)
+        plt.show()
+
+        # Plot Bars to compare 2 numbers
+    
+    def plot_means_stds(self, filters=[], dpi=300, x_tick_jumps = 4):
+        mean_threshold = Analyzer.mean_threshold
+        std_threshold = Analyzer.std_threshold
+
+        filtered_animals = filter_animals(self.animals, filters)
+        unique_sorted_ages, min_age, max_age = get_age_range(filtered_animals)
+        colorsteps = self.create_colorsteps(0, len(filtered_animals))
+        drawn_animal_ids = []
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
+        for number, (animal_id, animal) in enumerate(filtered_animals.items()):
+            ages = []
+            means = []
+            stds = []
+            for session_id, session in animal.sessions.items():
+                try:
+                    corr_matrix, pval_matrix = session.load_corr_matrix()
+                except:
+                    continue
+                ages.append(session.age)
+                means.append(np.mean(corr_matrix))
+                stds.append(np.std(corr_matrix))
+                drawn_animal_ids.append(animal_id)
+            if animal_id in drawn_animal_ids:
+                ax1.plot(ages, means, color=self.colors[number*colorsteps], marker=".")
+                ax2.plot(ages, stds, color=self.colors[number*colorsteps], marker=".")
+
+        age_labels = [str(age) if num%x_tick_jumps==0 else "" for num, age in enumerate(unique_sorted_ages)]
+        unique_draws_animal_ids = np.unique(drawn_animal_ids)
+        lines = [Line2D([0], [0], color=self.colors[number*colorsteps], linewidth=3, linestyle='-', label=unique_draws_animal_ids[number]) for number in range(len(unique_draws_animal_ids))]
+        title = f"{filters}_Means_and_Standard_Deviations.png"
+
+
+        ax1.axhline(y = mean_threshold, color = 'r', linestyle = '--', label="Mean Threshold")
+        ax1.set_xticks(unique_sorted_ages, age_labels, rotation=40, ha='right', rotation_mode='anchor')
+        ax1.set_xlabel("Age in days")
+        ax1.set_ylabel("Mean")
+        ax1.set_title(f'{filters} Means of correlations')
+        mean_threshold_legend_object = Line2D([0], [0], color='r', linewidth=2, linestyle='--', label=f"Mean thr={mean_threshold}")
+        ax1_handles= lines+[mean_threshold_legend_object]
+
+
+        ax2.axhline(y=std_threshold, color = 'r', linestyle = '--', label="Std Threshold")
+        ax2.set_xticks(unique_sorted_ages, age_labels, rotation=40, ha='right', rotation_mode='anchor')
+        ax2.set_xlabel("Age in days")
+        ax2.set_ylabel("Standard Deviation")
+        ax2.set_title(f"{filters} Std of correlations")
+        std_threshold_legend_object = Line2D([0], [0], color='r', linewidth=2, linestyle='--', label=f"Std thr={std_threshold}")
+        ax2_handles= lines+[std_threshold_legend_object]
+
+        
+        ax1.legend(handles=ax1_handles)
+        ax2.legend(handles=ax2_handles)
+        plt.savefig(os.path.join(self.save_dir, title), dpi=300)
+        plt.show()
+
+    def plot_good_bad(self, filters=[]):
+        filtered_animals = filter_animals(self.animals, filters)
+        anz = Analyzer(filtered_animals)
+        good, bad = anz.evaluate_datasets_count()
+        plt.figure()
+        plt.bar(1, bad, 1, label="Bad datasets: bad", color="red")
+        plt.bar(2, good, 1, label="Good datasets: good", color="green")
+        plt.title(f"bad_vs_good_{filters}")
+        plt.xticks([1], [""])
+        plt.ylabel("Count")
+        plt.legend()
+        plt.savefig(os.path.join(self.save_dir, f"bad_vs_good_{filters}.png"))
+        plt.show()
+
+    def unit_footprints(self, unit, cmap=None):
+        # plot footprints of a unit
+        plt.figure()
+        title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
+        footprints = unit.footprints
+        plt.title(f"{len(footprints)} footprints {title}")
+        self.footprints(footprints, cmap=cmap)
+        plt.savefig(os.path.join(self.save_dir, f"Footprints_{title}.png"), dpi=300)
+
+    def footprints(self, footprints, cmap=None):
+        # plot all footprints
+        for footprint in footprints:
+            idx = np.where(footprint==0)
+            footprint[idx] = np.nan
+            plt.imshow(footprint, cmap=cmap)
+        plt.gca().invert_yaxis()
+
+    def unit_contours(self, unit):
+        # Plot Contours
+        plt.figure()
+        title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
+        contours = unit.contours
+        plt.title(f"{len(contours)} contours {title}")
+        self.contours(contours)
+        plt.savefig(os.path.join(self.save_dir, f"Conours_{title}.png"), dpi=300)
+
+    def contours(self, contours, color=None):
+        for contour in contours:
+            x_corr = contour[:, 0]
+            y_corr = contour[:, 1]
+            plt.plot(x_corr, y_corr, color = color)
+
+    def multi_contours(self, multi_contours, colors=["red", "green", "blue", "yellow", "purple", "orange", "cyan"]):
+        plt.figure(figsize=(10, 10))
+        for contours, col in zip(multi_contours, colors):
+            self.contours(contours, color=col)
+
+    def multi_unit_contours(self, units, combination=None):
+        """
+        units : dict
+        combination : list of dict keys
+        """
+        handles = []
+        plot_contours = []
+        plot_colors = []
+        combination = list(units.keys()) if combination==None else combination
+        colors = ["red", "green", "blue", "yellow", "purple", "orange", "cyan"]
+        for (unit_id, unit), col in zip(units.items(), colors):
+            if unit_id not in combination:
+                continue
+            good_cell_contours = np.array(unit.contours)[unit.cell_geldrying==False]
+            plot_colors.append(col)
+            plot_contours.append(good_cell_contours)
+            handles.append(Line2D([0], [0], color=col, linewidth=2, linestyle='-', label=f"MUnit: {unit_id}"))
+        self.multi_contours(plot_contours)
+        plt.title(f"Contours for MUnits: {combination}")
+        plt.legend(handles=handles, fontsize=20)
+        plt.savefig(os.path.join(self.save_dir, f"Contours_MUnits_{combination}.png"), dpi=300)
+        plt.show()
+
+    def unit_fluorescence_good_bad(self, unit, batch_size=10, starting=0, interactive=False):
+        
+        cell_geldrying = unit.get_geldrying_cells()
+
+        title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
+
+        cell_geldrying = cell_geldrying[starting:]
+        fluoresence = unit.fluoresence[starting:]
+        cell_geldrying_batches = split_array(cell_geldrying, batch_size)
+        fluoresence_batches = split_array(fluoresence, batch_size)
+        num_batches = len(fluoresence_batches)
+
+        for i, (cell_geldrying_batch, fluoresence_batch) in enumerate(zip(cell_geldrying_batches, fluoresence_batches)):
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 10))
+
+            for num, (cell_geldrying, neuron_data) in enumerate(zip(cell_geldrying_batch, fluoresence_batch)):
+                cell_number = (i)*batch_size + num if batch_size != "all" else num
+                cell_number += starting
+                if not cell_geldrying:
+                    ax1.plot(neuron_data, label=f"Cell: {cell_number}")# {unit.cell_geldrying_reasons[cell_number]}")
+                else:
+                    ax2.plot(neuron_data, label=f"Cell: {cell_number}")# {unit.cell_geldrying_reasons[cell_number]}")
+
+            bad = sum(cell_geldrying_batch)
+            good = len(cell_geldrying_batch)-bad
+
+            seconds = 5
+            num_frames = 30*seconds
+            x_pos = np.arange(0, len(neuron_data), num_frames)
+            x_time = [int(frame/num_frames)*seconds for frame in range(len(neuron_data)) if frame%num_frames==0] 
+            num_written_labels = round(len(x_time)/100)
+            x_labels = [time if time%num_written_labels==0 else "" for time in x_time]
+            ax1.set_xticks(x_pos, x_labels, rotation=40, fontsize=8)
+            ax2.set_xticks(x_pos, x_labels, rotation=40, fontsize=8)
+
+            batch_title = f"Batch_{i+1}_of_{num_batches}"
+            legend_fontsize = 10
+            fig.suptitle(f"F of {good+bad} Cells {title} {batch_title}", fontsize=20)
+            #ax1.set_xlabel("Frames (30FPS)")
+            ax1.set_title(f'Good Cells: {good}')
+            ax1.set_ylim(bottom=-0.1, top=0.8)
+            ax1.legend(fontsize=legend_fontsize)
+            ax2.set_ylabel("F_filtered")
+            ax2.set_xlabel("seconds")
+            ax2.set_title(f'Bad Cells: {bad}')
+            ax2.set_ylim(bottom=-0.1, top=0.8)
+            ax2.legend(fontsize=legend_fontsize)
+            plt.savefig(os.path.join(self.save_dir, f"F_slide_{title}_{batch_title}.png"), dpi=300)
+            plt.show()
+            dir_exist_create(os.path.join(self.save_dir,"html"))
+            #interactive html
+            
+            if interactive:
+                mpld3.save_html(fig, os.path.join(self.save_dir, "html", f"F_slide_{title}_{batch_title}.html"))

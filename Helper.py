@@ -45,7 +45,6 @@ import h5py
 from tifffile import tifffile, imread
 import pathlib
 
-from Classes import * 
 # add root directory to be able to import packages
 # todo: make all packages installable so they can be called/imported by environment
 #module_path = os.path.abspath(os.path.join('../'))
@@ -53,37 +52,6 @@ from Classes import *
 #sys.path.append(module_path)
 
 # Helper functions
-def load_all(root_dir, animal_ids=["all"], generate=False, regenerate=False, units="single", delete=False):
-    """
-    Loads animal data from the specified root directory for the given animal IDs.
-
-    Parameters:
-    - root_dir (string): The root directory path where the animal data is stored.
-    - animal_ids (list, optional): A list of animal IDs to load. Default is ["all"].
-    - generate (bool, optional): If True, generates new session data. Default is False.
-    - regenerate (bool, optional): If True, regenerates existing session data. Default is False.
-    - units (string, optional): Specifies the units. Default is "single".
-    - delete (bool, optional): If True, deletes session data. Default is False.
-
-    Returns:
-    - animals_dict (dict): A dictionary containing animal IDs as keys and corresponding Animal objects as values.
-    """
-    animal_ids = get_directories(root_dir)
-    animals_dict = {}
-
-    # Search for animal_ids
-    for animal_id in animal_ids:
-        if animal_id in animal_ids or animal_ids[0] == "all":
-            sessions_path = os.path.join(root_dir, animal_id)
-            sessions = get_directories(sessions_path)
-            yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
-            animal = Animal(yaml_file_name)
-            # Search for 2P Sessions
-            for session in sessions:
-                animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
-            animals_dict[animal_id] = animal
-    return animals_dict
-
 def filter_animals(animal_dict, filters = []):
     """
     Filters the animal dictionary based on the specified filters.
