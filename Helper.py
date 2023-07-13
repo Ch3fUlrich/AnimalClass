@@ -51,7 +51,18 @@ import pathlib
 #print(module_path)
 #sys.path.append(module_path)
 
-# Helper functions
+import time
+from multiprocessing import Pool
+
+def timer(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        print(f"Elapsed time: {end_time - start_time}")
+        return result
+    return wrapper
+
 def filter_animals(animal_dict, filters = []):
     """
     Filters the animal dictionary based on the specified filters.
