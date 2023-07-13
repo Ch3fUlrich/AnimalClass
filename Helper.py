@@ -165,7 +165,7 @@ def dir_exist_create(directory):
         # Create the directory
         os.makedirs(directory)
 
-def file_exist_rename(data_path, fname, fname_new):
+def file_exist_rename(data_path, fname, fname_new, reset=False):
     """
     Check if a file exists in the specified data path. If it doesn't exist, rename the old file to the new file name.
 
@@ -187,21 +187,26 @@ def file_exist_rename(data_path, fname, fname_new):
         file_exist_rename(data_path, fname, fname_new)
     """
     fpath_new = os.path.join(data_path, fname_new)
-    if not os.path.exists(fpath_new):
-        fpath = os.path.join(data_path, fname)
-        try:
-            os.rename(fpath, fpath_new)
-        except:
-            pass
+    fpath = os.path.join(data_path, fname)
+    if not os.path.exists(fpath):
+        print(f"{fname} not exists")
+    if reset:
+        if os.path.exists(fpath) and os.path.exists(fpath_new):
+            os.remove(fpath)
+        os.rename(fpath_new, fpath)
+    else:
+        if not os.path.exists(fpath_new):
+            if os.path.exists(fpath):
+                os.rename(fpath, fpath_new)
 
 #reset files S2P files to original ones
 def reset_s2p_files(data_path):
-    file_exist_rename(data_path, "F_old.npy", 'F.npy')
-    file_exist_rename(data_path, "Fneu_old.npy", 'Fneu.npy')
-    file_exist_rename(data_path, "iscell_old.npy", 'iscell.npy')
-    file_exist_rename(data_path, "ops_old.npy", 'ops.npy')
-    file_exist_rename(data_path, "spks_old.npy", 'spks.npy')
-    file_exist_rename(data_path, "stat_old.npy", 'stat.npy')
+    file_exist_rename(data_path, "F.npy", 'F_old.npy', reset=True)
+    file_exist_rename(data_path, "Fneu.npy", 'Fneu_old.npy', reset=True)
+    file_exist_rename(data_path, "iscell.npy", 'iscell_old.npy', reset=True)
+    file_exist_rename(data_path, "ops.npy", 'ops_old.npy', reset=True)
+    file_exist_rename(data_path, "spks.npy", 'spks_old.npy', reset=True)
+    file_exist_rename(data_path, "stat.npy", 'stat_old.npy', reset=True)
 
 def del_present_file(directory):
     """
