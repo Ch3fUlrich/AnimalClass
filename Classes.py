@@ -1011,11 +1011,25 @@ class Vizualizer:
         self.contours(contours)
         plt.savefig(os.path.join(self.save_dir, f"Conours_{title}.png"), dpi=300)
 
-    def contours(self, contours, color=None):
+    def contour_to_point(contour):
+        x_mean = np.mean(contour[:, 0])
+        y_mean = np.mean(contour[:, 1])
+        return np.array([x_mean, y_mean])
+
+    def countour_to_points(contours):
+        xy_means = np.zeros([len(contours), 2])
+        for num, contour in enumerate(contours):
+            xy_means[num] = contour_to_point(contour)
+        return xy_means
+
+    def contours(self, contours, color=None, plot_center=False): #plot_contours_points
         for contour in contours:
             x_corr = contour[:, 0]
             y_corr = contour[:, 1]
             plt.plot(x_corr, y_corr, color = color)
+        if plot_center:
+            xy_mean = contour_to_point(contour)
+            plt.plot(xy_mean[0], xy_mean[1], ".", color = color)
 
     def multi_contours(self, multi_contours, colors=["red", "green", "blue", "yellow", "purple", "orange", "cyan"]):
         plt.figure(figsize=(10, 10))
