@@ -1018,12 +1018,12 @@ class Vizualizer:
 
     def contours(self, contours, color=None, plot_center=False): #plot_contours_points
         for contour in contours:
-            x_corr = contour[:, 0]
-            y_corr = contour[:, 1]
+            y_corr = contour[:, 0]
+            x_corr = contour[:, 1]
             plt.plot(x_corr, y_corr, color = color)
             if plot_center:
                 xy_mean = self.contour_to_point(contour)
-                plt.plot(xy_mean[0], xy_mean[1], ".", color = color)
+                plt.plot(xy_mean[1], xy_mean[0], ".", color = color)
 
     def multi_contours(self, multi_contours, plot_center=False, colors=["red", "green", "blue", "yellow", "purple", "orange", "cyan"]):
         for contours, col in zip(multi_contours, colors):
@@ -1044,10 +1044,10 @@ class Vizualizer:
                 continue
             good_cell_contours = np.array(unit.contours)[unit.cell_geldrying==False]
             #shift contours
-            good_cell_contours = [good_cell_contour - unit.xy_shift for good_cell_contour in good_cell_contours] if shift else good_cell_contours
+            good_cell_contours = [good_cell_contour - unit.yx_shift for good_cell_contour in good_cell_contours] if shift else good_cell_contours
             plot_colors.append(col)
             plot_contours.append(good_cell_contours)
-            shift_label = f" {unit.xy_shift}" if shift else ""
+            shift_label = f" y: {unit.yx_shift[0]}  x: {unit.yx_shift[1]}" if shift else ""
             handles.append(Line2D([0], [0], color=col, linewidth=2, linestyle='-', label=f"MUnit: {unit_id}{shift_label}"))
         self.multi_contours(plot_contours, colors=plot_colors, plot_center=plot_center)
         plt.title(f"Contours for MUnits: {combination}")

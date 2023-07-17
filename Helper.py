@@ -204,11 +204,17 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
     if reset:
         if os.path.exists(fpath) and os.path.exists(fpath_new):
             os.remove(fpath)
-        os.rename(fpath_new, fpath)
+        if os.path.exists(fpath_new):
+            os.copyfile(fpath_new, fpath)
+        else:
+            print(f"{fname_new} not exists")
     else:
         if not os.path.exists(fpath_new):
             if os.path.exists(fpath):
                 os.rename(fpath, fpath_new)
+        else:
+            if os.path.exists(fpath):
+                os.remove(fpath)
 
 #reset files S2P files to original ones
 def reset_s2p_files(data_path):
@@ -218,6 +224,15 @@ def reset_s2p_files(data_path):
     file_exist_rename(data_path, "ops.npy", 'ops_old.npy', reset=True)
     file_exist_rename(data_path, "spks.npy", 'spks_old.npy', reset=True)
     file_exist_rename(data_path, "stat.npy", 'stat_old.npy', reset=True)
+
+def backup_s2p_files(data_path):
+    backup_path = os.path.join(data_path, "backup")
+    dir_exist_create(backup_path)
+    for fname in ["F.npy", "Fneu.npy", "iscell.npy", "ops.npy", "spks.npy", "stat.npy"]:
+        fpath = os.path.join(data_path, fname)
+        fpath_backup = os.path.join(backup_path, fname)
+        if not os.path.exists(fpath):
+            os.copyfile(fpath, fpath_backup)
 
 def del_present_file(directory):
     """
