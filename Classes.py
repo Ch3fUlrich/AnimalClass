@@ -537,7 +537,7 @@ class Session:
             'allow_overlap': False,  #extract signals from pixels which belong to two ROIs. By default, any pixels which belong to two ROIs (overlapping pixels) are excluded from the computation of the ROI trace.
             'delete_bin': False,    # delete binary files afterwards
             'keep_movie_raw': True, # keep the binary file of the non-registered frames
-            'reg_tif': True,        # write the registered binary to tiff files
+            #'reg_tif': True,        # write the registered binary to tiff files
             'move_bin': True,       # If True and ops['fast_disk'] is different from ops[save_disk], the created binary file is moved to ops['save_disk']
             'save_disk': os.path.join(self.session_dir, save_folder) # Move the bin files to this location afterwards
             #'combined': False      # combine results across planes in separate folder “combined” at end of processing.
@@ -1042,7 +1042,7 @@ class Vizualizer:
         for (unit_id, unit), col in zip(units.items(), colors):
             if unit_id not in combination:
                 continue
-            good_cell_contours = np.array(unit.contours)[unit.cell_geldrying==False]
+            good_cell_contours = np.array(unit.contours)[unit.cell_geldrying==False] if len(unit.cell_geldrying)==len(unit.contours) else np.array(unit.contours)
             #shift contours
             good_cell_contours = [good_cell_contour - unit.yx_shift for good_cell_contour in good_cell_contours] if shift else good_cell_contours
             plot_colors.append(col)

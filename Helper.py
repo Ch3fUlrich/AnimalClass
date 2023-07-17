@@ -34,6 +34,8 @@ from tqdm import tqdm
 # interact with system
 import os
 import sys
+import shutil
+
 
 # statistics
 import scipy
@@ -205,7 +207,7 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
         if os.path.exists(fpath) and os.path.exists(fpath_new):
             os.remove(fpath)
         if os.path.exists(fpath_new):
-            os.copyfile(fpath_new, fpath)
+            shutil.copyfile(fpath_new, fpath)
         else:
             print(f"{fname_new} not exists")
     else:
@@ -218,6 +220,7 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
 
 #reset files S2P files to original ones
 def reset_s2p_files(data_path):
+    data_path = os.path.join(data_path, "plane0")
     file_exist_rename(data_path, "F.npy", 'F_old.npy', reset=True)
     file_exist_rename(data_path, "Fneu.npy", 'Fneu_old.npy', reset=True)
     file_exist_rename(data_path, "iscell.npy", 'iscell_old.npy', reset=True)
@@ -226,13 +229,14 @@ def reset_s2p_files(data_path):
     file_exist_rename(data_path, "stat.npy", 'stat_old.npy', reset=True)
 
 def backup_s2p_files(data_path):
+    data_path = os.path.join(data_path, "plane0")
     backup_path = os.path.join(data_path, "backup")
     dir_exist_create(backup_path)
-    for fname in ["F.npy", "Fneu.npy", "iscell.npy", "ops.npy", "spks.npy", "stat.npy"]:
+    for fname in ["F.npy", "Fneu.npy", "iscell.npy", "ops.npy", "spks.npy", "stat.npy", "cell_drying.npy"]:
         fpath = os.path.join(data_path, fname)
         fpath_backup = os.path.join(backup_path, fname)
-        if not os.path.exists(fpath):
-            os.copyfile(fpath, fpath_backup)
+        if not os.path.exists(fpath_backup) and os.path.exists(fpath):
+            shutil.copyfile(fpath, fpath_backup)
 
 def del_present_file(directory):
     """
