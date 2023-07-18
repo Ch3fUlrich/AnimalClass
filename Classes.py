@@ -818,12 +818,12 @@ class Vizualizer:
         num_frames = 30*seconds
         x_pos = np.arange(0, len(fluorescence), num_frames)
         x_time = [int(frame/num_frames)*seconds for frame in range(len(fluorescence)) if frame%num_frames==0] 
-        num_written_labels = round(len(x_time)/100)
+        num_written_labels = round(len(x_time)/200)
         x_labels = [time if time%num_written_labels==0 else "" for time in x_time]
         plt.xticks(x_pos, x_labels, rotation=40, fontsize=8)
         
         plt.title(title+f"{file_name}")
-        plt.xlabel(xlabel+f"({fps} FPS)")
+        plt.xlabel(xlabel+f"seconds)")
         plt.ylabel(ylabel)
         file_title = title.replace(" ", "_")
 
