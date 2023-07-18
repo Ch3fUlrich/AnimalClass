@@ -170,45 +170,63 @@ class Analyzer:
                 bad = True
                 reason = "num bad"
                 break
-
         return bad, reason+" c: "+str(bad_mean_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
 
-    def all_stds_good(self, mean_stds, std_threshold = 2):
+    def cont_mode_increase(self, mode_stds, num_bad_modes = 30*60*1.5, 
+                       num_not_bad_modes=30*60*0.9):
         """
-        Check if the standard deviation of the data are within a certain threshold.
+        Check if the mean of the data increases for 1.5 minutes without a 0.7 minutes break (30fps)
 
         Args:
             data (numpy.ndarray): A 2D numpy array containing mean and standard deviation values.
 
         Returns:
-            bool: True if the standard deviation values are within the threshold, False otherwise.
+            bool: True if the mean values are within the threshold, False otherwise.
         """
         bad = False
-        # Check if the cell is active
-        if np.nanmean(mean_stds[:, 1]) < Analyzer.correct_std/4: 
-            bad = True
-            return bad
-        ## Check if cells are to noisy
-        for mean_std in mean_stds:
-            std = mean_std[1]
-            if math.isnan(std) or abs(std) > Analyzer.correct_std + std_threshold:
-                bad = True
-                break
-        return bad
+        reason = ""
+        bad_mode_counter = 0
+        maybe_not_bad_counter = 0
+        old_mode = mode_stds[0][0]
+        min_std = np.min(mode_stds[:, 1])
 
-    def geldrying(self, mean_stds, bad_minutes=1.5, not_bad_minutes=0.9):
+        for pos, mode_std in enumerate(mode_stds[1:]):
+            mode = mode_std[0]
+            mode_diff = mode-old_mode
+            mode_diff -=  min_std/(1/(abs(mode_diff/mode)))
+            old_mode = mode
+            if math.isnan(mode):
+                bad = True
+                reason = "nan"
+                break
+            if mode_diff > 0: 
+                bad_mode_counter += 1
+            else:
+                maybe_not_bad_counter += 1
+                if maybe_not_bad_counter > num_not_bad_modes:
+                    bad_mode_counter = 0
+                    maybe_not_bad_counter = 0
+
+            if bad_mode_counter >= num_bad_modes: # 1 minute wide window mode to high for 1 minute  
+                bad = True
+                reason = "num bad"
+                break
+        return bad, reason+" c: "+str(bad_mode_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
+
+    def geldrying(self, m_stds, bad_minutes=1.5, not_bad_minutes=0.9, mode="mean"):
         """
         Geldrying detection
-        Check if the mean and standard deviation (std not used!!!!!!) of the data are within a certain threshold.
-
         Args:
-            data (numpy.ndarray): A 2D numpy array containing mean and standard deviation values.
+            data (numpy.ndarray): A 2D numpy array containing mean/mode and standard deviation values.
 
         Returns:
             bool: True if the standard deviation values are within the threshold, False otherwise.
         """
         #TODO: improve good bad detection currently only for geldrying used
-        bad, reason = self.cont_mean_increase(mean_stds, num_bad_means = 30*60*bad_minutes, num_not_bad_means=30*60*not_bad_minutes) 
+        if mode == "mean":
+            bad, reason = self.cont_mean_increase(m_stds, num_bad_means = 30*60*bad_minutes, num_not_bad_means=30*60*not_bad_minutes) 
+        elif mode == "mode":
+            bad, reason = self.cont_mode_increase(m_stds, num_bad_modes = 30*60*bad_minutes, num_not_bad_modes=30*60*not_bad_minutes) 
         return bad, reason
     
     def sliding_window(self, arr, window_size):
@@ -234,7 +252,7 @@ class Analyzer:
             window = np.append(window[1:], arr[i])
             yield window
 
-    def sliding_mode(self, arr, window_size):
+    def sliding_mode_std(self, arr, window_size):
         """
         Compute the mode for each sliding window of size k over an array.
 
@@ -245,11 +263,12 @@ class Analyzer:
         Returns:
             list: A list of mode values for each sliding window.
         """
-        modes = []
-        for window in self.sliding_window(arr, window_size):
-            mode, count = scipy.stats.mode(window)
-            modes.append(mode[0])
-        return modes
+        num_windows = len(arr)-window_size+1
+        mode_stds = np.zeros([num_windows, 2])
+        for num, window in enumerate(self.sliding_window(arr, window_size)):
+            mode_stds[num, 0], count = scipy.stats.mode(window)
+            mode_stds[num, 1] = np.std(window)
+        return mode_stds
 
     def sliding_mean_std(self, arr, window_size):
         """
@@ -269,7 +288,7 @@ class Analyzer:
             mean_stds[num, 1] = np.std(window)
         return np.array(mean_stds)
 
-    def get_all_sliding_cell_F_mean_stds(self, fluoresence, window_size=30*60, parallel=True, processes=16):
+    def get_all_sliding_cell_stat(self, fluoresence, window_size=30*60, parallel=True, processes=16, mode="mean"):
         """
         Calculate the mean and standard deviation of sliding window (default: 30*60 = 1 sec.) fluorescence for each cell.
 
@@ -281,12 +300,16 @@ class Analyzer:
             standard deviation [:,:,1] of fluorescence for each cell.
 
         Example:
-            means = np.array(sliding_cell_F_mean_stds)[:,:,0]
-            stds = np.array(sliding_cell_F_mean_stds)[:,:,1]
+            means = np.array(get_all_sliding_cell_stat)[:,:,0]
+            stds = np.array(get_all_sliding_cell_stat)[:,:,1]
         """
-        sliding_cell_F_mean_stds = parmap.map(self.sliding_mean_std, fluoresence, window_size, pm_processes=processes, 
-                                pm_pbar=True, pm_parallel=parallel)
-        return sliding_cell_F_mean_stds
+        if mode=="mean":
+            get_all_sliding_cell_stat = parmap.map(self.sliding_mean_std, fluoresence, window_size, pm_processes=processes, 
+                                    pm_pbar=True, pm_parallel=parallel)
+        elif mode=="mode":
+            get_all_sliding_cell_stat = parmap.map(self.sliding_mode_std, fluoresence, window_size, pm_processes=processes, 
+                                    pm_pbar=True, pm_parallel=parallel)
+        return get_all_sliding_cell_stat
 
 class Session:
     def __init__(self, animal_id, session_id, generate=False, regenerate=False, units="all", delete=False, age=None, session_date=None) -> None:
@@ -1069,10 +1092,10 @@ class Vizualizer:
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
 
 
-        if isinstance(unit.dedup_cell_ids, np.ndarray):
-            cell_geldrying = cell_geldrying[unit.dedup_cell_ids]
-            fluoresence = fluoresence[unit.dedup_cell_ids]
-            
+        #if isinstance(unit.dedup_cell_ids, np.ndarray):
+        #    cell_geldrying = cell_geldrying[unit.dedup_cell_ids]
+        #    fluoresence = fluoresence[unit.dedup_cell_ids]
+
         cell_geldrying = cell_geldrying[starting:]
         fluoresence = fluoresence[starting:]
         cell_geldrying_batches = split_array(cell_geldrying, batch_size)
@@ -1142,7 +1165,7 @@ class Unit:
         self.dedup_cell_ids = None
         if deduplicate:
             self.deduplicate()
-        self.sliding_cell_F_mean_stds = None
+        self.get_all_sliding_cell_stat = None
         self.fluoresence = butter_lowpass_filter(self.c.F_filtered, cutoff=0.5, fs=30, order=2)
         self.cell_geldrying = None
         self.load_geldrying()
@@ -1179,19 +1202,19 @@ class Unit:
         footprints = c.footprints
         return c, contours, footprints
 
-    def get_geldrying_cells(self):
+    def get_geldrying_cells(self, mode="mean"):
         #detect gel_drying with sliding mean change. Too long increase of mean = bad
         #returns boolean list of cells, where True is a cell labeled as drying 
         if type(self.cell_geldrying) is np.ndarray:
             return self.cell_geldrying
-        if type(self.sliding_cell_F_mean_stds) is not np.ndarray:
+        if type(self.get_all_sliding_cell_stat) is not np.ndarray:
             anz = Analyzer()
-            self.sliding_cell_F_mean_stds = anz.get_all_sliding_cell_F_mean_stds(fluoresence=self.fluoresence)
+            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(fluoresence=self.fluoresence, mode=mode)
         anz = Analyzer()
-        self.cell_geldrying = np.full([len(self.sliding_cell_F_mean_stds)], True)
-        self.cell_geldrying_reasons = [""]*len(self.sliding_cell_F_mean_stds)
-        for i, mean_stds in enumerate(self.sliding_cell_F_mean_stds):
-            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds) 
+        self.cell_geldrying = np.full([len(self.get_all_sliding_cell_stat)], True)
+        self.cell_geldrying_reasons = [""]*len(self.get_all_sliding_cell_stat)
+        for i, mean_stds in enumerate(self.get_all_sliding_cell_stat):
+            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds, mode=mode) 
         self.geldrying_to_npy()
         return self.cell_geldrying
     
