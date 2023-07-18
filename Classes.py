@@ -1011,8 +1011,8 @@ class Vizualizer:
         plt.figure(figsize=(10,10))
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
         contours = unit.contours
-        plt.title(f"{len(contours)} contours {title}")
         self.contours(contours)
+        plt.title(f"{len(contours)} contours {title}")
         plt.savefig(os.path.join(self.save_dir, f"Conours_{title}.png"), dpi=300)
 
     def contour_to_point(self, contour):
@@ -1028,6 +1028,7 @@ class Vizualizer:
             if plot_center:
                 xy_mean = self.contour_to_point(contour)
                 plt.plot(xy_mean[1], xy_mean[0], ".", color = color)
+        plt.title(f"{len(contours)} Contours")
 
     def multi_contours(self, multi_contours, plot_center=False, colors=["red", "green", "blue", "yellow", "purple", "orange", "cyan"]):
         for contours, col in zip(multi_contours, colors):
@@ -1063,11 +1064,17 @@ class Vizualizer:
     def unit_fluorescence_good_bad(self, unit, batch_size=10, starting=0, interactive=False):
         
         cell_geldrying = unit.get_geldrying_cells()
+        fluoresence = unit.fluoresence
 
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
 
+
+        if isinstance(unit.dedup_cell_ids, np.ndarray):
+            cell_geldrying = cell_geldrying[unit.dedup_cell_ids]
+            fluoresence = fluoresence[unit.dedup_cell_ids]
+            
         cell_geldrying = cell_geldrying[starting:]
-        fluoresence = unit.fluoresence[starting:]
+        fluoresence = fluoresence[starting:]
         cell_geldrying_batches = split_array(cell_geldrying, batch_size)
         fluoresence_batches = split_array(fluoresence, batch_size)
         num_batches = len(fluoresence_batches)
@@ -1132,10 +1139,9 @@ class Unit:
         self.unit_id = unit_id
         #self.dedup_cell_ids = None
         self.c, self.contours, self.footprints = self.run_cabin_corr()
-        self.deduplicated = False
+        self.dedup_cell_ids = None
         if deduplicate:
             self.deduplicate()
-            self.deduplicated = True
         self.sliding_cell_F_mean_stds = None
         self.fluoresence = butter_lowpass_filter(self.c.F_filtered, cutoff=0.5, fs=30, order=2)
         self.cell_geldrying = None
@@ -1220,7 +1226,8 @@ class Unit:
             b_loader = Binary_loader()
             frames = b_loader.load_binary_frames(self.suite2p_folder_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
             frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
-        return [np.mean(ymax), np.mean(xmax)]
+        self.yx_shift = [np.mean(ymax), np.mean(xmax)]
+        return self.yx_shift
 
     def deduplicate(self):
         # Deduplicate cells
@@ -1246,7 +1253,7 @@ class Unit:
 
         fname = "good_ids_post_deduplication_upphase.npy"
         fpath = os.path.join(self.suite2p_folder_path, "plane0", "correlations", "all_states", "threshold", fname)
-        dedup_cell_ids = np.load(fpath, allow_pickle=True)
+        self.dedup_cell_ids = np.load(fpath, allow_pickle=True)
 
 class Binary_loader:
     def load_binary(self, data_path, n_frames_to_be_acquired, fname="data.bin", image_x_size=512, image_y_size=512):
