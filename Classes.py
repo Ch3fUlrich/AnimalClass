@@ -22,6 +22,7 @@ import re
 # Suite2p for TIFF file analysis
 import suite2p
 from suite2p.run_s2p import run_s2p, default_ops
+from suite2p.registration import register
 
 # Used for Popups
 import tkinter as tk
@@ -35,6 +36,8 @@ from tqdm import tqdm
 # interact with system
 import os
 import sys
+import copy
+import shutil
 
 # statistics
 import scipy
@@ -54,6 +57,7 @@ import pathlib
 #sys.path.append(module_path)
 from Helper import *
 from manifolds.donlabtools.utils.calcium import calcium
+from manifolds.donlabtools.utils.calcium.calcium import *
 def load_all(root_dir, animal_ids=["all"], generate=False, regenerate=False, units="single", delete=False):
     """
     Loads animal data from the specified root directory for the given animal IDs.
@@ -1004,7 +1008,7 @@ class Vizualizer:
 
     def unit_contours(self, unit):
         # Plot Contours
-        plt.figure()
+        plt.figure(figsize=(10,10))
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
         contours = unit.contours
         plt.title(f"{len(contours)} contours {title}")
@@ -1111,25 +1115,41 @@ class Vizualizer:
             if interactive:
                 mpld3.save_html(fig, os.path.join(self.save_dir, "html", f"F_slide_{title}_{batch_title}.html"))
 
+    def binary_frames(frames, num_images_x=2):
+        num_frames = frames.shape[0]
+        fig, ax = plt.subplots(round(num_frames/num_images_x), num_images_x, figsize =(15, 15))
+        for i, image in enumerate(frames):
+            x = int(i/num_images_x)
+            y = i%num_images_x
+            ax[x, y].imshow(image)
+        plt.show()
 class Unit:
-    def __init__(self, suite2p_folder_path, session, unit_id):
+    def __init__(self, suite2p_folder_path, session, unit_id, deduplicate=False):
         self.suite2p_folder_path = suite2p_folder_path
         self.animal_id = session.animal_id
         self.session_id = session.session_id
         self.session_dir = session.session_dir
         self.unit_id = unit_id
+        #self.dedup_cell_ids = None
         self.c, self.contours, self.footprints = self.run_cabin_corr()
+        self.deduplicated = False
+        if deduplicate:
+            self.deduplicate()
+            self.deduplicated = True
         self.sliding_cell_F_mean_stds = None
         self.fluoresence = butter_lowpass_filter(self.c.F_filtered, cutoff=0.5, fs=30, order=2)
         self.cell_geldrying = None
         self.load_geldrying()
         self.cell_geldrying_reasons = None
+        self.ops = self.define_ops()
+        self.refImg = None
         self.yx_shift = [0, 0]
+        
 
-    def run_cabin_corr(self):
+    def run_cabin_corr(self, deduplicate=False):
         #Merging cell footprints
         c = calcium.Calcium()
-        c.root_dir = root_dir
+        c.root_dir = Animal.root_dir
         c.data_dir = os.path.join(self.suite2p_folder_path, "plane0")
         print(c.data_dir)
         c.animal_id = self.animal_id 
@@ -1182,3 +1202,142 @@ class Unit:
         except:
             self.cell_geldrying = None
         return self.cell_geldrying
+    
+    def get_reference_image(self, n_frames_to_be_acquired=1000, image_x_size=512, image_y_size=512):
+        if self.refImg is None:
+            b_loader = Binary_loader()
+            frames = b_loader.load_binary_frames(self.suite2p_folder_path, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
+            self.refImg = register.compute_reference(frames, ops=self.ops)
+        return self.refImg
+    
+    def define_ops(self):
+        ops = register.default_ops()
+        ops["nonrigid"] = False
+        return ops
+    
+    def calc_yx_shift(self, refAndMasks, num_align_frames=1000, image_x_size=512, image_y_size=512):
+        if self.yx_shift == [0, 0]:
+            b_loader = Binary_loader()
+            frames = b_loader.load_binary_frames(self.suite2p_folder_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
+            frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
+        return [np.mean(ymax), np.mean(xmax)]
+
+    def deduplicate(self):
+        # Deduplicate cells
+        self.c.subselect_moving_only = False
+        self.c.subselect_quiescent_only = False
+        self.c.zscore = False
+        self.c.shuffle_data = False
+        self.c.deduplication_use_correlations = False
+        self.c.correlation_datatype = 'upphase'      # filtered vs. upphase
+
+        self.c.deduplication_method = 'overlap'      # 'overlap'; 'centre_distance'
+        self.c.corr_min_distance = 8                 # min distance for centre_distance method - NOT USED HERE
+        self.c.corr_max_percent_overlap = 0.25       # max overlap for overlap method
+        self.c.corr_threshold = 0.3                  # max correlation allowed for high overlap
+        self.c.zscore_threshold = 3.0                # zscore threshold for high overlap
+
+        self.c.corr_delete_method = 'highest_connected_no_corr' #'highest_connected', lowest_snr', 'highest_connected_no_corr' <- this skips correlation check
+        self.c.recompute_deduplication = True
+        self.c.recompute_overlap = False    #this is not required to be redone, it's just once
+        self.c.make_correlation_dirs()
+        dir_exist_create(os.path.join(self.suite2p_folder_path, "plane0", "figures"))
+        self.c.remove_duplicate_neurons()
+
+        fname = "good_ids_post_deduplication_upphase.npy"
+        fpath = os.path.join(self.suite2p_folder_path, "plane0", "correlations", "all_states", "threshold", fname)
+        dedup_cell_ids = np.load(fpath, allow_pickle=True)
+
+class Binary_loader:
+    def load_binary(self, data_path, n_frames_to_be_acquired, fname="data.bin", image_x_size=512, image_y_size=512):
+        # load binary file from suite2p_folder from unit
+        image_size=image_x_size*image_y_size
+        fpath = os.path.join(data_path, "plane0", fname)
+        binary = np.memmap(fpath,
+                            dtype='uint16',
+                            mode='r',
+                            shape=n_frames_to_be_acquired*image_size)
+        return binary
+    
+    def get_binary_frames(self, binary, n_frames_to_be_acquired, image_x_size=512, image_y_size=512):
+        # load binary frames from binary
+        image_size = image_x_size * image_y_size
+        num_frames = round(len(binary)/image_size)
+        n_frames_to_be_acquired = n_frames_to_be_acquired if n_frames_to_be_acquired < num_frames else num_frames
+        frames = np.reshape(binary, [n_frames_to_be_acquired, image_x_size, image_y_size])
+        return frames
+    
+    def load_binary_frames(self, data_path, n_frames_to_be_acquired, fname="data.bin", image_x_size=512, image_y_size=512):
+        binary = self.load_binary(data_path, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
+        binary_frames = self.get_binary_frames(binary, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
+        return binary_frames.copy()
+    
+class Merger:
+    def shift_stat_cells(self, stat, yx_shift):
+        # stat files first value ist y-value second is x-value
+        new_stat = copy.deepcopy(stat)
+
+        for num, cell in enumerate(new_stat):
+            y_shifted = []
+            for y in cell["ypix"]:
+                y_shifted.append(round(y-yx_shift[0]))
+            cell["ypix"] = np.array(y_shifted)
+            
+            x_shifted = []
+            for x in cell["xpix"]:
+                x_shifted.append(round(x-yx_shift[1]))
+            cell["xpix"] = np.array(x_shifted)
+
+            #center of cell
+            med = cell["med"]
+            med_shifted = [round(med[0]-yx_shift[0]), round(med[1]-yx_shift[1])]
+            cell["med"] = med_shifted
+
+            new_stat[num] = cell
+        return new_stat
+
+    # Merge Stat files
+    def merge_stat(self, units, best_unit):
+        merged_stat = best_unit.c.stat
+        for unit_id, unit in units.items():
+            if unit_id == best_unit.unit_id:
+                continue
+            shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift)
+            merged_stat = np.concatenate([merged_stat, shifted_unit_stat])
+        return merged_stat
+    
+    def merge_s2p_files(self, units, stat, ops):
+        path = units[list(units.keys())[0]].suite2p_folder_path
+        path = os.path.join(path, "plane0")
+        merged_F = np.load(os.path.join(path, "F.npy"))
+        merged_Fneu = np.load(os.path.join(path,   "Fneu.npy"))
+        merged_spks = np.load(os.path.join(path,   "spks.npy"))
+        merged_iscell = np.load(os.path.join(path, "iscell.npy"))
+        for unit_id, unit in units.items():
+            if unit_id == list(units.keys())[0]:
+                continue
+            path = unit.suite2p_folder_path
+            path = os.path.join(path, "plane0")
+            F =  np.load(os.path.join(path, "F.npy"))
+            merged_F = np.concatenate([merged_F, F], axis=1)
+            Fneu =  np.load(os.path.join(path, "Fneu.npy"))
+            merged_Fneu = np.concatenate([merged_Fneu, Fneu], axis=1)
+            spks =  np.load(os.path.join(path, "spks.npy"))
+            merged_spks = np.concatenate([merged_spks, spks], axis=1)
+            is_cell = np.load(os.path.join(path, "iscell.npy"))
+            merged_iscell *= is_cell
+        
+        root = path.split("suite2p")[0]
+        merged_s2p_path = os.path.join(root, "suite2p_merged")
+        dir_exist_create(merged_s2p_path)
+        merged_s2p_path = os.path.join(root, "suite2p_merged", "plane0")
+        dir_exist_create(merged_s2p_path)
+
+        np.save(os.path.join(merged_s2p_path, "F.npy"), merged_F)
+        np.save(os.path.join(merged_s2p_path, "Fneu.npy"), merged_Fneu)
+        np.save(os.path.join(merged_s2p_path, "spks.npy"), merged_spks)
+        np.save(os.path.join(merged_s2p_path, "iscell.npy"), merged_iscell)
+
+        np.save(os.path.join(merged_s2p_path, "stat.npy"), stat)
+        np.save(os.path.join(merged_s2p_path, "ops.npy"), ops)
+        return merged_F, merged_Fneu, merged_spks, merged_iscell

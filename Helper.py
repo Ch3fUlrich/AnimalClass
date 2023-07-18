@@ -278,13 +278,13 @@ def reset_s2p_files(data_path):
     file_exist_rename(data_path, "spks.npy", 'spks_old.npy', reset=True)
     file_exist_rename(data_path, "stat.npy", 'stat_old.npy', reset=True)
 
-def backup_s2p_files(data_path):
+def backup_s2p_files(data_path, note="backup"):
     data_path = os.path.join(data_path, "plane0")
     backup_path = os.path.join(data_path, "backup")
     dir_exist_create(backup_path)
-    for fname in ["F.npy", "Fneu.npy", "iscell.npy", "ops.npy", "spks.npy", "stat.npy", "cell_drying.npy"]:
+    for fname in ["F.npy", "Fneu.npy", "iscell.npy", "ops.npy", "spks.npy", "stat.npy", "cell_drying.npy", "binarized_traces.npz"]:
         fpath = os.path.join(data_path, fname)
-        fpath_backup = os.path.join(backup_path, fname)
+        fpath_backup = os.path.join(backup_path, note+"_"+fname)
         if not os.path.exists(fpath_backup) and os.path.exists(fpath):
             shutil.copyfile(fpath, fpath_backup)
 
