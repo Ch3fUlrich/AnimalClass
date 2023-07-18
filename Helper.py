@@ -65,6 +65,56 @@ def timer(func):
         return result
     return wrapper
 
+def update_s2p_files(data_path, stat):
+    # Read in existing data from a suite2p run. We will use the "ops" and registered binary.
+    ops = np.load(os.path.join(data_path, "ops.npy"), allow_pickle=True).item()
+    Lx = ops['Lx']
+    Ly = ops['Ly']
+    f_reg = suite2p.io.BinaryRWFile(Ly, Lx, os.path.join(data_path, "data.bin"))
+
+    """# Using these inputs, we will first mimic the stat array made by suite2p
+    masks = cellpose_masks['masks']
+    stat = []
+    for u_ix, u in enumerate(np.unique(masks)[1:]):
+        ypix,xpix = np.nonzero(masks==u)
+        npix = len(ypix)
+        stat.append({'ypix': ypix, 'xpix': xpix, 'npix': npix, 'lam': np.ones(npix, np.float32), 'med': [np.mean(ypix), np.mean(xpix)]})
+    stat = np.array(stat)
+    stat = roi_stats(stat, Ly, Lx)  # This function fills in remaining roi properties to make it compatible with the rest of the suite2p pipeline/GUI
+    """
+    # Feed these values into the wrapper functions
+    stat_after_extraction, F, Fneu, F_chan2, Fneu_chan2 = suite2p.extraction_wrapper(stat, f_reg, f_reg_chan2 = None, ops=ops)
+    # Do cell classification
+    classfile = suite2p.classification.builtin_classfile
+    iscell = suite2p.classify(stat=stat_after_extraction, classfile=classfile)
+    # Apply preprocessing step for deconvolution
+    dF = F.copy() - ops['neucoeff']*Fneu
+    dF = suite2p.extraction.preprocess(
+            F=dF,
+            baseline=ops['baseline'],
+            win_baseline=ops['win_baseline'],
+            sig_baseline=ops['sig_baseline'],
+            fs=ops['fs'],
+            prctile_baseline=ops['prctile_baseline']
+        )
+    # Identify spikes
+    spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
+
+    # Overwrite files in wd folder (consider backing up this folder first)
+    file_exist_rename(data_path, "F.npy", 'F_old.npy')
+    file_exist_rename(data_path, "Fneu.npy", 'Fneu_old.npy')
+    file_exist_rename(data_path, "iscell.npy", 'iscell_old.npy')
+    file_exist_rename(data_path, "ops.npy", 'ops_old.npy')
+    file_exist_rename(data_path, "spks.npy", 'spks_old.npy')
+    file_exist_rename(data_path, "stat.npy", 'stat_old.npy')
+
+    np.save(os.path.join(data_path, 'F.npy'), F)
+    np.save(os.path.join(data_path, 'Fneu.npy'), Fneu)
+    np.save(os.path.join(data_path, 'iscell.npy'), iscell)
+    np.save(os.path.join(data_path, 'ops.npy'), ops)
+    np.save(os.path.join(data_path, 'spks.npy'), spks)
+    np.save(os.path.join(data_path, 'stat.npy'), stat)
+
 def filter_animals(animal_dict, filters = []):
     """
     Filters the animal dictionary based on the specified filters.
@@ -204,9 +254,9 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
     if not os.path.exists(fpath):
         print(f"{fname} not exists")
     if reset:
-        if os.path.exists(fpath) and os.path.exists(fpath_new):
-            os.remove(fpath)
         if os.path.exists(fpath_new):
+            if os.path.exists(fpath):
+                os.remove(fpath)
             shutil.copyfile(fpath_new, fpath)
         else:
             print(f"{fname_new} not exists")

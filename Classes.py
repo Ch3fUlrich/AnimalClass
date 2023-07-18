@@ -1110,3 +1110,75 @@ class Vizualizer:
             
             if interactive:
                 mpld3.save_html(fig, os.path.join(self.save_dir, "html", f"F_slide_{title}_{batch_title}.html"))
+
+class Unit:
+    def __init__(self, suite2p_folder_path, session, unit_id):
+        self.suite2p_folder_path = suite2p_folder_path
+        self.animal_id = session.animal_id
+        self.session_id = session.session_id
+        self.session_dir = session.session_dir
+        self.unit_id = unit_id
+        self.c, self.contours, self.footprints = self.run_cabin_corr()
+        self.sliding_cell_F_mean_stds = None
+        self.fluoresence = butter_lowpass_filter(self.c.F_filtered, cutoff=0.5, fs=30, order=2)
+        self.cell_geldrying = None
+        self.load_geldrying()
+        self.cell_geldrying_reasons = None
+        self.yx_shift = [0, 0]
+
+    def run_cabin_corr(self):
+        #Merging cell footprints
+        c = calcium.Calcium()
+        c.root_dir = root_dir
+        c.data_dir = os.path.join(self.suite2p_folder_path, "plane0")
+        print(c.data_dir)
+        c.animal_id = self.animal_id 
+        c.session = self.session_id
+        c.detrend_model_order = 1
+        c.recompute_binarization = False
+        c.remove_ends = False
+        c.detrend_filter_threshold = 0.001
+        c.mode_window = 30*30
+        c.percentile_threshold = 0.000001
+        c.dff_min = 0.02
+
+        #
+        c.load_suite2p()
+
+        c.load_binarization()
+
+        # getting contours and footprints
+        c.load_footprints()
+        contours = c.contours
+        footprints = c.footprints
+        return c, contours, footprints
+
+    def get_geldrying_cells(self):
+        #detect gel_drying with sliding mean change. Too long increase of mean = bad
+        #returns boolean list of cells, where True is a cell labeled as drying 
+        if type(self.cell_geldrying) is np.ndarray:
+            return self.cell_geldrying
+        if type(self.sliding_cell_F_mean_stds) is not np.ndarray:
+            anz = Analyzer()
+            self.sliding_cell_F_mean_stds = anz.get_all_sliding_cell_F_mean_stds(fluoresence=self.fluoresence)
+        anz = Analyzer()
+        self.cell_geldrying = np.full([len(self.sliding_cell_F_mean_stds)], True)
+        self.cell_geldrying_reasons = [""]*len(self.sliding_cell_F_mean_stds)
+        for i, mean_stds in enumerate(self.sliding_cell_F_mean_stds):
+            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds) 
+        self.geldrying_to_npy()
+        return self.cell_geldrying
+    
+    def geldrying_to_npy(self):
+        fname = "cell_drying.npy"
+        fpath = os.path.join(self.suite2p_folder_path, "plane0", fname)
+        np.save(fpath, self.cell_geldrying)
+
+    def load_geldrying(self):
+        fname = "cell_drying.npy"
+        fpath = os.path.join(self.suite2p_folder_path, "plane0", fname)
+        try:
+            self.cell_geldrying = np.load(fpath)
+        except:
+            self.cell_geldrying = None
+        return self.cell_geldrying
