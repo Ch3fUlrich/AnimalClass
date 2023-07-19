@@ -172,10 +172,10 @@ class Analyzer:
                 break
         return bad, reason+" c: "+str(bad_mean_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
 
-    def cont_mode_increase(self, mode_stds, num_bad_modes = 30*60*1.5, 
-                       num_not_bad_modes=30*60*0.9):
+    def cont_mode_increase(self, mode_stds, num_bad_modes = 30*60*1, 
+                       num_not_bad_modes=30*60*0.45):
         """
-        Check if the mean of the data increases for 1.5 minutes without a 0.7 minutes break (30fps)
+        Check if the mode of the data increases for 1.5 minutes without a 0.7 minutes break (30fps)
 
         Args:
             data (numpy.ndarray): A 2D numpy array containing mean and standard deviation values.
@@ -183,6 +183,7 @@ class Analyzer:
         Returns:
             bool: True if the mean values are within the threshold, False otherwise.
         """
+        print("Warning: this method is not finetuned")
         bad = False
         reason = ""
         bad_mode_counter = 0
@@ -229,7 +230,7 @@ class Analyzer:
             bad, reason = self.cont_mode_increase(m_stds, num_bad_modes = 30*60*bad_minutes, num_not_bad_modes=30*60*not_bad_minutes) 
         return bad, reason
     
-    def sliding_window(self, arr, window_size):
+    def sliding_window(self, arr, window_size, step_size=1):
         """
         Generate sliding windows of size window_size over an array.
 
@@ -248,8 +249,8 @@ class Analyzer:
             return None
         window = arr[:window_size]
         yield window
-        for i in range(window_size, n):
-            window = np.append(window[1:], arr[i])
+        for i in range(window_size, n, step_size):
+            window = np.append(window[step_size:], arr[i])
             yield window
 
     def sliding_mode_std(self, arr, window_size):
