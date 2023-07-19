@@ -1089,17 +1089,17 @@ class Vizualizer:
         plt.savefig(os.path.join(self.save_dir, f"Contours_MUnits_{combination}{shift_label}.png"), dpi=300)
         plt.show()
 
-    def unit_fluorescence_good_bad(self, unit, batch_size=10, starting=0, interactive=False):
+    def unit_fluorescence_good_bad(self, unit, batch_size=10, starting=0, interactive=False, plot_duplicates=True):
         
         cell_geldrying = unit.get_geldrying_cells()
         fluoresence = unit.fluoresence
 
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
 
-
-        #if isinstance(unit.dedup_cell_ids, np.ndarray):
-        #    cell_geldrying = cell_geldrying[unit.dedup_cell_ids]
-        #    fluoresence = fluoresence[unit.dedup_cell_ids]
+        if not plot_duplicates:
+            if isinstance(unit.dedup_cell_ids, np.ndarray):
+                cell_geldrying = cell_geldrying[unit.dedup_cell_ids]
+                fluoresence = fluoresence[unit.dedup_cell_ids]
 
         cell_geldrying = cell_geldrying[starting:]
         fluoresence = fluoresence[starting:]
@@ -1173,7 +1173,7 @@ class Unit:
         if deduplicate:
             self.deduplicate()
         self.get_all_sliding_cell_stat = None
-        self.fluoresence = butter_lowpass_filter(self.c.F_filtered, cutoff=0.5, fs=30, order=2)
+        self.fluoresence = butter_lowpass_filter(self.c.dff, cutoff=0.5, fs=30, order=2)
         self.cell_geldrying = None
         self.load_geldrying()
         self.cell_geldrying_reasons = None
