@@ -85,7 +85,10 @@ def load_all(root_dir, animal_ids=["all"], generate=False, regenerate=False, uni
             animal = Animal(yaml_file_name)
             # Search for 2P Sessions
             for session in sessions:
-                animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
+                try:
+                    animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
+                except:
+                    print(f"no session data found for session {session} from {animal_id}")
             animals_dict[animal_id] = animal
     return animals_dict
 
@@ -354,8 +357,8 @@ class Session:
         session_parts_list = []
         if file_name == None:
             file_name = self.mesc_data_path
-        else:
-            session_parts_list = self.get_list_of_session_parts(file_name)
+
+        session_parts_list = self.get_list_of_session_parts(file_name)
         
         tiff_session_parts = []
         tiff_files_list = get_files(self.session_dir, ending="tiff")
@@ -458,6 +461,7 @@ class Session:
             else:
                 self.run_suite2p(regenerate=regenerate, units=units, delete=delete)
 
+        dir_exist_create(os.path.join(self.session_dir, "tif"))
         s2p_folder_paths = get_directories(os.path.join(self.session_dir, "tif"))
         for folder_name in s2p_folder_paths:
             self.s2p_folder_paths.append(os.path.join(self.session_dir, "tif", folder_name))
@@ -564,7 +568,7 @@ class Session:
             'tiff_list': tiff_file_names,
             'allow_overlap': False,  #extract signals from pixels which belong to two ROIs. By default, any pixels which belong to two ROIs (overlapping pixels) are excluded from the computation of the ROI trace.
             'delete_bin': False,    # delete binary files afterwards
-            'keep_movie_raw': True, # keep the binary file of the non-registered frames
+            'keep_movie_raw': False, # keep the binary file of the non-registered frames
             #'reg_tif': True,        # write the registered binary to tiff files
             'move_bin': True,       # If True and ops['fast_disk'] is different from ops[save_disk], the created binary file is moved to ops['save_disk']
             'save_disk': os.path.join(self.session_dir, save_folder) # Move the bin files to this location afterwards
@@ -1037,14 +1041,14 @@ class Vizualizer:
         contours = unit.contours
         self.contours(contours)
         plt.title(f"{len(contours)} contours {title}")
-        plt.savefig(os.path.join(self.save_dir, f"Conours_{title}.png"), dpi=300)
+        plt.savefig(os.path.join(self.save_dir, f"Contours_{title}.png"), dpi=300)
 
     def contour_to_point(self, contour):
         x_mean = np.mean(contour[:, 0])
         y_mean = np.mean(contour[:, 1])
         return np.array([x_mean, y_mean])
 
-    def contours(self, contours, color=None, plot_center=False): #plot_contours_points
+    def contours(self, contours, color=None, plot_center=False, comment=""): #plot_contours_points
         for contour in contours:
             y_corr = contour[:, 0]
             x_corr = contour[:, 1]
@@ -1052,7 +1056,7 @@ class Vizualizer:
             if plot_center:
                 xy_mean = self.contour_to_point(contour)
                 plt.plot(xy_mean[1], xy_mean[0], ".", color = color)
-        plt.title(f"{len(contours)} Contours")
+        plt.title(f"{len(contours)} Contours{comment}")
 
     def multi_contours(self, multi_contours, plot_center=False, colors=["red", "green", "blue", "yellow", "purple", "orange", "cyan"]):
         for contours, col in zip(multi_contours, colors):
@@ -1146,13 +1150,15 @@ class Vizualizer:
             if interactive:
                 mpld3.save_html(fig, os.path.join(self.save_dir, "html", f"F_slide_{title}_{batch_title}.html"))
 
-    def binary_frames(frames, num_images_x=2):
+    def binary_frames(self, frames, num_images_x=2):
         num_frames = frames.shape[0]
         fig, ax = plt.subplots(round(num_frames/num_images_x), num_images_x, figsize =(15, 15))
+        fig.suptitle(f"Binary Frames", fontsize=20)
         for i, image in enumerate(frames):
             x = int(i/num_images_x)
             y = i%num_images_x
             ax[x, y].imshow(image)
+            ax[x, y].invert_yaxis()
         plt.show()
 class Unit:
     def __init__(self, suite2p_folder_path, session, unit_id, deduplicate=False):
@@ -1181,7 +1187,7 @@ class Unit:
         c = calcium.Calcium()
         c.root_dir = Animal.root_dir
         c.data_dir = os.path.join(self.suite2p_folder_path, "plane0")
-        print(c.data_dir)
+        print(c.data_dir) #TODO: remove when finished
         c.animal_id = self.animal_id 
         c.session = self.session_id
         c.detrend_model_order = 1

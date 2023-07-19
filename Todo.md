@@ -6,14 +6,13 @@
     - [x] Session
     - [x] Vizualizer
     - [ ] Fixer
-    - [ ] Detector?
     - [ ] Analyzer
     - [ ] Cell
   - [ ] Code Algo Autodetection for Errors in Data 
     - [ ] Error types
       - [x] autodetect error if pearson correlation histogram is not normally distr around 0. (max diff 0.3)
         - [x] **Create plot**
-      - [ ] **increasing bursts at the end** Gel drying
+      - [x] **increasing bursts at the end** Gel drying
       - [ ] **Offset at Start**
       - [ ] **Offset changes**
       - [ ] **Sudden bubble** ask Steffen for more information
@@ -149,29 +148,28 @@
           - [x] c.load_footprints() ..........................................................
             - [x] self.contours = contours  #outline of the cells
             - [x] self.footprints = imgs    #boolean mask for the cells
-            - [ ] use footprint and make boolean footbrints --> multiply with image 
+            - [x] use footprint and make boolean footbrints --> multiply with image 
 
-        - [ ] deduplicate &rarr; unique mask
-          - [ ] remove bad cells by running [deduplication notebook](https://github.com/donatolab/manifolds/blob/main/donlabtools/correlation/Deduplicate_neurons.ipynb)
-            - [ ] on parts of sessions for testing
-            - [ ] on concatenated data
-            - [ ] look at deleted cells in deduplication.png 
-          - [ ] Create Visualization and figure to show all cell contours
-            - [ ] keep track of deleted cells and contours
+        - [x] deduplicate &rarr; unique mask
+          - [x] remove bad cells by running [deduplication notebook](https://github.com/donatolab/manifolds/blob/main/donlabtools/correlation/Deduplicate_neurons.ipynb)
+            - [x] on parts of sessions for testing
+            - [x] on concatenated data
+            - [x] look at deleted cells in deduplication.png 
+          - [x] Create Visualization and figure to show all cell contours
+            - [x] keep track of deleted cells and contours
             - [ ] move to figure directory
       - [x] Create movement corrected data with s2p using a flag!!!!!!
       - [ ] RAW ca data
         - [x] access hopefully motion corrected raw data (S2P has a settable flag)
         - [x] generate Traces
-          - [ ] motion corrected data could have shifts between each unit
-            - [ ] possible to align with s2p?
-        - [ ] Run data and own mask in S2P if possible 
-          - [ ] else write own code
+          - [x] motion corrected data could have shifts between each unit
+            - [x] possible to align with s2p? <span style="color:green>yes</span>
+        - [x] Run data and own mask in S2P if possible 
             - [ ] S2P cell traces
-              - [ ] load and binaryze at the end
-                - [x] np.memmap() #memory map instant data load
-                - [ ] it is possible to load parts "every" 100 frame for debugging
-                - [ ] trace = sum of area
+            - [ ] load and binaryze at the end
+              - [x] np.memmap() #memory map instant data load
+              - [ ] it is possible to load parts "every" 100 frame for debugging
+              - [ ] trace = sum of area
       
 
   - [ ] Network **density** way to high

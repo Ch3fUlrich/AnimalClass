@@ -84,6 +84,7 @@ def update_s2p_files(data_path, stat):
     """
     # Feed these values into the wrapper functions
     stat_after_extraction, F, Fneu, F_chan2, Fneu_chan2 = suite2p.extraction_wrapper(stat, f_reg, f_reg_chan2 = None, ops=ops)
+    print(len(F))
     # Do cell classification
     classfile = suite2p.classification.builtin_classfile
     iscell = suite2p.classify(stat=stat_after_extraction, classfile=classfile)
@@ -101,12 +102,10 @@ def update_s2p_files(data_path, stat):
     spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
 
     # Overwrite files in wd folder (consider backing up this folder first)
-    file_exist_rename(data_path, "F.npy", 'F_old.npy')
-    file_exist_rename(data_path, "Fneu.npy", 'Fneu_old.npy')
-    file_exist_rename(data_path, "iscell.npy", 'iscell_old.npy')
-    file_exist_rename(data_path, "ops.npy", 'ops_old.npy')
-    file_exist_rename(data_path, "spks.npy", 'spks_old.npy')
-    file_exist_rename(data_path, "stat.npy", 'stat_old.npy')
+    for fname in ["F", "Fneu", "iscell", "ops", "spks", "stat", "cell_drying.npy"]:
+        file_exist_rename(data_path, fname+".npy", fname+'_old.npy')
+    file_exist_rename(data_path, "binarized_traces.npz", "binarized_traces_old.npz")
+    
 
     np.save(os.path.join(data_path, 'F.npy'), F)
     np.save(os.path.join(data_path, 'Fneu.npy'), Fneu)
