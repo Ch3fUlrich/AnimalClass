@@ -848,12 +848,16 @@ class Vizualizer:
 
         seconds = 5
         num_frames = 30*seconds
-        x_pos = np.arange(0, len(fluorescence), num_frames)
+        num_x_ticks = 50
+        written_label_steps = 2
+
         x_time = [int(frame/num_frames)*seconds for frame in range(len(fluorescence)) if frame%num_frames==0] 
-        num_written_labels = round(len(x_time)/200)
-        x_labels = [time if time%num_written_labels==0 else "" for time in x_time]
-        plt.xticks(x_pos, x_labels, rotation=40, fontsize=8)
+        steps = round(len(x_time)/(2*num_x_ticks))
+        x_time_shortened = x_time[::steps]
+        x_pos = np.arange(0, len(fluorescence), num_frames)[::steps] 
         
+        x_labels = [time if num%written_label_steps==0 else "" for num, time in enumerate(x_time_shortened)]
+        plt.xticks(x_pos, x_labels, rotation=40, fontsize=8)
         plt.title(title+f"{file_name}")
         plt.xlabel(xlabel+f"seconds)")
         plt.ylabel(ylabel)
