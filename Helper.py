@@ -84,7 +84,6 @@ def update_s2p_files(data_path, stat):
     """
     # Feed these values into the wrapper functions
     stat_after_extraction, F, Fneu, F_chan2, Fneu_chan2 = suite2p.extraction_wrapper(stat, f_reg, f_reg_chan2 = None, ops=ops)
-    print(len(F))
     # Do cell classification
     classfile = suite2p.classification.builtin_classfile
     iscell = suite2p.classify(stat=stat_after_extraction, classfile=classfile)
@@ -102,10 +101,7 @@ def update_s2p_files(data_path, stat):
     spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
 
     # Overwrite files in wd folder (consider backing up this folder first)
-    for fname in ["F", "Fneu", "iscell", "ops", "spks", "stat", "cell_drying.npy"]:
-        file_exist_rename(data_path, fname+".npy", fname+'_old.npy')
-    file_exist_rename(data_path, "binarized_traces.npz", "binarized_traces_old.npz")
-    
+    backup_s2p_files(data_path) 
 
     np.save(os.path.join(data_path, 'F.npy'), F)
     np.save(os.path.join(data_path, 'Fneu.npy'), Fneu)
@@ -269,7 +265,7 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
 
 #reset files S2P files to original ones
 def reset_s2p_files(data_path):
-    data_path = os.path.join(data_path, "plane0")
+    data_path = os.path.join(data_path)
     file_exist_rename(data_path, "F.npy", 'F_old.npy', reset=True)
     file_exist_rename(data_path, "Fneu.npy", 'Fneu_old.npy', reset=True)
     file_exist_rename(data_path, "iscell.npy", 'iscell_old.npy', reset=True)
@@ -277,13 +273,17 @@ def reset_s2p_files(data_path):
     file_exist_rename(data_path, "spks.npy", 'spks_old.npy', reset=True)
     file_exist_rename(data_path, "stat.npy", 'stat_old.npy', reset=True)
 
-def backup_s2p_files(data_path, note="backup"):
-    data_path = os.path.join(data_path, "plane0")
+def backup_s2p_files(data_path, note="backup", restore=False):
+    data_path = os.path.join(data_path)
     backup_path = os.path.join(data_path, "backup")
     dir_exist_create(backup_path)
     for fname in ["F.npy", "Fneu.npy", "iscell.npy", "ops.npy", "spks.npy", "stat.npy", "cell_drying.npy", "binarized_traces.npz"]:
         fpath = os.path.join(data_path, fname)
         fpath_backup = os.path.join(backup_path, note+"_"+fname)
+        if restore:
+            fpath, fpath_backup = fpath_backup, fpath
+            if os.path.exists(fpath_backup) and os.path.exists(fpath):
+                os.remove(fpath_backup)
         if not os.path.exists(fpath_backup) and os.path.exists(fpath):
             shutil.copyfile(fpath, fpath_backup)
 

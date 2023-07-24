@@ -38,6 +38,8 @@ import os
 import sys
 import copy
 import shutil
+import psutil
+
 
 # statistics
 import scipy
@@ -1264,6 +1266,7 @@ class Unit:
         return self.yx_shift
 
     def deduplicate(self):
+        #FIXME: remove if finished other merging procedure
         # Deduplicate cells
         self.c.subselect_moving_only = False
         self.c.subselect_quiescent_only = False
@@ -1314,40 +1317,133 @@ class Binary_loader:
         return binary_frames.copy()
     
 class Merger:
-    def shift_stat_cells(self, stat, yx_shift):
+    def shift_stat_cells(self, stat, yx_shift, image_x_size=512, image_y_size=512):
         # stat files first value ist y-value second is x-value
         new_stat = copy.deepcopy(stat)
 
-        for num, cell in enumerate(new_stat):
+        for num, cell_stat in enumerate(new_stat):
             y_shifted = []
-            for y in cell["ypix"]:
+            for y in cell_stat["ypix"]:
                 y_shifted.append(round(y-yx_shift[0]))
-            cell["ypix"] = np.array(y_shifted)
+            cell_stat["ypix"] = np.array(y_shifted)
             
             x_shifted = []
-            for x in cell["xpix"]:
+            for x in cell_stat["xpix"]:
                 x_shifted.append(round(x-yx_shift[1]))
-            cell["xpix"] = np.array(x_shifted)
+            cell_stat["xpix"] = np.array(x_shifted)
 
-            #center of cell
-            med = cell["med"]
+            #center of cell_stat
+            med = cell_stat["med"]
             med_shifted = [round(med[0]-yx_shift[0]), round(med[1]-yx_shift[1])]
-            cell["med"] = med_shifted
-
-            new_stat[num] = cell
+            cell_stat["med"] = med_shifted
         return new_stat
 
-    # Merge Stat files
-    def merge_stat(self, units, best_unit):
-        merged_stat = best_unit.c.stat
-        for unit_id, unit in units.items():
-            if unit_id == best_unit.unit_id:
+    
+    def correct_abroad_cell(self, cell_stat, image_x_size=512, image_y_size=512):
+        """
+        !!!!!!!DEPRECATED!!!!!!!!!!!!!!!!!!!
+        correct cells, which are out of pixel range
+        
+        removes x,y pixels, and corresponding lam, overlap which are out of bound
+        decreases npix, npix_soma count by number of removed pixels
+        not adjusted (because not used for getting Fluoresence traces):
+          med, compact, solidity, npix_norm, npix_norm_no_crop, neuropil_mask, radius, aspect_ratio
+        """
+        dimensions = ["ypix", "xpix"]
+        pixel_attributes = ["ypix", "xpix", "lam", "overlap"]
+        # filter for positive pixels y, x >= 0
+        for dimension in dimensions:
+            in_frame_pixels = np.where(cell_stat[dimension]>=0)[0]
+            num_removed_pixels =  len(cell_stat[dimension])-len(in_frame_pixels)
+            if num_removed_pixels == 0:
                 continue
-            shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift)
-            merged_stat = np.concatenate([merged_stat, shifted_unit_stat])
+            for pixel_attribute in pixel_attributes:
+                cell_stat[pixel_attribute] = cell_stat[pixel_attribute][in_frame_pixels]
+            cell_stat["npix"] -= num_removed_pixels
+            cell_stat["npix_soma"] -= num_removed_pixels
+
+        # filter for positive pixels y, x <= image_x_size # < or <=
+        for dimension in dimensions:
+            max_pos = image_y_size if dimension=="ypix" else image_x_size
+            in_frame_pixels = np.where(cell_stat[dimension]<max_pos)[0] 
+            num_removed_pixels = len(cell_stat[dimension])-len(in_frame_pixels)
+            if num_removed_pixels == 0:
+                continue
+            for pixel_attribute in pixel_attributes:
+                cell_stat[pixel_attribute] = cell_stat[pixel_attribute][in_frame_pixels]
+            cell_stat["npix"] -= num_removed_pixels
+            cell_stat["npix_soma"] -= num_removed_pixels
+        return cell_stat
+
+    # Merge Stat files
+    def merge_stat(self, units, best_unit, image_x_size=512, image_y_size=512, iterative=True):
+        """
+        shift and merge stat files with best_unit as reference position
+        """
+        stats = psutil.virtual_memory()  # returns a named tuple
+        available = getattr(stats, 'available')
+        byte_to_gb = 1/1000000000
+        available_ram_gb = available*byte_to_gb
+        if available_ram_gb < 64: 
+            print(f"Free RAM below 64. Merging stat could break if not done interatively")
+            if available_ram_gb < 30:
+                print(f"Free RAM below 30. Merging can take a while or even break")
+
+        merged_stat = best_unit.c.stat
+        if iterative: #FIXME: insert correct code from ownclass notebook
+            merged_footprints = best_unit.footprints
+            for unit_id, unit in units.items():
+                if unit_id == best_unit:
+                    continue
+                shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
+                shifted_footprints = stat_to_footprints(shifted_unit_stat)
+                clean_cell_ids, merged_footprints = merge_deduplicate_footprints(merged_footprints, shifted_footprints)
+                merged_stat = np.concatenate(merged_stat, shifted_unit_stat)[clean_cell_ids]
+            merged_stat = self.remove_abroad_cells(merged_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
+        else:
+            for unit_id, unit in units.items():
+                if unit_id == best_unit.unit_id:
+                    continue
+                shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
+                merged_stat = np.concatenate([merged_stat, shifted_unit_stat])
+                merged_stat = self.remove_abroad_cells(merged_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
         return merged_stat
     
+    
+
+    def remove_abroad_cells(self, merged_stat, units, image_x_size=512, image_y_size=512):
+        # removing out of bound cells 
+        remove_cells = []
+        for cell_num, cell in enumerate(merged_stat):
+            abroad = False
+            #check for every shift 
+            for unit_id, unit in units.items():
+                if abroad:
+                    break
+                yx_shift = unit.yx_shift
+                for axis in ["ypix", "xpix"]:
+                    shift = yx_shift[0] if axis=="ypix" else yx_shift[1]
+                    max_location = image_y_size if axis=="ypix" else image_y_size
+                    shifted = cell[axis]+shift
+
+                    # check if cell is out of bound
+                    if sum(shifted>=max_location)>0 or sum(shifted<0)>0:
+                        abroad = True
+                        break
+            if abroad:
+                remove_cells.append(cell_num)
+                
+        for abroad_cell in remove_cells[::-1]:
+            merged_stat = np.delete(merged_stat, abroad_cell)
+            print(f"removed cell {abroad_cell}")
+        return merged_stat
+
     def merge_s2p_files(self, units, stat, ops):
+        """
+        Merges F, Fneu, spks, iscell from individual Units
+        Does not merge the individual corrected stat files
+        Does not merge ops
+        """
         path = units[list(units.keys())[0]].suite2p_folder_path
         path = os.path.join(path, "plane0")
         merged_F = np.load(os.path.join(path, "F.npy"))
