@@ -1167,7 +1167,7 @@ class Vizualizer:
             ax[x, y].invert_yaxis()
         plt.show()
 class Unit:
-    def __init__(self, suite2p_folder_path, session, unit_id, deduplicate=False):
+    def __init__(self, suite2p_folder_path, session, unit_id):
         self.suite2p_folder_path = suite2p_folder_path
         self.animal_id = session.animal_id
         self.session_id = session.session_id
@@ -1176,8 +1176,6 @@ class Unit:
         #self.dedup_cell_ids = None
         self.c, self.contours, self.footprints = self.run_cabin_corr()
         self.dedup_cell_ids = None
-        if deduplicate:
-            self.deduplicate()
         self.get_all_sliding_cell_stat = None
         self.fluoresence = butter_lowpass_filter(self.c.dff, cutoff=0.5, fs=30, order=2)
         self.cell_geldrying = None
@@ -1265,33 +1263,6 @@ class Unit:
         self.yx_shift = [np.mean(ymax), np.mean(xmax)]
         return self.yx_shift
 
-    def deduplicate(self):
-        #FIXME: remove if finished other merging procedure
-        # Deduplicate cells
-        self.c.subselect_moving_only = False
-        self.c.subselect_quiescent_only = False
-        self.c.zscore = False
-        self.c.shuffle_data = False
-        self.c.deduplication_use_correlations = False
-        self.c.correlation_datatype = 'upphase'      # filtered vs. upphase
-
-        self.c.deduplication_method = 'overlap'      # 'overlap'; 'centre_distance'
-        self.c.corr_min_distance = 8                 # min distance for centre_distance method - NOT USED HERE
-        self.c.corr_max_percent_overlap = 0.25       # max overlap for overlap method
-        self.c.corr_threshold = 0.3                  # max correlation allowed for high overlap
-        self.c.zscore_threshold = 3.0                # zscore threshold for high overlap
-
-        self.c.corr_delete_method = 'highest_connected_no_corr' #'highest_connected', lowest_snr', 'highest_connected_no_corr' <- this skips correlation check
-        self.c.recompute_deduplication = True
-        self.c.recompute_overlap = False    #this is not required to be redone, it's just once
-        self.c.make_correlation_dirs()
-        dir_exist_create(os.path.join(self.suite2p_folder_path, "plane0", "figures"))
-        self.c.remove_duplicate_neurons()
-
-        fname = "good_ids_post_deduplication_upphase.npy"
-        fpath = os.path.join(self.suite2p_folder_path, "plane0", "correlations", "all_states", "threshold", fname)
-        self.dedup_cell_ids = np.load(fpath, allow_pickle=True)
-
 class Binary_loader:
     def load_binary(self, data_path, n_frames_to_be_acquired, fname="data.bin", image_x_size=512, image_y_size=512):
         # load binary file from suite2p_folder from unit
@@ -1337,7 +1308,6 @@ class Merger:
             med_shifted = [round(med[0]-yx_shift[0]), round(med[1]-yx_shift[1])]
             cell_stat["med"] = med_shifted
         return new_stat
-
     
     def correct_abroad_cell(self, cell_stat, image_x_size=512, image_y_size=512):
         """
@@ -1374,43 +1344,37 @@ class Merger:
             cell_stat["npix"] -= num_removed_pixels
             cell_stat["npix_soma"] -= num_removed_pixels
         return cell_stat
-
-    # Merge Stat files
-    def merge_stat(self, units, best_unit, image_x_size=512, image_y_size=512, iterative=True):
+    
+    def merge_stat(self, units, best_unit, image_x_size=512, image_y_size=512):
         """
-        shift and merge stat files with best_unit as reference position
+        shift and merge, deduplicate, stat files with best_unit as reference position
         """
         stats = psutil.virtual_memory()  # returns a named tuple
         available = getattr(stats, 'available')
         byte_to_gb = 1/1000000000
         available_ram_gb = available*byte_to_gb
-        if available_ram_gb < 64: 
-            print(f"Free RAM below 64. Merging stat could break if not done interatively")
-            if available_ram_gb < 30:
-                print(f"Free RAM below 30. Merging can take a while or even break")
+        print("Setting Number of Batches according to free RAM")
+        num_batches = 32
+        num_batches_range = [16, 12, 4, 2, 1]
+        ram_range = [16, 32, 64, 128]
+        for batches, ram in zip(num_batches_range, ram_range):
+            if available_ram_gb < ram:
+                num_batches = batches
+                break
+        print(f"Available RAM: {round(available_ram_gb)}GB setting number of batches to {num_batches}")
 
+        merged_footprints = best_unit.footprints
         merged_stat = best_unit.c.stat
-        if iterative: #FIXME: insert correct code from ownclass notebook
-            merged_footprints = best_unit.footprints
-            for unit_id, unit in units.items():
-                if unit_id == best_unit:
-                    continue
-                shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
-                shifted_footprints = stat_to_footprints(shifted_unit_stat)
-                clean_cell_ids, merged_footprints = merge_deduplicate_footprints(merged_footprints, shifted_footprints)
-                merged_stat = np.concatenate(merged_stat, shifted_unit_stat)[clean_cell_ids]
-            merged_stat = self.remove_abroad_cells(merged_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
-        else:
-            for unit_id, unit in units.items():
-                if unit_id == best_unit.unit_id:
-                    continue
-                shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
-                merged_stat = np.concatenate([merged_stat, shifted_unit_stat])
-                merged_stat = self.remove_abroad_cells(merged_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
-        return merged_stat
+        for unit_id, unit in units.items():
+            if unit_id == best_unit.unit_id:
+                continue
+            shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
+            shifted_footprints = self.stat_to_footprints(shifted_unit_stat)
+            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints, parallel=True, num_batches=num_batches)
+            merged_stat = np.concatenate([merged_stat, shifted_unit_stat])[clean_cell_ids]
+        merged_stat_no_abroad = self.remove_abroad_cells(merged_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
+        return merged_stat_no_abroad
     
-    
-
     def remove_abroad_cells(self, merged_stat, units, image_x_size=512, image_y_size=512):
         # removing out of bound cells 
         remove_cells = []
@@ -1478,3 +1442,179 @@ class Merger:
         np.save(os.path.join(merged_s2p_path, "stat.npy"), stat)
         np.save(os.path.join(merged_s2p_path, "ops.npy"), ops)
         return merged_F, merged_Fneu, merged_spks, merged_iscell
+    
+    def stat_to_footprints(self, stat, dims=[512, 512]):
+        imgs = []
+        for k in range(len(stat)):
+            x = stat[k]['xpix']
+            y = stat[k]['ypix']
+
+            # save footprint
+            img_temp = np.zeros((dims[0], dims[1]))
+            img_temp[x, y] = stat[k]['lam']
+
+            img_temp_norm = (img_temp - np.min(img_temp)) / (np.max(img_temp) - np.min(img_temp))
+            imgs.append(img_temp_norm)
+
+        imgs = np.array(imgs)
+
+        footprints = imgs
+        return footprints
+
+    def find_overlaps1(self, ids, footprints):
+        #
+        intersections = []
+        for k in ids:
+            temp1 = footprints[k]
+            idx1 = np.vstack(np.where(temp1 > 0)).T
+
+            #
+            for p in range(k + 1, footprints.shape[0], 1):
+                temp2 = footprints[p]
+                idx2 = np.vstack(np.where(temp2 > 0)).T
+                res = array_row_intersection(idx1, idx2)
+
+                #
+                if len(res) > 0:
+                    percent1 = res.shape[0] / idx1.shape[0]
+                    percent2 = res.shape[0] / idx2.shape[0]
+                    intersections.append([k, p, res.shape[0], percent1, percent2])
+        #
+        return intersections
+        # this computes spatial overlaps between cells; doesn't take into account temporal correlations            
+        print ("... computing cell overlaps ...")
+        
+        ids = np.array_split(np.arange(footprints.shape[0]), 30)
+
+        if parallel:
+            res = parmap.map(find_overlaps1,
+                            ids,
+                            footprints,
+                            #c.footprints_bin,
+                            pm_processes=n_cores,
+                            pm_pbar=True)
+        else:
+            res = []
+            for k in trange(len(ids)):
+                res.append(find_overlaps1(ids[k],
+                                            footprints,
+                                            #c.footprints_bin
+                                            ))
+
+        df = make_overlap_database(res)
+        return df
+
+    def generate_batch_cell_overlaps(self, footprints, parallel=True, recompute_overlap=False, n_cores=16, num_batches=3):
+        # this computes spatial overlaps between cells; doesn't take into account temporal correlations
+            
+        print ("... computing cell overlaps ...")
+        
+        ids = np.array_split(np.arange(footprints.shape[0]), 30)
+
+        if parallel:
+            batches = np.array_split(ids, num_batches)
+            results = np.array([])
+            for batch in batches:
+                res = parmap.map(find_overlaps1,
+                                batch,
+                                footprints,
+                                #c.footprints_bin,
+                                pm_processes=n_cores,
+                                pm_pbar=True)
+                results = np.concatenate([results, res])
+            res = results
+        else:
+            res = []
+            for k in trange(len(ids)):
+                res.append(find_overlaps1(ids[k],
+                                            footprints,
+                                            #c.footprints_bin
+                                            ))
+        df = make_overlap_database(res)
+        return df
+
+    def find_candidate_neurons_overlaps(self, df_overlaps, corr_array=None, deduplication_use_correlations=False, corr_max_percent_overlap=0.25, corr_threshold=0.3):
+
+        dist_corr_matrix = []
+        for index, row in df_overlaps.iterrows():
+            cell1 = int(row['cell1'])
+            cell2 = int(row['cell2'])
+            percent1 = row['percent_cell1']
+            percent2 = row['percent_cell2']
+
+            if deduplication_use_correlations:
+
+                if cell1 < cell2:
+                    corr = corr_array[cell1, cell2, 0]
+                else:
+                    corr = corr_array[cell2, cell1, 0]
+            else:
+                corr = 0
+
+            dist_corr_matrix.append([cell1, cell2, corr, max(percent1, percent2)])
+
+        dist_corr_matrix = np.vstack(dist_corr_matrix)
+
+        #####################################################
+        # check max overlap
+        idx1 = np.where(dist_corr_matrix[:, 3] >= corr_max_percent_overlap)[0]
+        
+        # skipping correlations is not a good idea
+        #   but is a requirement for computing deduplications when correlations data cannot be computed first
+        if deduplication_use_correlations:
+            idx2 = np.where(dist_corr_matrix[idx1, 2] >= corr_threshold)[0]   # note these are zscore thresholds for zscore method
+            idx3 = idx1[idx2]
+        else:
+            idx3 = idx1
+
+        #
+        candidate_neurons = dist_corr_matrix[idx3][:, :2]
+
+        return candidate_neurons
+
+    def make_correlated_neuron_graph(self, num_cells, candidate_neurons):
+        adjacency = np.zeros((num_cells, num_cells))
+        for i in candidate_neurons:
+            adjacency[int(i[0]), int(i[1])] = 1
+
+        G = nx.Graph(adjacency)
+        G.remove_nodes_from(list(nx.isolates(G)))
+
+        return G
+
+    def delete_duplicate_cells(self, num_cells, G, corr_delete_method='highest_connected_no_corr'):
+        # delete multi node networks
+        #
+        if corr_delete_method=='highest_connected_no_corr':
+            connected_cells, removed_cells = del_highest_connected_nodes_without_corr(G)
+        # 
+        print ("Removed cells: ", len(removed_cells))
+        clean_cells = np.delete(np.arange(num_cells),
+                                removed_cells)
+
+        #
+        clean_cell_ids = clean_cells
+        removed_cell_ids = removed_cells
+        connected_cell_ids = connected_cells
+
+        return clean_cell_ids
+
+    def merge_deduplicate_footprints(self, footprints1, footprints2, parallel=True, num_batches=4):
+        merged_footprints = np.concatenate([footprints1, footprints2])
+        num_cells = len(merged_footprints)
+
+        df_overlaps = self.generate_batch_cell_overlaps(merged_footprints, recompute_overlap=True, parallel=parallel, num_batches=num_batches)
+        candidate_neurons = self.find_candidate_neurons_overlaps(df_overlaps, corr_array=None, deduplication_use_correlations=False, corr_max_percent_overlap=0.25, corr_threshold=0.3)
+        G = self.make_correlated_neuron_graph(num_cells, candidate_neurons)
+        clean_cell_ids = self.delete_duplicate_cells(num_cells, G)
+        cleaned_merged_footprints = merged_footprints[clean_cell_ids]
+        return clean_cell_ids, cleaned_merged_footprints
+    
+    def shift_update_unit_s2p_files(self, unit, new_stat, image_x_size=512, image_y_size=512, deduplicate = False):
+        data_path = os.path.join(unit.suite2p_folder_path, "plane0")
+        # shift merged mask
+        shift_to_unit = np.array([-1, -1]) * unit.yx_shift
+        shifted_unit_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_unit, image_x_size=image_x_size, image_y_size=image_y_size)
+
+        backup_s2p_files(data_path, note="backup")
+        update_s2p_files(data_path, shifted_unit_stat)
