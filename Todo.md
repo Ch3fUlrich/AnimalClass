@@ -143,8 +143,8 @@
         - [ ] create yaml file for session data
     - [ ] Datastructures to work with
 
-      - [ ] S2P cell footprints/contours
-        - [ ] merge
+      - [x] S2P cell footprints/contours
+        - [x] merge
           - [x] c.load_footprints() ..........................................................
             - [x] self.contours = contours  #outline of the cells
             - [x] self.footprints = imgs    #boolean mask for the cells
@@ -159,17 +159,15 @@
             - [x] keep track of deleted cells and contours
             - [ ] move to figure directory
       - [x] Create movement corrected data with s2p using a flag!!!!!!
-      - [ ] RAW ca data
+      - [x] RAW ca data
         - [x] access hopefully motion corrected raw data (S2P has a settable flag)
         - [x] generate Traces
           - [x] motion corrected data could have shifts between each unit
-            - [x] possible to align with s2p? <span style="color:green>yes</span>
+            - [x] possible to align with s2p? <span style="color:green">yes</span>
         - [x] Run data and own mask in S2P if possible 
-            - [ ] S2P cell traces
-            - [ ] load and binaryze at the end
-              - [x] np.memmap() #memory map instant data load
-              - [ ] it is possible to load parts "every" 100 frame for debugging
-              - [ ] trace = sum of area
+            - [x] S2P cell traces (trace = sum of area)
+            - [x] load and binaryze at the end
+              - [x] np.memmap() #memory map instant data load 
       
 
   - [ ] Network **density** way to high

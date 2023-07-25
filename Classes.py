@@ -139,7 +139,7 @@ class Analyzer:
     def cont_mean_increase(self, mean_stds, num_bad_means = 30*60*1.5, 
                        num_not_bad_means=30*60*0.9):
         """
-        Check if the mean of the data increases for 1.5 minutes without a 0.7 minutes break (30fps)
+        Check if the mean of the data increases for 1.5 minutes without a 0.9 minutes break (30fps)
 
         Args:
             data (numpy.ndarray): A 2D numpy array containing mean and standard deviation values.
@@ -173,13 +173,14 @@ class Analyzer:
 
             if bad_mean_counter >= num_bad_means: # 1 minute wide window mean to high for 1 minute  
                 bad = True
-                reason = "num bad"
+                reason = "cont. increase"
                 break
         return bad, reason+" c: "+str(bad_mean_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
 
     def cont_mode_increase(self, mode_stds, num_bad_modes = 30*60*1, 
                        num_not_bad_modes=30*60*0.45):
         """
+        !!!!!!!!!!!!Not usefull takes too long!!!!!!!!!!!!!!!!!!!!!!!!!!!
         Check if the mode of the data increases for 1.5 minutes without a 0.7 minutes break (30fps)
 
         Args:
@@ -829,7 +830,7 @@ class Vizualizer:
         return fluorescence
 
     def traces(self, fluorescence, animal_id, session_id, unit_id="all", num_cells="all", fit_line=False, dpi=300, fps="30",
-               xlabel=f"Frames ", 
+               xlabel=f"seconds", 
                ylabel='Fluoresence based on Ca in Cell',
                title=f"Bursts from "):
         # plot fluorescence
@@ -861,7 +862,7 @@ class Vizualizer:
         x_labels = [time if num%written_label_steps==0 else "" for num, time in enumerate(x_time_shortened)]
         plt.xticks(x_pos, x_labels, rotation=40, fontsize=8)
         plt.title(title+f"{file_name}")
-        plt.xlabel(xlabel+f"seconds)")
+        plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         file_title = title.replace(" ", "_")
 
@@ -1023,6 +1024,29 @@ class Vizualizer:
         plt.savefig(os.path.join(self.save_dir, f"bad_vs_good_{filters}.png"))
         plt.show()
 
+    def sanky_diagram(self):
+        """
+        Not implemented, only example
+        """
+        #TODO: implement
+        #https://plotly.com/python/sankey-diagram/
+        import plotly.graph_objects as go
+
+        fig = go.Figure(go.Sankey(
+            arrangement = "snap",
+            node = {
+                "label": ["A", "B", "C", "D", "E", "F"],
+                "x": [0.2, 0.1, 0.5, 0.7, 0.3, 0.5],
+                "y": [0.7, 0.5, 0.2, 0.4, 0.2, 0.3],
+                'pad':10},  # 10 Pixels
+            link = {
+                "source": [0, 0, 1, 2, 5, 4, 3, 5],
+                "target": [5, 3, 4, 3, 0, 2, 2, 3],
+                "value": [1, 2, 1, 1, 1, 1, 1, 2]}))
+
+        fig.show()
+        pass
+
     def unit_footprints(self, unit, cmap=None):
         # plot footprints of a unit
         plt.figure()
@@ -1139,15 +1163,17 @@ class Vizualizer:
             batch_title = f"Batch_{i+1}_of_{num_batches}"
             legend_fontsize = 10
             fig.suptitle(f"F of {good+bad} Cells {title} {batch_title}", fontsize=20)
-            #ax1.set_xlabel("Frames (30FPS)")
             ax1.set_title(f'Good Cells: {good}')
             ax1.set_ylim(bottom=-0.1, top=0.8)
-            ax1.legend(fontsize=legend_fontsize)
             ax2.set_ylabel("F_filtered")
             ax2.set_xlabel("seconds")
             ax2.set_title(f'Bad Cells: {bad}')
             ax2.set_ylim(bottom=-0.1, top=0.8)
-            ax2.legend(fontsize=legend_fontsize)
+
+            if not batch_size == "all" and not batch_size > 16:
+                ax1.legend(fontsize=legend_fontsize)
+                ax2.legend(fontsize=legend_fontsize) 
+
             plt.savefig(os.path.join(self.save_dir, f"F_slide_{title}_{batch_title}.png"), dpi=300)
             plt.show()
             dir_exist_create(os.path.join(self.save_dir,"html"))
