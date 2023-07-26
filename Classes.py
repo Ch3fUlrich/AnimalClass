@@ -664,7 +664,7 @@ class Session:
         pval_matrix = corr_pval_matrix[:,:,1]
         return corr_matrix, pval_matrix
 
-    def get_units(self):
+    def get_units(self, get_geldrying=False):
         units = {}
         for part in self.session_parts:
             not_session_parts = np.array(self.session_parts)[np.array(self.session_parts)!=part]
@@ -686,16 +686,16 @@ class Session:
             backup_s2p_files(data_path, restore=False)
             units[unit_id] = unit
 
-            
-            #single cells sliding mean detector for gel detection
-            cell_drying = unit.get_geldrying_cells()
-
             #Print amount of cells vs good cells
             unit.print_s2p_iscell()
-            
-            bad = sum(unit.cell_geldrying)
-            good = len(unit.cell_geldrying)-bad
-            print(f"Autodetection Cells: {good+bad}    Good: {good}   geldrying:{bad} ")
+
+            #single cells sliding mean detector for gel detection
+            if get_geldrying:
+                cell_drying = unit.get_geldrying_cells()
+                bad = sum(unit.cell_geldrying)
+                good = len(unit.cell_geldrying)-bad
+                print(f"Autodetection Cells: {good+bad}    Good: {good}   geldrying:{bad} ")
+
         self.units = units
         return units
     
@@ -709,18 +709,83 @@ class Session:
         print(f"Best Mask has {most_good_cells} cells and is from {best_unit.unit_id}")
         return best_unit
 
-    def get_usefull_units(units, min_num_usefull_cells):
-        enough_cell_session_part = []
-        not_enough_cell_units = {}
-        enough_cell_units = {}
-        for unit_id, unit in units.items():
+    def get_usefull_units(self, min_num_usefull_cells):
+        for unit_id, unit in self.units.items():
             num_good_cells = unit.num_not_geldrying()
             if num_good_cells > min_num_usefull_cells:
-                enough_cell_session_part.append(f"S{unit_id}")
-                enough_cell_units[unit_id] = unit
+                unit.usefull = True
             else:
-                not_enough_cell_units[unit_id] = unit
-        return enough_cell_units, enough_cell_session_part, not_enough_cell_units
+                unit.usefull = False
+        return {unit_id:unit for unit_id, unit in self.units.items() if unit.usefull}
+    
+    def calc_unit_yx_shifts(self, best_unit, min_num_usefull_cells):
+        """
+        S2P Registration (Footprint position shift determination)
+        """
+        # caly yx_shift
+        refImg = best_unit.get_reference_image(n_frames_to_be_acquired = 1000)
+        #refImg = get_reference_image(best_unit)
+        refAndMasks = register.compute_reference_masks(refImg, best_unit.ops)
+        #refAndMasks = register.compute_reference_masks(refImg, ops)
+        for unit_id, unit in self.units.items():
+            if unit_id == best_unit.unit_id:
+                continue   
+            #unit.yx_shift = calc_yx_shift(refAndMasks, unit, unit.ops, num_align_frames)
+            if unit.usefull:
+                unit.calc_yx_shift(refAndMasks, num_align_frames=1000)
+
+    def merge_units(self, regenerate=False, image_x_size=512, image_y_size=512):
+        """
+        Takes MUnits with #cells> #most_cells/3 based on best MUnit (cells withoug geldrying).
+        1. stat files are merged (suite2p) + deduplicated(cabincorr algo)
+        2. Individual MUnit Suite2p folders are updated based on new Stat file (suite2p)
+        3. Updated MUnits are merged to create full session data saved in suite2p_merged
+        4. Gel drying is calculated for merged suite2p files
+        """
+        merged_s2p_path = os.path.join(self.s2p_folder_paths[0].split("suite2p")[0], "suite2p_merged")
+
+        if os.path.exists(merged_s2p_path):
+            if regenerate:
+                os.remove(merged_s2p_path)
+            else:
+                merged_unit = Unit(merged_s2p_path, self, f"Already_merged")
+                return merged_unit
+                
+        # get unit with the most good cells (after geldrying detection)
+        best_unit = self.get_most_good_cell_unit()
+        # get units with enough usefull cells (at least 1/3 of best MUnit cells)
+        min_num_usefull_cells = best_unit.num_not_geldrying() / 3
+        
+        units = self.get_usefull_units(best_unit, min_num_usefull_cells)
+        
+        # merge statistical information of units and deduplicate
+        merger = Merger()
+        merged_stat = merger.merge_stat(units, best_unit)
+        print(f"Number of cells after merging: {merged_stat.shape[0]}")
+
+        updated_units = {} 
+        merged_unit_id = ""
+        for unit_id, unit in units.items():
+            # shift merged mask
+            print(f"Updating Unit {unit_id}")
+            merger.shift_update_unit_s2p_files(unit, merged_stat, image_x_size=image_x_size, image_y_size=image_y_size)
+            updated_units[unit_id] = Unit(unit.suite2p_folder_path, session=self, unit_id=unit_id)
+            merged_unit_id += str(unit_id)+"_"
+        # concatenate S2P results
+        ops = default_ops()
+        merged_F, _, _, _ = merger.merge_s2p_files(updated_units, merged_stat, ops) #best_unit.c.ops)
+        #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
+
+        self.get_cabincorr_data_paths()
+        self.get_s2p_folder_paths()
+        merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged")
+
+        return merged_unit
+
+
+        
+
+
 class Animal:
     root_dir = "F:\\Steffen_Experiments" 
     dir_ = r'002P-F'
@@ -1239,6 +1304,7 @@ class Unit:
         self.ops = self.define_ops()
         self.refImg = None
         self.yx_shift = [0, 0]
+        self.usefull = None
         
 
     def run_cabin_corr(self, deduplicate=False):
@@ -1354,6 +1420,13 @@ class Binary_loader:
         return binary_frames.copy()
     
 class Merger:
+    """
+    Merges indiviual MUnits/Subsession of a Session
+    """
+    def __init__(self, session) -> None:
+        self.session = session
+        pass
+
     def shift_stat_cells(self, stat, yx_shift, image_x_size=512, image_y_size=512):
         # stat files first value ist y-value second is x-value
         new_stat = copy.deepcopy(stat)
@@ -1374,42 +1447,6 @@ class Merger:
             med_shifted = [round(med[0]-yx_shift[0]), round(med[1]-yx_shift[1])]
             cell_stat["med"] = med_shifted
         return new_stat
-    
-    def correct_abroad_cell(self, cell_stat, image_x_size=512, image_y_size=512):
-        """
-        !!!!!!!DEPRECATED!!!!!!!!!!!!!!!!!!!
-        correct cells, which are out of pixel range
-        
-        removes x,y pixels, and corresponding lam, overlap which are out of bound
-        decreases npix, npix_soma count by number of removed pixels
-        not adjusted (because not used for getting Fluoresence traces):
-          med, compact, solidity, npix_norm, npix_norm_no_crop, neuropil_mask, radius, aspect_ratio
-        """
-        dimensions = ["ypix", "xpix"]
-        pixel_attributes = ["ypix", "xpix", "lam", "overlap"]
-        # filter for positive pixels y, x >= 0
-        for dimension in dimensions:
-            in_frame_pixels = np.where(cell_stat[dimension]>=0)[0]
-            num_removed_pixels =  len(cell_stat[dimension])-len(in_frame_pixels)
-            if num_removed_pixels == 0:
-                continue
-            for pixel_attribute in pixel_attributes:
-                cell_stat[pixel_attribute] = cell_stat[pixel_attribute][in_frame_pixels]
-            cell_stat["npix"] -= num_removed_pixels
-            cell_stat["npix_soma"] -= num_removed_pixels
-
-        # filter for positive pixels y, x <= image_x_size # < or <=
-        for dimension in dimensions:
-            max_pos = image_y_size if dimension=="ypix" else image_x_size
-            in_frame_pixels = np.where(cell_stat[dimension]<max_pos)[0] 
-            num_removed_pixels = len(cell_stat[dimension])-len(in_frame_pixels)
-            if num_removed_pixels == 0:
-                continue
-            for pixel_attribute in pixel_attributes:
-                cell_stat[pixel_attribute] = cell_stat[pixel_attribute][in_frame_pixels]
-            cell_stat["npix"] -= num_removed_pixels
-            cell_stat["npix_soma"] -= num_removed_pixels
-        return cell_stat
     
     def merge_stat(self, units, best_unit, image_x_size=512, image_y_size=512):
         """
@@ -1645,7 +1682,6 @@ class Merger:
 
         G = nx.Graph(adjacency)
         G.remove_nodes_from(list(nx.isolates(G)))
-
         return G
 
     def delete_duplicate_cells(self, num_cells, G, corr_delete_method='highest_connected_no_corr'):
@@ -1662,7 +1698,6 @@ class Merger:
         clean_cell_ids = clean_cells
         removed_cell_ids = removed_cells
         connected_cell_ids = connected_cells
-
         return clean_cell_ids
 
     def merge_deduplicate_footprints(self, footprints1, footprints2, parallel=True, num_batches=4):

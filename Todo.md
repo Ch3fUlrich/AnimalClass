@@ -4,6 +4,9 @@
   - [ ] Show # good cells/session/mouse for every session
     - [ ] Min # of bursts
     - [ ] run at Scicore
+      - [ ] 2021
+      - [ ] 2022
+      - [ ] 2023
     - [ ] Plot
       - [ ] red line at min # of cells = 100 
 - [ ] Create Picture HTML for explanation of classes, methods, plots
