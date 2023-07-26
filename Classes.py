@@ -137,7 +137,7 @@ class Analyzer:
         return linreg.slope, linreg.intercept
 
     def cont_mean_increase(self, mean_stds, num_bad_means = 30*60*1.5, 
-                       num_not_bad_means=30*60*0.9):
+                       num_not_bad_means=30*60*0.5):
         """
         Check if the mean of the data increases for 1.5 minutes without a 0.9 minutes break (30fps)
 
@@ -220,7 +220,7 @@ class Analyzer:
                 break
         return bad, reason+" c: "+str(bad_mode_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
 
-    def geldrying(self, m_stds, bad_minutes=1.5, not_bad_minutes=0.9, mode="mean"):
+    def geldrying(self, m_stds, bad_minutes=1.5, not_bad_minutes=0.5, mode="mean"):
         """
         Geldrying detection
         Args:
@@ -335,6 +335,7 @@ class Session:
         self.s2p_folder_paths = self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, units=units, delete=delete)
 
         self.cabincorr_data_paths = self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, units=units)
+        
         #TODO: load suite2p files? how is RAM?
         #TODO: implement cabincorr functions for filtering correct data
         #self.corr_mean, self.corr_std = self.get_corr_mean_std()
@@ -500,31 +501,6 @@ class Session:
         self.s2p_folder_paths = np.unique(self.s2p_folder_paths).tolist()
         return self.s2p_folder_paths
 
-    """def get_s2p_folder_paths(self, generate=False, regenerate=False, units="all", delete=False):
-        self.s2p_folder_paths = []
-
-        if generate and regenerate:
-            if units == "single":
-                for unit in self.session_parts:
-                    self.run_suite2p(regenerate=regenerate, units=unit, delete=delete)
-
-
-        s2p_folder_paths = get_directories(os.path.join(self.session_dir, "tif"))
-        for folder_name in s2p_folder_paths:
-            self.s2p_folder_paths.append(os.path.join(self.session_dir, "tif", folder_name))
-        
-        for unit in self.session_parts:
-            suite2p_folder = os.path.join(self.session_dir, "tif", "suite2p") + unit
-            fluoresence_path = search_file(suite2p_folder, "F.npy")
-            if fluoresence_path != None:
-                self.s2p_folder_paths.append(suite2p_folder)
-            else:
-                if generate and not regenerate:
-                    if units == "single":
-                        for unit in self.session_parts:
-                            self.run_suite2p(regenerate=regenerate, units=unit, delete=delete)
-        return np.unique(self.s2p_folder_paths).tolist()"""
-
     def run_suite2p(self, regenerate=False, units="all", delete=False):
         save_folder="tif\\suite2p"
         tiff_file_name = f"{self.animal_id}_{self.session_id}_{Animal.dir_}"
@@ -688,10 +664,63 @@ class Session:
         pval_matrix = corr_pval_matrix[:,:,1]
         return corr_matrix, pval_matrix
 
-    def load_cell(self):
-        #TODO: update to new cabincorr version
-        return None
+    def get_units(self):
+        units = {}
+        for part in self.session_parts:
+            not_session_parts = np.array(self.session_parts)[np.array(self.session_parts)!=part]
+            unit_id = int(part[1]) 
+            #if unit != 2:
+            #    continue
+            for s2p_folder_path in self.s2p_folder_paths:
+                if part in s2p_folder_path:
+                    single_unit = True
+                    for other_part in not_session_parts:
+                        if other_part in s2p_folder_path:
+                            single_unit = False
+                    if single_unit:
+                        break
+            data_path = os.path.join(s2p_folder_path, "plane0")
+            backup_s2p_files(data_path, restore=True)
+            backup_s2p_files(data_path, restore=False)
+            unit = Unit(s2p_folder_path, session=self, unit_id=unit_id)
+            backup_s2p_files(data_path, restore=False)
+            units[unit_id] = unit
 
+            
+            #single cells sliding mean detector for gel detection
+            cell_drying = unit.get_geldrying_cells()
+
+            #Print amount of cells vs good cells
+            unit.print_s2p_iscell()
+            
+            bad = sum(unit.cell_geldrying)
+            good = len(unit.cell_geldrying)-bad
+            print(f"Autodetection Cells: {good+bad}    Good: {good}   geldrying:{bad} ")
+        self.units = units
+        return units
+    
+    def get_most_good_cell_unit(self):
+        most_good_cells = 0
+        for unit_id, unit in self.units.items():
+            num_good_cells = num_not_geldrying(unit)
+            if num_good_cells > most_good_cells:
+                most_good_cells = num_good_cells 
+                best_unit = unit
+        print(f"Best Mask has {most_good_cells} cells and is from {best_unit.unit_id}")
+        return best_unit
+
+    def get_usefull_units(units, min_num_usefull_cells):
+        enough_cell_session_part = []
+        not_enough_cell_units = {}
+        enough_cell_units = {}
+        for unit_id, unit in units.items():
+            num_good_cells = unit.num_not_geldrying()
+            if num_good_cells > min_num_usefull_cells:
+                enough_cell_session_part.append(f"S{unit_id}")
+                enough_cell_units[unit_id] = unit
+            else:
+                not_enough_cell_units[unit_id] = unit
+        return enough_cell_units, enough_cell_session_part, not_enough_cell_units
 class Animal:
     root_dir = "F:\\Steffen_Experiments" 
     dir_ = r'002P-F'
@@ -1239,7 +1268,7 @@ class Unit:
         footprints = c.footprints
         return c, contours, footprints
 
-    def get_geldrying_cells(self, mode="mean"):
+    def get_geldrying_cells(self, bad_minutes = 1.5, not_bad_minutes=0.5, mode="mean"):
         #detect gel_drying with sliding mean change. Too long increase of mean = bad
         #returns boolean list of cells, where True is a cell labeled as drying 
         if type(self.cell_geldrying) is np.ndarray:
@@ -1251,7 +1280,7 @@ class Unit:
         self.cell_geldrying = np.full([len(self.get_all_sliding_cell_stat)], True)
         self.cell_geldrying_reasons = [""]*len(self.get_all_sliding_cell_stat)
         for i, mean_stds in enumerate(self.get_all_sliding_cell_stat):
-            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds, mode=mode) 
+            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds, bad_minutes=bad_minutes, not_bad_minutes=not_bad_minutes, mode=mode) 
         self.geldrying_to_npy()
         return self.cell_geldrying
     
@@ -1288,6 +1317,17 @@ class Unit:
             frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
         self.yx_shift = [np.mean(ymax), np.mean(xmax)]
         return self.yx_shift
+
+    def print_s2p_iscell(self):
+        iscell_path = search_file(self.suite2p_folder_path, "iscell.npy")
+        iscell = np.load(iscell_path)
+        num_cells = len(iscell[:, 0])
+        num_good_cells = sum(iscell[:, 0])
+        num_bad_cells = num_cells-num_good_cells
+        print(f"Suite2p: Cells: {num_cells}  Good: {num_good_cells}  Bad: {num_bad_cells}")
+
+    def num_not_geldrying(self):
+        return len(self.cell_geldrying)-sum(self.cell_geldrying)
 
 class Binary_loader:
     def load_binary(self, data_path, n_frames_to_be_acquired, fname="data.bin", image_x_size=512, image_y_size=512):

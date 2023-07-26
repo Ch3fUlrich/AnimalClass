@@ -1,12 +1,18 @@
 # <ins>**Todos ordered by importants**</ins>
-- [x] Inform about programming package (lukas tipps)
+- [x] Create cleaned vs old Dataset
+  - [ ] all pictures as bevore
+  - [ ] Show # good cells/session/mouse for every session
+    - [ ] Min # of bursts
+    - [ ] run at Scicore
+    - [ ] Plot
+      - [ ] red line at min # of cells = 100 
 - [ ] Create Picture HTML for explanation of classes, methods, plots
 - [ ] Intrinsic Imaging Pipeline
     - [x] Write Animal class 
     - [x] Session
     - [x] Vizualizer
-    - [ ] Fixer
-    - [ ] Analyzer
+    - [x] Fixer
+    - [x] Analyzer
     - [ ] Cell
   - [ ] Code Algo Autodetection for Errors in Data 
     - [ ] Error types
