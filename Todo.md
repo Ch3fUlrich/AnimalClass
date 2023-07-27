@@ -18,6 +18,7 @@
     - [x] Analyzer
     - [ ] Cell
   - [ ] Code Algo Autodetection for Errors in Data 
+    - [ ] Look into Training of a Transformer
     - [ ] Error types
       - [x] autodetect error if pearson correlation histogram is not normally distr around 0. (max diff 0.3)
         - [x] **Create plot**

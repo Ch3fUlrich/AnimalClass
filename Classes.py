@@ -139,7 +139,7 @@ class Analyzer:
     def cont_mean_increase(self, mean_stds, num_bad_means = 30*60*1.5, 
                        num_not_bad_means=30*60*0.5):
         """
-        Check if the mean of the data increases for 1.5 minutes without a 0.9 minutes break (30fps)
+        Check if the mean of the data increases for 1.5 minutes without a 0.5 minutes break (30fps)
 
         Args:
             data (numpy.ndarray): A 2D numpy array containing mean and standard deviation values.
@@ -181,7 +181,7 @@ class Analyzer:
                        num_not_bad_modes=30*60*0.45):
         """
         !!!!!!!!!!!!Not usefull takes too long!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        Check if the mode of the data increases for 1.5 minutes without a 0.7 minutes break (30fps)
+        Check if the mode of the data increases for 1.5 minutes without a 0.45 minutes break (30fps)
 
         Args:
             data (numpy.ndarray): A 2D numpy array containing mean and standard deviation values.
@@ -427,11 +427,26 @@ class Session:
                 # merging all mescs tiff
                 print("Merging Mesc to Tiff...")
                 
+                # Get MUnit number list of first Mescfile session MSession_0
+                with h5py.File(mesc_file_name, 'r') as file:
+                    fps = 30
+                    munits = file[list(file.keys())[0]]
+                    fluoresence_recording_session_numbers = []
+                    for name, unit in munits.items():
+                        # if recording has at least 5 minutes
+                        if unit["Channel_0"].shape[0] > fps*60*5: 
+                            unit_number = name.split("_")[-1]
+                            fluoresence_recording_session_numbers.append(int(unit_number))
+
+                # Get number_shift, if a bad fluoresence file was manually deleted
+                # CAUTION: if deletion is done in the middle the correction will break
+                biggest_wanted_session_number = max([int(unit.replace("S", ""))-1 for unit in units])
+                number_shift = biggest_wanted_session_number-max(fluoresence_recording_session_numbers)
 
                 sess_list = []
                 for unit in units:
                     temp = unit.replace("S",'')
-                    temp = 'MUnit_'+str(int(temp)-1) #TODO: error prone method, because units not equall to number of session
+                    temp = 'MUnit_'+str(int(temp)-1-number_shift)
                     print ("session loaded: ", temp)
                     sess_list.append(temp)
 
@@ -555,7 +570,8 @@ class Session:
             }
         # run one experiment
         opsEnd = run_s2p(ops=ops, db=db)
-        self.s2p_folder_paths.append(os.path.join(self.session_dir, save_folder, "plane0"))
+        self.s2p_folder_paths.append(os.path.join(self.session_dir, save_folder))
+        self.s2p_folder_paths = np.unique(self.s2p_folder_paths).tolist()
         if delete:
             print("Removing Tiff...")
             os.remove(data_path)
@@ -702,7 +718,7 @@ class Session:
     def get_most_good_cell_unit(self):
         most_good_cells = 0
         for unit_id, unit in self.units.items():
-            num_good_cells = num_not_geldrying(unit)
+            num_good_cells = unit.num_not_geldrying()
             if num_good_cells > most_good_cells:
                 most_good_cells = num_good_cells 
                 best_unit = unit
@@ -710,6 +726,14 @@ class Session:
         return best_unit
 
     def get_usefull_units(self, min_num_usefull_cells):
+        """
+        This method updates the 'usefull' attribute of each unit in the 'units' dictionary and returns a dictionary of units that have more than 'min_num_usefull_cells' number of good cells.
+
+        :param min_num_usefull_cells: The minimum number of good cells required for a unit to be considered useful.
+        :type min_num_usefull_cells: int
+        :return: A dictionary of useful units where the keys are unit IDs and the values are unit objects.
+        :rtype: dict
+        """
         for unit_id, unit in self.units.items():
             num_good_cells = unit.num_not_geldrying()
             if num_good_cells > min_num_usefull_cells:
@@ -734,51 +758,63 @@ class Session:
             if unit.usefull:
                 unit.calc_yx_shift(refAndMasks, num_align_frames=1000)
 
-    def merge_units(self, regenerate=False, image_x_size=512, image_y_size=512):
+    def merge_units(self, generate=True, regenerate=False, image_x_size=512, image_y_size=512):
         """
         Takes MUnits with #cells> #most_cells/3 based on best MUnit (cells withoug geldrying).
         1. stat files are merged (suite2p) + deduplicated(cabincorr algo)
         2. Individual MUnit Suite2p folders are updated based on new Stat file (suite2p)
         3. Updated MUnits are merged to create full session data saved in suite2p_merged
         4. Gel drying is calculated for merged suite2p files
-        """
-        merged_s2p_path = os.path.join(self.s2p_folder_paths[0].split("suite2p")[0], "suite2p_merged")
 
+        :param generate: Whether to generate a new merged unit if it does not already exist. Defaults to True.
+        :type generate: bool
+        :param regenerate: Whether to regenerate the merged unit even if it already exists. Defaults to False.
+        :type regenerate: bool
+        :param image_x_size: The x size of the image. Defaults to 512.
+        :type image_x_size: int
+        :param image_y_size: The y size of the image. Defaults to 512.
+        :type image_y_size: int
+        :return: A merged unit object.
+        :rtype: Unit
+        """
+        generate = True if regenerate==True else generate
+        merged_s2p_path = os.path.join(self.s2p_folder_paths[0].split("suite2p")[0], "suite2p_merged")
         if os.path.exists(merged_s2p_path):
             if regenerate:
-                os.remove(merged_s2p_path)
+                shutil.rmtree(merged_s2p_path)
             else:
                 merged_unit = Unit(merged_s2p_path, self, f"Already_merged")
                 return merged_unit
-                
-        # get unit with the most good cells (after geldrying detection)
-        best_unit = self.get_most_good_cell_unit()
-        # get units with enough usefull cells (at least 1/3 of best MUnit cells)
-        min_num_usefull_cells = best_unit.num_not_geldrying() / 3
-        
-        units = self.get_usefull_units(best_unit, min_num_usefull_cells)
-        
-        # merge statistical information of units and deduplicate
-        merger = Merger()
-        merged_stat = merger.merge_stat(units, best_unit)
-        print(f"Number of cells after merging: {merged_stat.shape[0]}")
+            
+        if generate:
+            # get unit with the most good cells (after geldrying detection)
+            best_unit = self.get_most_good_cell_unit()
+            # get units with enough usefull cells (at least 1/3 of best MUnit cells)
+            min_num_usefull_cells = best_unit.num_not_geldrying() / 3
+            
+            units = self.get_usefull_units(min_num_usefull_cells)
+            
+            # merge statistical information of units and deduplicate
+            merger = Merger()
+            merged_stat = merger.merge_stat(units, best_unit)
+            print(f"Number of cells after merging: {merged_stat.shape[0]}")
 
-        updated_units = {} 
-        merged_unit_id = ""
-        for unit_id, unit in units.items():
-            # shift merged mask
-            print(f"Updating Unit {unit_id}")
-            merger.shift_update_unit_s2p_files(unit, merged_stat, image_x_size=image_x_size, image_y_size=image_y_size)
-            updated_units[unit_id] = Unit(unit.suite2p_folder_path, session=self, unit_id=unit_id)
-            merged_unit_id += str(unit_id)+"_"
-        # concatenate S2P results
-        ops = default_ops()
-        merged_F, _, _, _ = merger.merge_s2p_files(updated_units, merged_stat, ops) #best_unit.c.ops)
-        #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
+            updated_units = {} 
+            merged_unit_id = ""
+            for unit_id, unit in units.items():
+                # shift merged mask
+                print(f"Updating Unit {unit_id}")
+                merger.shift_update_unit_s2p_files(unit, merged_stat, image_x_size=image_x_size, image_y_size=image_y_size)
+                updated_units[unit_id] = Unit(unit.suite2p_folder_path, session=self, unit_id=unit_id)
+                merged_unit_id += str(unit_id)+"_"
+            # concatenate S2P results
+            ops = default_ops()
+            merged_F, _, _, _ = merger.merge_s2p_files(updated_units, merged_stat, ops) #best_unit.c.ops)
+            #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
-        self.get_cabincorr_data_paths()
-        self.get_s2p_folder_paths()
-        merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged")
+            self.get_cabincorr_data_paths()
+            self.get_s2p_folder_paths()
+            merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged")
 
         return merged_unit
 
@@ -1293,7 +1329,6 @@ class Unit:
         self.session_id = session.session_id
         self.session_dir = session.session_dir
         self.unit_id = unit_id
-        #self.dedup_cell_ids = None
         self.c, self.contours, self.footprints = self.run_cabin_corr()
         self.dedup_cell_ids = None
         self.get_all_sliding_cell_stat = None
@@ -1423,10 +1458,6 @@ class Merger:
     """
     Merges indiviual MUnits/Subsession of a Session
     """
-    def __init__(self, session) -> None:
-        self.session = session
-        pass
-
     def shift_stat_cells(self, stat, yx_shift, image_x_size=512, image_y_size=512):
         # stat files first value ist y-value second is x-value
         new_stat = copy.deepcopy(stat)
