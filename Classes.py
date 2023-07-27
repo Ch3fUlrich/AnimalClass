@@ -330,13 +330,12 @@ class Session:
         self.age = age
         
         self.mesc_data_path = self.get_mesc_data_path()
-        self.session_parts = self.get_session_parts()  #TODO: WARNING! units could not start at 0
+        self.session_parts = self.get_session_parts()
         self.tiff_data_paths = self.get_tiff_data_paths(generate=generate, regenerate=regenerate, units=units, delete=delete)
         self.s2p_folder_paths = self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, units=units, delete=delete)
 
         self.cabincorr_data_paths = self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, units=units)
         
-        #TODO: load suite2p files? how is RAM?
         #TODO: implement cabincorr functions for filtering correct data
         #self.corr_mean, self.corr_std = self.get_corr_mean_std()
         print(f"Finished {animal_id}: {session_id}")
@@ -377,7 +376,7 @@ class Session:
         return self.session_parts
 
     def get_tiff_data_paths(self, generate=False, regenerate=False, units="all", delete=False):
-
+        delete = False #FIXME: Mesc ist probably always usefull.
         tiff_data_paths = []
         self.tiff_data_paths = []
         if regenerate:
@@ -440,8 +439,9 @@ class Session:
 
                 # Get number_shift, if a bad fluoresence file was manually deleted
                 # CAUTION: if deletion is done in the middle the correction will break
-                biggest_wanted_session_number = max([int(unit.replace("S", ""))-1 for unit in units])
-                number_shift = biggest_wanted_session_number-max(fluoresence_recording_session_numbers)
+                biggest_session_number = max([int(unit.replace("S", ""))-1 for unit in self.session_parts])
+                biggest_possible_session_number = max(fluoresence_recording_session_numbers)
+                number_shift = biggest_session_number-biggest_possible_session_number
 
                 sess_list = []
                 for unit in units:
@@ -485,7 +485,6 @@ class Session:
         for folder_name in s2p_folder_paths:
             self.s2p_folder_paths.append(os.path.join(self.session_dir, "tif", folder_name))
         
-        #FIXME: Check if this still working
         suite2p_folder = os.path.join(self.session_dir, "tif", "suite2p")
         if units == "all":
             fluoresence_path = search_file(suite2p_folder, "F.npy")
@@ -715,6 +714,19 @@ class Session:
         self.units = units
         return units
     
+    def get_Unit_all(self):
+        #create Unit for whole session
+        data_path = None
+        for s2p_folder_path in self.s2p_folder_paths:
+            if s2p_folder_path.split("suite2p")[-1] == "" :
+                data_path = s2p_folder_path
+        if data_path:
+            backup_s2p_files(data_path, restore=True)
+            unit_all = Unit(data_path, session=self, unit_id="all")
+        else:
+            print("No s2p folder found for full session")
+        return unit_all
+
     def get_most_good_cell_unit(self):
         most_good_cells = 0
         for unit_id, unit in self.units.items():
@@ -758,7 +770,7 @@ class Session:
             if unit.usefull:
                 unit.calc_yx_shift(refAndMasks, num_align_frames=1000)
 
-    def merge_units(self, generate=True, regenerate=False, image_x_size=512, image_y_size=512):
+    def merge_units(self, generate=True, regenerate=False, delete_used_subsessions=False, image_x_size=512, image_y_size=512):
         """
         Takes MUnits with #cells> #most_cells/3 based on best MUnit (cells withoug geldrying).
         1. stat files are merged (suite2p) + deduplicated(cabincorr algo)
@@ -791,7 +803,6 @@ class Session:
             best_unit = self.get_most_good_cell_unit()
             # get units with enough usefull cells (at least 1/3 of best MUnit cells)
             min_num_usefull_cells = best_unit.num_not_geldrying() / 3
-            
             units = self.get_usefull_units(min_num_usefull_cells)
             
             # merge statistical information of units and deduplicate
@@ -812,15 +823,15 @@ class Session:
             merged_F, _, _, _ = merger.merge_s2p_files(updated_units, merged_stat, ops) #best_unit.c.ops)
             #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
+            if delete_used_subsessions:
+                for unit in updated_units:
+                    shutil.rmtree(unit.suite2p_folder_path)
+
             self.get_cabincorr_data_paths()
             self.get_s2p_folder_paths()
             merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged")
 
         return merged_unit
-
-
-        
-
 
 class Animal:
     root_dir = "F:\\Steffen_Experiments" 
@@ -1322,6 +1333,7 @@ class Vizualizer:
             ax[x, y].imshow(image)
             ax[x, y].invert_yaxis()
         plt.show()
+
 class Unit:
     def __init__(self, suite2p_folder_path, session, unit_id):
         self.suite2p_folder_path = suite2p_folder_path
