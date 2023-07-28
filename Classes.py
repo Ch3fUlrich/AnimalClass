@@ -516,6 +516,9 @@ class Session:
         return self.s2p_folder_paths
 
     def run_suite2p(self, regenerate=False, units="all", delete=False):
+        
+        delete_bin = True if units=="all" else False
+
         save_folder="tif\\suite2p"
         tiff_file_name = f"{self.animal_id}_{self.session_id}_{Animal.dir_}"
         
@@ -546,6 +549,17 @@ class Session:
         # set your options for running
         ops = default_ops() # populates ops with the default options
 
+        # deleting binary file from old s2p run
+        s2p_temp_binary_location = os.path.join(self.session_dir, "suite2p", "plane0", "data.bin")
+        print(f"Deleting old binary file from {s2p_temp_binary_location}")
+        if os.path.exists(s2p_temp_binary_location):
+            os.remove(s2p_temp_binary_location)
+
+        s2p_binary_file = os.path.join(save_folder, "data.bin")
+        if os.path.exists(s2p_binary_file):
+            shutil.copy(s2p_binary_file, s2p_temp_binary_location)
+            print(f"Reusing binary file {s2p_binary_file}")
+
         # provide an h5 path in 'h5py' or a tiff path in 'data_path'
         # db overwrites any ops (allows for experiment specific settings)
         db = {
@@ -560,7 +574,7 @@ class Session:
             #'nimg_init': 500,      # Can create errors... how many frames to use to compute reference image for registration
             'tiff_list': tiff_file_names,
             'allow_overlap': False,  #extract signals from pixels which belong to two ROIs. By default, any pixels which belong to two ROIs (overlapping pixels) are excluded from the computation of the ROI trace.
-            'delete_bin': False,    # delete binary files afterwards
+            'delete_bin': delete_bin,    # delete binary files afterwards
             'keep_movie_raw': False, # keep the binary file of the non-registered frames
             #'reg_tif': True,        # write the registered binary to tiff files
             'move_bin': True,       # If True and ops['fast_disk'] is different from ops[save_disk], the created binary file is moved to ops['save_disk']
@@ -574,6 +588,10 @@ class Session:
         if delete:
             print("Removing Tiff...")
             os.remove(data_path)
+        
+        if os.path.exists(s2p_temp_binary_location):
+            print(f"Deleting reused binary file {s2p_temp_binary_location}")
+            os.remove(s2p_temp_binary_location)
         print("Finished Suite2p.")
 
     def get_cabincorr_data_paths(self, generate=False, regenerate=False, units="all"):
@@ -754,7 +772,7 @@ class Session:
                 unit.usefull = False
         return {unit_id:unit for unit_id, unit in self.units.items() if unit.usefull}
     
-    def calc_unit_yx_shifts(self, best_unit, min_num_usefull_cells):
+    def calc_unit_yx_shifts(self, best_unit, units):
         """
         S2P Registration (Footprint position shift determination)
         """
@@ -763,7 +781,7 @@ class Session:
         #refImg = get_reference_image(best_unit)
         refAndMasks = register.compute_reference_masks(refImg, best_unit.ops)
         #refAndMasks = register.compute_reference_masks(refImg, ops)
-        for unit_id, unit in self.units.items():
+        for unit_id, unit in units.items():
             if unit_id == best_unit.unit_id:
                 continue   
             #unit.yx_shift = calc_yx_shift(refAndMasks, unit, unit.ops, num_align_frames)
@@ -805,6 +823,8 @@ class Session:
             min_num_usefull_cells = best_unit.num_not_geldrying() / 3
             units = self.get_usefull_units(min_num_usefull_cells)
             
+            self.calc_unit_yx_shifts(best_unit, units)
+
             # merge statistical information of units and deduplicate
             merger = Merger()
             merged_stat = merger.merge_stat(units, best_unit)
