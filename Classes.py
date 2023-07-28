@@ -555,7 +555,7 @@ class Session:
         if os.path.exists(s2p_temp_binary_location):
             os.remove(s2p_temp_binary_location)
 
-        s2p_binary_file = os.path.join(save_folder, "data.bin")
+        s2p_binary_file = os.path.join(save_folder, "plane0", "data.bin")
         if os.path.exists(s2p_binary_file):
             shutil.copy(s2p_binary_file, s2p_temp_binary_location)
             print(f"Reusing binary file {s2p_binary_file}")
