@@ -57,18 +57,18 @@ from Classes import Analyzer, Session, Animal, Vizualizer, Unit, Binary_loader, 
 from Helper import *
 
 
-def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True, skip_animal=[], skip_session=[]):
+def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True, delete=False, skip_animal=[], skip_session=[]):
     #TODO: skipping option is not integrated
     # Init Directories and Notebook settings
-    #root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
-    root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
+    root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
+    #root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
     #root_dir = "D:\\Steffen_Experiments"  
     #root_dir = "F:\\Steffen_Experiments"
     Animal.root_dir = root_dir
     #root_dir = "D:\\Rodrigo"
 
     year_list = ["2021", "2022"]
-    animals, bad_sessions = load_all(root_dir, animal_ids=wanted_animal_ids, sessions=wanted_session_ids, generate=generate) # Load all animals
+    animals, bad_sessions = load_all(root_dir, animal_ids=wanted_animal_ids, sessions=wanted_session_ids, generate=generate, delete=delete) # Load all animals
     #animals = load_all(root_dir, generate=True) # Load all animals
     #animals = load_all(root_dir, generate=True, units="single")#, delete=True) # Load all animals
     #animal.sessions[session_id].run_suite2p(regenerate=True, units="S1")
