@@ -12,10 +12,6 @@ plt.style.use('dark_background')
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-from IPython.core.display import display, HTML
-display(HTML("<style>.container { width:100% !important; }</style>"))
-from ipywidgets import interact
-
 # Regular Expression searching
 import re
 
@@ -60,7 +56,7 @@ import pathlib
 from Helper import *
 from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
-def load_all(root_dir, animal_ids=["all"], sessions=["all"], generate=False, regenerate=False, units="single", delete=False):
+def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], generate=False, regenerate=False, units="single", delete=False):
     """
     Loads animal data from the specified root directory for the given animal IDs.
 
@@ -81,7 +77,7 @@ def load_all(root_dir, animal_ids=["all"], sessions=["all"], generate=False, reg
     # Search for animal_ids
     bad_sessions = []
     for animal_id in present_animal_ids:
-        if animal_id in animal_ids or "all" in animal_ids:
+        if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
             sessions_path = os.path.join(root_dir, animal_id)
             present_sessions = get_directories(sessions_path)
             yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
@@ -89,13 +85,13 @@ def load_all(root_dir, animal_ids=["all"], sessions=["all"], generate=False, reg
             Animal.root_dir = root_dir
             # Search for 2P Sessions
             for session in present_sessions:
-                if session in session or "all" in sessions:
-                    try:
-                        animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
-                    except:
-                        print(f"Error creating session files {animal_id} {session}")
-                        bad_sessions.append([animal_id, session])
-                        continue
+                if session in wanted_session_ids or "all" in wanted_session_ids:
+                    #try:
+                    animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
+                    #except:
+                    #    print(f"Error creating session files {animal_id} {session}")
+                    #    bad_sessions.append([animal_id, session])
+                    #    continue
             animals_dict[animal_id] = animal
     return animals_dict, bad_sessions
 

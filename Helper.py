@@ -12,10 +12,6 @@ plt.style.use('dark_background')
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-from IPython.core.display import display, HTML
-display(HTML("<style>.container { width:100% !important; }</style>"))
-from ipywidgets import interact
-
 # Regular Expression searching
 import re
 

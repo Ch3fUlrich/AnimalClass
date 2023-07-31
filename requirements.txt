@@ -9,4 +9,9 @@ scipy
 opencv-python
 networkx
 suite2p
-
+mpld3
+nest_asyncio
+h5py
+IPython
+ipywidgets
+psutil
