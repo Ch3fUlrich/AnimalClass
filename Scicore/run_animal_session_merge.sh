@@ -27,9 +27,7 @@ conda init bash
 conda activate animal_sergej
 pip install -r /scicore/home/donafl00/mauser00/code/AnimalClass/requirements.txt
 
-conda env export -n suite2p_cat -f job_$SLURM_JOBID_env.yml --no-builds
-
-python /scicore/projects/donafl00-calcium/Users/Sergej/create_commands_list.py animal_id session_id
+python /scicore/projects/donafl00-calcium/Users/Sergej/create_commands_list.py DON-009191 session_id
 
 # Run the corresponding commands from the file commands.cmd one by one
 # File should be filled with python /scicore/projects/donafl00-calcium/Users/Sergej/AnimalClass_command_line.py animal_id session_id
