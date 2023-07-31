@@ -48,9 +48,8 @@ import pathlib
 
 # add root directory to be able to import packages
 # todo: make all packages installable so they can be called/imported by environment
-#module_path = os.path.abspath(os.path.join('../'))
-#print(module_path)
-#sys.path.append(module_path)
+module_path = os.path.abspath(os.path.join('../'))
+sys.path.append(module_path)
 
 from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
@@ -58,7 +57,8 @@ from Classes import Analyzer, Session, Animal, Vizualizer, Unit, Binary_loader, 
 from Helper import *
 
 
-def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"]):
+def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], skip_animal=[], skip_session=[]):
+    #TODO: skipping option is not integrated
     with open("commands.cmd", 'w') as f:
         root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
         Animal.root_dir = root_dir
@@ -72,11 +72,10 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"]):
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
-    wanted_animal_ids = sys.argv[1:2][0]
-    wanted_session_ids = sys.argv[2:3][0]
-
-    wanted_animal_ids = wanted_animal_ids if sys.argv[1] else ["all"]
-    wanted_session_ids = wanted_session_ids if sys.argv[2] else ["all"]
+    wanted_animal_ids = sys.argv[1:2] if len(arguments) >= 1 else ["all"]
+    wanted_session_ids = sys.argv[2:3] if len(arguments) >= 2 else ["all"]
+    if len(arguments) > 3:
+        print("Command line usage: <animal_id> <session_id>")
+        print("If an argument is not specified the corresponding argument is set to 'all'")
     print(f"Creating commands.cmd for {wanted_animal_ids}, {wanted_session_ids}")
-    
-    main(wanted_animal_ids, wanted_session_ids)
+    main(wanted_animal_ids, wanted_session_ids)#skip_animal=["DON-009191"], skip_session=["20220225"]
