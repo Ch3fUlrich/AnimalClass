@@ -60,7 +60,7 @@ import pathlib
 from Helper import *
 from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
-def load_all(root_dir, animal_ids=["all"], generate=False, regenerate=False, units="single", delete=False):
+def load_all(root_dir, animal_ids=["all"], sessions=["all"], generate=False, regenerate=False, units="single", delete=False):
     """
     Loads animal data from the specified root directory for the given animal IDs.
 
@@ -83,21 +83,19 @@ def load_all(root_dir, animal_ids=["all"], generate=False, regenerate=False, uni
     for animal_id in present_animal_ids:
         if animal_id in animal_ids or "all" in animal_ids:
             sessions_path = os.path.join(root_dir, animal_id)
-            sessions = get_directories(sessions_path)
+            present_sessions = get_directories(sessions_path)
             yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
             animal = Animal(yaml_file_name)
             Animal.root_dir = root_dir
             # Search for 2P Sessions
-            for session in sessions:
-                #try:
-                try:
-                    animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
-                except:
-                    print(f"Error creating session files {animal_id} {session}")
-                    bad_sessions.append([animal_id, session])
-                    continue
-                #except:
-                #    print(f"no session data found for session {session} from {animal_id}")
+            for session in present_sessions:
+                if session in session or "all" in sessions:
+                    try:
+                        animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
+                    except:
+                        print(f"Error creating session files {animal_id} {session}")
+                        bad_sessions.append([animal_id, session])
+                        continue
             animals_dict[animal_id] = animal
     return animals_dict, bad_sessions
 

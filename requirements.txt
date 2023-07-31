@@ -1,5 +1,6 @@
 tqdm
 pandas
+seaborn
 matplotlib
 numpy
 scikit-learn
@@ -7,3 +8,5 @@ parmap
 scipy
 opencv-python
 networkx
+suite2p
+
