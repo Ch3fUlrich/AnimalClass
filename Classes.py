@@ -412,7 +412,7 @@ class Session:
         if isinstance(units, str):
             units = [units]
 
-        if units[0] == "all":
+        if "all" in units:
             tiff_file_name = mesc_file_name.replace('.mesc','.tif')
             units = self.get_session_parts()
         else:

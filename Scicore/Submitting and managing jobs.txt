@@ -1,0 +1,14 @@
+submitting job:
+    sbatch launch.sh
+see queued jobs:
+    squeue -u mauser00
+cancel job:
+    scancel JOBID
+cancel all jobs:
+    scancel mauser00
+
+array jobs:
+    #SBATCH --array=1-200%20        #This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
+    # Run the corresponding commands from the file commands.cmd one by one
+    # File should be filled with python /scicore/projects/donafl00-calcium/Users/Sergej/AnimalClass_command_line.py animal_id session_id
+    $(head -$SLURM_ARRAY_TASK_ID commands.cmd | tail -1) 
