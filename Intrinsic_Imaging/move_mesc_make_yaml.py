@@ -51,8 +51,8 @@ def create_animal_dict(animal_id_records, dob_records, sex_records):
             'dob': dob,
             'name': animal_id,
             'pdays': [],
-            'sessions_dates': [],
-            'sessions_names': [],
+            'session_dates': [],
+            'session_names': [],
             'sex': "male" if sex == "m" else "female"
         }
     return animals
@@ -64,11 +64,11 @@ def add_session_info_from_file_move_file(animals, directory=None):
             if splitted_fname[0][:3] != "DON": #not animal file
                 continue
             animal_id = splitted_fname[0]
-            session_id = int(splitted_fname[1])
+            session_id = splitted_fname[1]
             if animal_id in animals:
                 session_date = session_id
-                animals[animal_id]["sessions_dates"].append(session_id)
-                animals[animal_id]["sessions_names"].append(session_id)
+                animals[animal_id]["session_dates"].append(session_id)
+                animals[animal_id]["session_names"].append(session_id)
                 
                 dob_date = num_to_date(animals[animal_id]["dob"])
                 session_date = num_to_date(session_date)
@@ -98,6 +98,8 @@ def dir_exist_create(directory):
 def create_folder(animal_id, session_id):
     dir_exist_create(animal_id)
     path = os.path.join(animal_id, session_id)
+    dir_exist_create(path)
+    path = os.path.join(path, "002P-F")
     dir_exist_create(path)
     return path
 

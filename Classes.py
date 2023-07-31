@@ -75,24 +75,31 @@ def load_all(root_dir, animal_ids=["all"], generate=False, regenerate=False, uni
     Returns:
     - animals_dict (dict): A dictionary containing animal IDs as keys and corresponding Animal objects as values.
     """
-    animal_ids = get_directories(root_dir)
+    present_animal_ids = get_directories(root_dir)
     animals_dict = {}
 
     # Search for animal_ids
-    for animal_id in animal_ids:
-        if animal_id in animal_ids or animal_ids[0] == "all":
+    bad_sessions = []
+    for animal_id in present_animal_ids:
+        if animal_id in animal_ids or "all" in animal_ids:
             sessions_path = os.path.join(root_dir, animal_id)
             sessions = get_directories(sessions_path)
             yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
             animal = Animal(yaml_file_name)
+            Animal.root_dir = root_dir
             # Search for 2P Sessions
             for session in sessions:
+                #try:
                 try:
                     animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
                 except:
-                    print(f"no session data found for session {session} from {animal_id}")
+                    print(f"Error creating session files {animal_id} {session}")
+                    bad_sessions.append([animal_id, session])
+                    continue
+                #except:
+                #    print(f"no session data found for session {session} from {animal_id}")
             animals_dict[animal_id] = animal
-    return animals_dict
+    return animals_dict, bad_sessions
 
 class Analyzer:
     # Pearson and histogram plot and save
@@ -345,7 +352,7 @@ class Session:
         files_list = get_files(self.session_dir, ending="mesc")
         for file_name in files_list:
             #TODO: Pipeline to get mesc_data_path not perfect
-            if re.search("S1", file_name) == None and re.search("S2", file_name) == None and re.search("S3", file_name) == None:
+            if re.search("S1", file_name) == None and re.search("S2", file_name) == None and re.search("S3", file_name) == None and re.search("S4", file_name) == None:
                 continue
             else:
                 self.mesc_data_path = os.path.join(self.session_dir, file_name)
@@ -353,8 +360,8 @@ class Session:
         return None
 
     def get_list_of_session_parts(self, file_name):
-        session_parts = file_name.split(".")[0].split("_")[-1].split("-")
-        return [session for session in session_parts if session[0]=="S"]
+        session_parts = file_name.split("\\")[-1].split(".")[0].split("_")[-1].split("-")
+        return [session for session in session_parts if session[0]=="S" ]
     
     def get_session_parts(self, file_name = None):
         session_parts_list = []
@@ -876,11 +883,13 @@ class Animal:
                 skip -= 1
                 continue
             if "cohort_year" in line:
-                cohort_year = int(lines[num+1].split("- ")[1])
+                try:
+                    cohort_year = int(lines[num+1].split("- ")[1])
+                except:
+                    cohort_year = int(line.split(": ")[1])
             if "dob" in line:
                 dob = line.split(": ")[1][1:-2].strip()
             if "name: D" in line:
-                print(line)
                 animal_id = line.split(": ")[1].strip()
             if "pdays" in line:
                 pdays = self.get_array_from_text_list(lines[num+1:], "session_dates")
