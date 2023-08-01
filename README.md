@@ -1,2 +1,2 @@
 # AnimalClass
-Tool for working with brain imaging datasets
+Tool for working with brain imaging datasets .
