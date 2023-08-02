@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #SBATCH --job-name=cleaning            #This is the name of your job
-#SBATCH --cpus-per-task=16                  #This is the number of cores reserved
-#SBATCH --mem-per-cpu=15G              #This is the memory reserved per core.
+#SBATCH --cpus-per-task=60                  #This is the number of cores reserved
+#SBATCH --mem-per-cpu=5G              #This is the memory reserved per core.
 
 
-#SBATCH --time=06:00:00        #This is the time that your task will run
+#SBATCH --time=00:45:00        #This is the time that your task will run
 #SBATCH --qos=6hours	           #You will run in this queue
 #SBATCH --array=1-59        #This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
 

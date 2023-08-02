@@ -1323,7 +1323,7 @@ class Unit:
 
     def get_c(self):
         #Merging cell footprints
-        c = run_cabin_corr(Animal.root_dir, data_dir=os.path.join(self.suite2p_folder, "plane0"),
+        c = run_cabin_corr(Animal.root_dir, data_dir=os.path.join(self.suite2p_folder_path, "plane0"),
                             animal_id=self.animal_id, session_id=self.session_id)
         contours = c.contours
         footprints = c.footprints
@@ -1452,7 +1452,7 @@ class Merger:
         num_batches_range = [16, 12, 4, 2, 1]
         ram_range = [16, 32, 64, 128]
         for batches, ram in zip(num_batches_range, ram_range):
-            if available_ram_gb < ram:
+            if available_ram_gb > ram:
                 num_batches = batches
                 break
         print(f"Available RAM: {round(available_ram_gb)}GB setting number of batches to {num_batches}")
