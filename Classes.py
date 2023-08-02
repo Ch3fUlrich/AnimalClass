@@ -483,7 +483,7 @@ class Session:
         
         delete_bin = True if units=="all" else False
 
-        save_folder="tif\\suite2p"
+        save_folder=os.path.join("tif", "suite2p")
         tiff_file_name = f"{self.animal_id}_{self.session_id}_{Animal.dir_}"
         
         tiff_file_names = []
@@ -799,7 +799,7 @@ class Session:
         return merged_unit
 
 class Animal:
-    root_dir = "F:\\Steffen_Experiments" 
+    root_dir = os.path.join("F:", "Steffen_Experiments")
     dir_ = r'002P-F'
     cabincorr_file_name = "binarized_traces.npz"
     
