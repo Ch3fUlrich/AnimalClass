@@ -1448,11 +1448,11 @@ class Merger:
         byte_to_gb = 1/1000000000
         available_ram_gb = available*byte_to_gb
         print("Setting Number of Batches according to free RAM")
-        num_batches = 32
-        num_batches_range = [16, 12, 4, 2, 1]
+        num_batches = 1
+        num_batches_range = [32, 16, 10, 4]
         ram_range = [16, 32, 64, 128]
         for batches, ram in zip(num_batches_range, ram_range):
-            if available_ram_gb > ram:
+            if available_ram_gb < ram:
                 num_batches = batches
                 break
         print(f"Available RAM: {round(available_ram_gb)}GB setting number of batches to {num_batches}")
