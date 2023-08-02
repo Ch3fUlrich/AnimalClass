@@ -321,22 +321,25 @@ class Session:
         return [session for session in session_parts if session[0]=="S" ]
     
     def get_session_parts(self, file_name = None):
-        session_parts_list = []
-        if file_name == None:
-            file_name = self.mesc_data_path
-
-        session_parts_list = self.get_list_of_session_parts(file_name)
+        session_parts = []
         
-        tiff_session_parts = []
-        tiff_files_list = get_files(self.session_dir, ending="tiff")
-        for tiff_file_name in tiff_files_list:
-            tiff_session_parts += self.get_list_of_session_parts(tiff_file_name)
-
-        self.session_parts = list(np.unique(session_parts_list + tiff_session_parts))
-
+        # get session parts from MESC file name if available
         if file_name == None:
-            self.session_parts = []
+            if self.mesc_data_path:
+                session_parts = self.get_list_of_session_parts(file_name)
+        else:
+            session_parts = self.get_list_of_session_parts(file_name)
+        
+        # get session parts from TIF file names if MESC file not available
+        if len(session_parts)==0:
+            tiff_session_parts = []
+            tiff_files_list = get_files(self.session_dir, ending="tiff")
+            for tiff_file_name in tiff_files_list:
+                tiff_session_parts += self.get_list_of_session_parts(tiff_file_name)
 
+            session_parts = list(np.unique(tiff_session_parts))
+
+        self.session_parts = session_parts
         return self.session_parts
 
     def get_tiff_data_paths(self, generate=False, regenerate=False, units="all", delete=False):
