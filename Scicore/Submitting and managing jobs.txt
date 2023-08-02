@@ -5,6 +5,8 @@ submitting job:
     sbatch launch.sh
 see queued jobs:
     squeue -u mauser00
+    while true;do squeue -u mauser00; sleep 5; done
+
 
 
 cancel job:

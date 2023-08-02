@@ -56,44 +56,7 @@ import pathlib
 from Helper import *
 from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
-def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], generate=False, regenerate=False, units="single", delete=False):
-    """
-    Loads animal data from the specified root directory for the given animal IDs.
 
-    Parameters:
-    - root_dir (string): The root directory path where the animal data is stored.
-    - animal_ids (list, optional): A list of animal IDs to load. Default is ["all"].
-    - generate (bool, optional): If True, generates new session data. Default is False.
-    - regenerate (bool, optional): If True, regenerates existing session data. Default is False.
-    - units (string, optional): Specifies the units. Default is "single".
-    - delete (bool, optional): If True, deletes session data. Default is False.
-
-    Returns:
-    - animals_dict (dict): A dictionary containing animal IDs as keys and corresponding Animal objects as values.
-    """
-    present_animal_ids = get_directories(root_dir)
-    animals_dict = {}
-
-    # Search for animal_ids
-    bad_sessions = []
-    for animal_id in present_animal_ids:
-        if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
-            sessions_path = os.path.join(root_dir, animal_id)
-            present_sessions = get_directories(sessions_path)
-            yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
-            animal = Animal(yaml_file_name)
-            Animal.root_dir = root_dir
-            # Search for 2P Sessions
-            for session in present_sessions:
-                if session in wanted_session_ids or "all" in wanted_session_ids:
-                    #try:
-                    animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
-                    #except:
-                    #    print(f"Error creating session files {animal_id} {session}")
-                    #    bad_sessions.append([animal_id, session])
-                    #    continue
-            animals_dict[animal_id] = animal
-    return animals_dict, bad_sessions
 
 class Analyzer:
     # Pearson and histogram plot and save
@@ -520,7 +483,7 @@ class Session:
         
         delete_bin = True if units=="all" else False
 
-        save_folder="tif\\suite2p"
+        save_folder=os.path.join("tif", "suite2p")
         tiff_file_name = f"{self.animal_id}_{self.session_id}_{Animal.dir_}"
         
         tiff_file_names = []
@@ -640,31 +603,12 @@ class Session:
             return None 
 
         print("Starting CaBinCorr...")
-        #TODO: update code to newest version of cabincorr
-        #Init
-        c = calcium.Calcium()
-        c.root_dir = Animal.root_dir
-        c.data_dir = os.path.join(suite2p_folder, "plane0")
-        c.animal_id = self.animal_id 
-        c.session = self.session_id
-        c.detrend_model_order = 1
-        c.recompute_binarization = False
-        c.remove_ends = False
-        c.detrend_filter_threshold = 0.001
-        c.mode_window = 30*30
-        c.percentile_threshold = 0.000001
-        c.dff_min = 0.02
+        c = run_cabin_corr(Animal.root_dir, data_dir=os.path.join(suite2p_folder, "plane0"),
+                           animal_id=self.animal_id, session_id=self.session_id)
+        
 
-        #
-        c.load_suite2p()
-
-        #
-        c.load_binarization()
         current_cabincorr_data_path = search_file(suite2p_folder, Animal.cabincorr_file_name)
         self.cabincorr_data_paths.append(current_cabincorr_data_path)
-        #TODO: Save every other information in parameters maybe save whole c object? Also for multiple version of suite2p data?
-        #Generate correlations
-        #self.calcium_object = c
         return current_cabincorr_data_path
     
     def load_cabincorr_data(self, units="all"):
@@ -855,7 +799,7 @@ class Session:
         return merged_unit
 
 class Animal:
-    root_dir = "F:\\Steffen_Experiments" 
+    root_dir = os.path.join("F:", "Steffen_Experiments")
     dir_ = r'002P-F'
     cabincorr_file_name = "binarized_traces.npz"
     
@@ -1364,7 +1308,7 @@ class Unit:
         self.session_id = session.session_id
         self.session_dir = session.session_dir
         self.unit_id = unit_id
-        self.c, self.contours, self.footprints = self.run_cabin_corr()
+        self.c, self.contours, self.footprints = self.get_c()
         self.dedup_cell_ids = None
         self.get_all_sliding_cell_stat = None
         self.fluoresence = butter_lowpass_filter(self.c.dff, cutoff=0.5, fs=30, order=2)
@@ -1377,29 +1321,10 @@ class Unit:
         self.usefull = None
         
 
-    def run_cabin_corr(self, deduplicate=False):
+    def get_c(self):
         #Merging cell footprints
-        c = calcium.Calcium()
-        c.root_dir = Animal.root_dir
-        c.data_dir = os.path.join(self.suite2p_folder_path, "plane0")
-        print(c.data_dir) #TODO: remove when finished
-        c.animal_id = self.animal_id 
-        c.session = self.session_id
-        c.detrend_model_order = 1
-        c.recompute_binarization = False
-        c.remove_ends = False
-        c.detrend_filter_threshold = 0.001
-        c.mode_window = 30*30
-        c.percentile_threshold = 0.000001
-        c.dff_min = 0.02
-
-        #
-        c.load_suite2p()
-
-        c.load_binarization()
-
-        # getting contours and footprints
-        c.load_footprints()
+        c = run_cabin_corr(Animal.root_dir, data_dir=os.path.join(self.suite2p_folder, "plane0"),
+                            animal_id=self.animal_id, session_id=self.session_id)
         contours = c.contours
         footprints = c.footprints
         return c, contours, footprints
@@ -1785,3 +1710,67 @@ class Merger:
 
         backup_s2p_files(data_path, note="backup")
         update_s2p_files(data_path, shifted_unit_stat)
+
+
+def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], generate=False, regenerate=False, units="single", delete=False):
+    """
+    Loads animal data from the specified root directory for the given animal IDs.
+
+    Parameters:
+    - root_dir (string): The root directory path where the animal data is stored.
+    - animal_ids (list, optional): A list of animal IDs to load. Default is ["all"].
+    - generate (bool, optional): If True, generates new session data. Default is False.
+    - regenerate (bool, optional): If True, regenerates existing session data. Default is False.
+    - units (string, optional): Specifies the units. Default is "single".
+    - delete (bool, optional): If True, deletes session data. Default is False.
+
+    Returns:
+    - animals_dict (dict): A dictionary containing animal IDs as keys and corresponding Animal objects as values.
+    """
+    present_animal_ids = get_directories(root_dir)
+    animals_dict = {}
+
+    # Search for animal_ids
+    bad_sessions = []
+    for animal_id in present_animal_ids:
+        if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
+            sessions_path = os.path.join(root_dir, animal_id)
+            present_sessions = get_directories(sessions_path)
+            yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
+            animal = Animal(yaml_file_name)
+            Animal.root_dir = root_dir
+            # Search for 2P Sessions
+            for session in present_sessions:
+                if session in wanted_session_ids or "all" in wanted_session_ids:
+                    #try:
+                    animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
+                    #except:
+                    #    print(f"Error creating session files {animal_id} {session}")
+                    #    bad_sessions.append([animal_id, session])
+                    #    continue
+            animals_dict[animal_id] = animal
+    return animals_dict, bad_sessions
+
+def run_cabin_corr(root_dir, data_dir, animal_id, session_id):
+    #TODO: update code to newest version of cabincorr
+    #Init
+    c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
+    print(c.data_dir) #TODO: remove when finished
+
+    c.animal_id = animal_id 
+    c.detrend_model_order = 1
+    c.recompute_binarization = False
+    c.remove_ends = False
+    c.detrend_filter_threshold = 0.001
+    c.mode_window = 30*30
+    c.percentile_threshold = 0.000001
+    c.dff_min = 0.02
+
+    #
+    c.load_suite2p()
+
+    c.load_binarization()
+
+    # getting contours and footprints
+    c.load_footprints()
+    return c

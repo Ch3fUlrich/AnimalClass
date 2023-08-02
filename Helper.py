@@ -52,6 +52,12 @@ import pathlib
 import time
 from multiprocessing import Pool
 
+def show_mesc_units(path):
+    h5 = h5py.File(path, 'r')
+    for munit_id, MUnits in h5['MSession_0'].items():
+        print(munit_id)
+        print(MUnits['Channel_0'])
+
 def timer(func):
     def wrapper(*args, **kwargs):
         start_time = time.time()

@@ -61,10 +61,10 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
     #TODO: skipping option is not integrated
     # Init Directories and Notebook settings
     root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
+    Animal.root_dir = root_dir
     #root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
     #root_dir = "D:\\Steffen_Experiments"  
     #root_dir = "F:\\Steffen_Experiments"
-    Animal.root_dir = root_dir
     #root_dir = "D:\\Rodrigo"
 
     year_list = ["2021", "2022"]
@@ -81,7 +81,7 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
     fps = 30
     seconds = 60
     window_size = fps*seconds # 1 minutes
-    viz = Vizualizer(animals)
+    viz = Vizualizer(animals, save_dir = Animal.root_dir)
 
     for animal_id, animal in animals.items():
         print(f"{animal_id}: {list(animal.sessions.keys())}")
@@ -129,7 +129,6 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             merged_unit = session.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
             #merged_unit = session.merge_units(generate=True, regenerate=False, delete_used_subsessions=True)
 
-            viz = Vizualizer()
             dir_exist_create(os.path.join(viz.save_dir, animal_id))
             dir_exist_create(os.path.join(viz.save_dir, animal_id, session_id))
             viz.save_dir = os.path.join(viz.save_dir, animal_id, session_id)

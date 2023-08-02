@@ -73,11 +73,20 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], skip_animal=[]
                         f.write(f"python /scicore/projects/donafl00-calcium/Users/Sergej/AnimalClass_command_line.py {animal_id} {session_id}\n")
 
 if __name__ == "__main__":
+    print("Command line usage: <animal_id> <session_id>, multiple parameters can be used seperated by spaces")
+    print("Animal_id must start with ´DON´")
+    print("If an argument is not specified the corresponding argument is set to 'all'")
     arguments = sys.argv[1:]
-    wanted_animal_ids = sys.argv[1:2] if len(arguments) >= 1 else ["all"]
-    wanted_session_ids = sys.argv[2:3] if len(arguments) >= 2 else ["all"]
-    if len(arguments) > 3:
-        print("Command line usage: <animal_id> <session_id>")
-        print("If an argument is not specified the corresponding argument is set to 'all'")
+    wanted_animal_ids = []
+    wanted_session_ids = []
+    for argument in arguments:
+        argument = str(argument)
+        if argument != "all":
+        if argument[:3] == "DON":
+            wanted_animal_ids.append(argument)
+        else:
+            wanted_session_ids.append(argument)
+    wanted_animal_ids = sys.argv[1:2] if len(wanted_animal_ids) > 0 else ["all"]
+    wanted_session_ids = sys.argv[2:3] if len(wanted_session_ids) > 0 else ["all"]
     print(f"Creating commands.cmd for {wanted_animal_ids}, {wanted_session_ids}")
     main(wanted_animal_ids, wanted_session_ids)#skip_animal=["DON-009191"], skip_session=["20220225"]
