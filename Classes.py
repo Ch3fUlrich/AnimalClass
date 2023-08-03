@@ -794,7 +794,7 @@ class Session:
             #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
             if delete_used_subsessions:
-                for unit in updated_units:
+                for unit_id, unit in updated_units.items():
                     shutil.rmtree(unit.suite2p_folder_path)
 
             self.get_cabincorr_data_paths()
