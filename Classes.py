@@ -326,7 +326,7 @@ class Session:
         # get session parts from MESC file name if available
         if file_name == None:
             if self.mesc_data_path:
-                session_parts = self.get_list_of_session_parts(file_name)
+                session_parts = self.get_list_of_session_parts(self.mesc_data_path)
         else:
             session_parts = self.get_list_of_session_parts(file_name)
         
@@ -1458,7 +1458,7 @@ class Merger:
         num_batches_range = [12, 8, 4, 2, 1]
         ram_range = [32, 16, 32, 64, 128]
         for batches, ram in zip(num_batches_range, ram_range):
-            if available_ram_gb < ram:
+            if available_ram_gb > ram:
                 num_batches = batches
         print(f"Available RAM: {round(available_ram_gb)}GB setting number of batches to {num_batches}")
         
@@ -1473,7 +1473,7 @@ class Merger:
             merged_stat = np.concatenate([merged_stat, shifted_unit_stat])[clean_cell_ids]
         merged_stat_no_abroad = self.remove_abroad_cells(merged_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
         return merged_stat_no_abroad
-    #
+    
     def remove_abroad_cells(self, merged_stat, units, image_x_size=512, image_y_size=512):
         # removing out of bound cells 
         remove_cells = []
