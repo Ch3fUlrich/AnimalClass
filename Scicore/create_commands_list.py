@@ -82,10 +82,10 @@ if __name__ == "__main__":
     for argument in arguments:
         argument = str(argument)
         if argument != "all":
-        if argument[:3] == "DON":
-            wanted_animal_ids.append(argument)
-        else:
-            wanted_session_ids.append(argument)
+            if argument[:3] == "DON":
+                wanted_animal_ids.append(argument)
+            else:
+                wanted_session_ids.append(argument)
     wanted_animal_ids = sys.argv[1:2] if len(wanted_animal_ids) > 0 else ["all"]
     wanted_session_ids = sys.argv[2:3] if len(wanted_session_ids) > 0 else ["all"]
     print(f"Creating commands.cmd for {wanted_animal_ids}, {wanted_session_ids}")
