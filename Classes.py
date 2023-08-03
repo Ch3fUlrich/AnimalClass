@@ -326,7 +326,7 @@ class Session:
         # get session parts from MESC file name if available
         if file_name == None:
             if self.mesc_data_path:
-                session_parts = self.get_list_of_session_parts(file_name)
+                session_parts = self.get_list_of_session_parts(self.mesc_data_path)
         else:
             session_parts = self.get_list_of_session_parts(file_name)
         
