@@ -760,8 +760,10 @@ class Session:
             else:
                 merged_unit = Unit(merged_s2p_path, self, f"Already_merged")
                 return merged_unit
-            
+
         if generate:
+            if not self.units:
+                self.get_units(get_geldrying=True)
             # get unit with the most good cells (after geldrying detection)
             best_unit = self.get_most_good_cell_unit()
             # get units with enough usefull cells (at least 1/3 of best MUnit cells)
@@ -1443,20 +1445,20 @@ class Merger:
         """
         shift and merge, deduplicate, stat files with best_unit as reference position
         """
+
         stats = psutil.virtual_memory()  # returns a named tuple
         available = getattr(stats, 'available')
         byte_to_gb = 1/1000000000
         available_ram_gb = available*byte_to_gb
         print("Setting Number of Batches according to free RAM")
-        num_batches = 32
-        num_batches_range = [16, 12, 4, 2, 1]
-        ram_range = [16, 32, 64, 128]
+        num_batches = 16
+        num_batches_range = [12, 8, 4, 2, 1]
+        ram_range = [32, 16, 32, 64, 128]
         for batches, ram in zip(num_batches_range, ram_range):
             if available_ram_gb > ram:
                 num_batches = batches
-                break
         print(f"Available RAM: {round(available_ram_gb)}GB setting number of batches to {num_batches}")
-
+        
         merged_footprints = best_unit.footprints
         merged_stat = best_unit.c.stat
         for unit_id, unit in units.items():
@@ -1575,55 +1577,36 @@ class Merger:
                     intersections.append([k, p, res.shape[0], percent1, percent2])
         #
         return intersections
-        # this computes spatial overlaps between cells; doesn't take into account temporal correlations            
-        print ("... computing cell overlaps ...")
-        
-        ids = np.array_split(np.arange(footprints.shape[0]), 30)
-
-        if parallel:
-            res = parmap.map(find_overlaps1,
-                            ids,
-                            footprints,
-                            #c.footprints_bin,
-                            pm_processes=n_cores,
-                            pm_pbar=True)
-        else:
-            res = []
-            for k in trange(len(ids)):
-                res.append(find_overlaps1(ids[k],
-                                            footprints,
-                                            #c.footprints_bin
-                                            ))
-
-        df = make_overlap_database(res)
-        return df
 
     def generate_batch_cell_overlaps(self, footprints, parallel=True, recompute_overlap=False, n_cores=16, num_batches=3):
         # this computes spatial overlaps between cells; doesn't take into account temporal correlations
             
         print ("... computing cell overlaps ...")
         
-        ids = np.array_split(np.arange(footprints.shape[0]), 30)
+        num_footprints = footprints.shape[0]
+        num_min_cells_per_process = 10
+        num_parallel_processes = 30 if num_footprints/30>num_min_cells_per_process else int(num_footprints/num_min_cells_per_process)
+        ids = np.array_split(np.arange(num_footprints), num_parallel_processes)
+        
+        if num_batches > num_parallel_processes:
+            num_batches = num_parallel_processes
 
-        if parallel:
-            batches = np.array_split(ids, num_batches)
-            results = np.array([])
-            for batch in batches:
-                res = parmap.map(find_overlaps1,
-                                batch,
-                                footprints,
-                                #c.footprints_bin,
-                                pm_processes=n_cores,
-                                pm_pbar=True)
-                results = np.concatenate([results, res])
-            res = results
-        else:
-            res = []
-            for k in trange(len(ids)):
-                res.append(find_overlaps1(ids[k],
-                                            footprints,
-                                            #c.footprints_bin
-                                            ))
+        batches = np.array_split(ids, num_batches)
+        results = np.array([])
+        for batch in batches:
+            res = parmap.map(find_overlaps1,
+                            batch,
+                            footprints,
+                            #c.footprints_bin,
+                            pm_processes=n_cores,
+                            pm_pbar=True,
+                            parallel=parallel)
+            res = np.array(res)
+            if len(res.shape)==3 and len(results) > 0:   
+                results[-1] = np.append(results[-1], res[0], axis=0)
+            else:
+                results = np.append(results, res)
+        res = results
         df = make_overlap_database(res)
         return df
 

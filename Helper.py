@@ -1,6 +1,5 @@
 # imports
 # Statistics
-import seaborn as sns
 import pandas as pd
 import numpy as np
 
@@ -17,7 +16,6 @@ import re
 
 # Suite2p for TIFF file analysis
 import suite2p
-from suite2p.run_s2p import run_s2p, default_ops
 
 # Used for Popups
 import tkinter as tk
@@ -39,8 +37,6 @@ import math
 
 
 # Mesc file analysis
-import h5py
-from tifffile import tifffile, imread
 import pathlib
 
 # add root directory to be able to import packages
