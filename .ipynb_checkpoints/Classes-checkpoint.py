@@ -794,7 +794,7 @@ class Session:
             #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
             if delete_used_subsessions:
-                for unit_id, unit in updated_units.items():
+                for unit in updated_units:
                     shutil.rmtree(unit.suite2p_folder_path)
 
             self.get_cabincorr_data_paths()
@@ -1448,6 +1448,7 @@ class Merger:
         """
         shift and merge, deduplicate, stat files with best_unit as reference position
         """
+
         num_batches = get_num_batches_based_on_available_ram()
         
         merged_footprints = best_unit.footprints
@@ -1461,7 +1462,7 @@ class Merger:
             merged_stat = np.concatenate([merged_stat, shifted_unit_stat])[clean_cell_ids]
         merged_stat_no_abroad = self.remove_abroad_cells(merged_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
         return merged_stat_no_abroad
-    
+    #
     def remove_abroad_cells(self, merged_stat, units, image_x_size=512, image_y_size=512):
         # removing out of bound cells 
         remove_cells = []
@@ -1577,8 +1578,8 @@ class Merger:
         num_footprints = footprints.shape[0]
         num_min_cells_per_process = 10
         num_parallel_processes = 30 if num_footprints/30>num_min_cells_per_process else int(num_footprints/num_min_cells_per_process)
-        ids = np.array_split(np.arange(num_footprints, dtype="int64"), num_parallel_processes)
-
+        ids = np.array_split(np.arange(num_footprints), num_parallel_processes)
+        
         if num_batches > num_parallel_processes:
             num_batches = num_parallel_processes
 
