@@ -29,7 +29,7 @@ from tqdm import tqdm
 import os
 import sys
 import shutil
-
+import psutil
 
 # statistics
 import scipy
@@ -38,7 +38,7 @@ import math
 
 # Mesc file analysis
 import pathlib
-
+import h5py
 # add root directory to be able to import packages
 # todo: make all packages installable so they can be called/imported by environment
 #module_path = os.path.abspath(os.path.join('../'))
@@ -62,6 +62,21 @@ def timer(func):
         print(f"Elapsed time: {end_time - start_time}")
         return result
     return wrapper
+
+def get_num_batches_based_on_available_ram():
+    stats = psutil.virtual_memory()  # returns a named tuple
+    available = getattr(stats, 'available')
+    byte_to_gb = 1/1000000000
+    available_ram_gb = available*byte_to_gb
+    print("Setting Number of Batches according to free RAM")
+    num_batches = 16
+    num_batches_range = [12, 8, 4, 2, 1]
+    ram_range = [32, 16, 32, 64, 128]
+    for batches, ram in zip(num_batches_range, ram_range):
+        if available_ram_gb > ram:
+            num_batches = batches
+    print(f"Available RAM: {round(available_ram_gb)}GB setting number of batches to {num_batches}")
+    return num_batches
 
 def update_s2p_files(data_path, stat):
     # Read in existing data from a suite2p run. We will use the "ops" and registered binary.
