@@ -794,7 +794,7 @@ class Session:
             #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
             if delete_used_subsessions:
-                for unit in updated_units:
+                for unit_id, unit in updated_units.items():
                     shutil.rmtree(unit.suite2p_folder_path)
 
             self.get_cabincorr_data_paths()
@@ -1462,7 +1462,7 @@ class Merger:
             merged_stat = np.concatenate([merged_stat, shifted_unit_stat])[clean_cell_ids]
         merged_stat_no_abroad = self.remove_abroad_cells(merged_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
         return merged_stat_no_abroad
-    #
+    
     def remove_abroad_cells(self, merged_stat, units, image_x_size=512, image_y_size=512):
         # removing out of bound cells 
         remove_cells = []
