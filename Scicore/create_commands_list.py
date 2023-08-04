@@ -70,7 +70,7 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], skip_animal=[]
 
                 for session_id, session in animal.sessions.items():
                     if session_id in wanted_session_ids or "all" in wanted_session_ids:
-                        f.write(f"python /scicore/projects/donafl00-calcium/Users/Sergej/AnimalClass_command_line.py {animal_id} {session_id}\n")
+                        f.write(f"python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py {animal_id} {session_id}\n")
 
 if __name__ == "__main__":
     print("Command line usage: <animal_id> <session_id>, multiple parameters can be used seperated by spaces")

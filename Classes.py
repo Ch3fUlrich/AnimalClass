@@ -923,7 +923,7 @@ class Vizualizer:
                 handles.append(Line2D([0], [0], color=self.colors[age], linewidth=2, linestyle='-', label=f"Age {age}"))
 
         plt.legend(handles=handles)
-        plt.show()
+        #plt.show()
 
         #### save figures
     
@@ -988,7 +988,7 @@ class Vizualizer:
 
         plt.savefig(os.path.join(self.save_dir, f"{file_title}{file_name}.png"),
                     dpi=dpi)
-        plt.show()
+        #plt.show()
 
     def save_rasters_fig(self, calcium_object, animal_id, session_id, unit_id="all"): #TODO: Update to classes
         #TODO: yes?
@@ -1031,7 +1031,7 @@ class Vizualizer:
         ax2.set_ylabel(hist_ylabel)
         plt.savefig(os.path.join(self.save_dir, title),
                     dpi=dpi)
-        plt.show()
+        #plt.show()
         return corr_matrix, pval_matrix
 
     def pearson_kde(self, filters=[], dpi=300):
@@ -1064,7 +1064,7 @@ class Vizualizer:
         plt.title(f"{filters} KDE of all cell correlations")
         plt.legend(handles=handles)
         plt.savefig(os.path.join(self.save_dir,f"All_Correlation_Coefficient_KDE_{filters}.png"), dpi=300)
-        plt.show()
+        #plt.show()
 
         # Plot Bars to compare 2 numbers
     
@@ -1121,7 +1121,7 @@ class Vizualizer:
         ax1.legend(handles=ax1_handles)
         ax2.legend(handles=ax2_handles)
         plt.savefig(os.path.join(self.save_dir, title), dpi=300)
-        plt.show()
+        #plt.show()
 
     def plot_good_bad(self, filters=[]):
         filtered_animals = filter_animals(self.animals, filters)
@@ -1135,7 +1135,7 @@ class Vizualizer:
         plt.ylabel("Count")
         plt.legend()
         plt.savefig(os.path.join(self.save_dir, f"bad_vs_good_{filters}.png"))
-        plt.show()
+        #plt.show()
 
     def sanky_diagram(self):
         """
@@ -1230,7 +1230,7 @@ class Vizualizer:
         plt.legend(handles=handles, fontsize=20)
         shift_label = f"_shifted" if shift else ""
         plt.savefig(os.path.join(self.save_dir, f"Contours_MUnits_{combination}{shift_label}.png"), dpi=300)
-        plt.show()
+        #plt.show()
 
     def unit_fluorescence_good_bad(self, unit, batch_size=10, starting=0, interactive=False, plot_duplicates=True):
         
@@ -1288,7 +1288,7 @@ class Vizualizer:
                 ax2.legend(fontsize=legend_fontsize) 
 
             plt.savefig(os.path.join(self.save_dir, f"F_slide_{title}_{batch_title}.png"), dpi=300)
-            plt.show()
+            #plt.show()
             dir_exist_create(os.path.join(self.save_dir,"html"))
             #interactive html
             
@@ -1304,7 +1304,7 @@ class Vizualizer:
             y = i%num_images_x
             ax[x, y].imshow(image)
             ax[x, y].invert_yaxis()
-        plt.show()
+        #plt.show()
 
 class Unit:
     def __init__(self, suite2p_folder_path, session, unit_id):

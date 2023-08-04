@@ -68,7 +68,7 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
     #root_dir = "D:\\Rodrigo"
 
     year_list = ["2021", "2022"]
-    animals, bad_sessions = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=delete) # Load all animals
+    animals, bad_sessions = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=True) # Load all animals
     #animals = load_all(root_dir, generate=True) # Load all animals
     #animals = load_all(root_dir, generate=True, units="single")#, delete=True) # Load all animals
     #animal.sessions[session_id].run_suite2p(regenerate=True, units="S1")
@@ -87,10 +87,11 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
         print(f"{animal_id}: {list(animal.sessions.keys())}")
     load_all_procedure = "generating" if generate else "loading"
     print(f"Error {load_all_procedure} sessions: {bad_sessions}")
-    clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=False)
+    clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=True)
+    #clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=False)
 
 def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, delete_used_subsessions=False):
-    plotting = False
+    plotting = True
     bad_sessions = []
     viz = Vizualizer(animals, save_dir = Animal.root_dir)
     for animal_id, animal in animals.items():
@@ -137,78 +138,90 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             if plotting:
                 print(f"-----------------------------------Plotting-----------------------------------")
                 print(f"-----------------------------------Plotting Individual Munits-----------------------------------")
-                for unit_id, unit in units.items():
-                    viz.unit_footprints(unit)
-                    viz.unit_contours(unit)
-                    viz.traces(unit.fluoresence, num_cells="all", animal_id=animal_id, session_id=session_id, unit_id=unit.unit_id)
-                    #viz.save_rasters_fig(unit.c, animal_id=animal_id, session_id=session_id, unit_id=unit.unit_id)
-                    # Plot Good Bad fluorescence data in Batches of size 10
-                    session_figure_dir = viz.save_dir
-                    batch_save_dir = os.path.join(viz.save_dir, "batch_10")
-                    dir_exist_create(batch_save_dir)
-                    viz.save_dir = batch_save_dir
-                    viz.unit_fluorescence_good_bad(unit, batch_size="all", starting=0)
-                    #viz.unit_fluorescence_good_bad(unit, batch_size=10, starting=0)
-                    viz.save_dir = session_figure_dir
+                try:
+                    for unit_id, unit in units.items():
+                        viz.unit_footprints(unit)
+                        viz.unit_contours(unit)
+                        viz.traces(unit.fluoresence, num_cells="all", animal_id=animal_id, session_id=session_id, unit_id=unit.unit_id)
+                        #viz.save_rasters_fig(unit.c, animal_id=animal_id, session_id=session_id, unit_id=unit.unit_id)
+                        # Plot Good Bad fluorescence data in Batches of size 10
+                        session_figure_dir = viz.save_dir
+                        batch_save_dir = os.path.join(viz.save_dir, "batch_10")
+                        dir_exist_create(batch_save_dir)
+                        viz.save_dir = batch_save_dir
+                        viz.unit_fluorescence_good_bad(unit, batch_size="all", starting=0)
+                        #viz.unit_fluorescence_good_bad(unit, batch_size=10, starting=0)
+                        viz.save_dir = session_figure_dir
 
-                print(f"-----------------------------------Plotting Full Session-----------------------------------")
-                # Plot Full Session Unit 
-                unit_all = session.get_Unit_all()
-                viz.unit_footprints(unit_all)
-                viz.unit_contours(unit_all)
-                viz.traces(unit_all.fluoresence, num_cells=100, animal_id=animal_id, session_id=session_id, unit_id=unit_all.unit_id)
-
+                    print(f"-----------------------------------Plotting Full Session-----------------------------------")
+                    # Plot Full Session Unit 
+                    unit_all = session.get_Unit_all()
+                    viz.unit_footprints(unit_all)
+                    viz.unit_contours(unit_all)
+                    viz.traces(unit_all.fluoresence, num_cells=100, animal_id=animal_id, session_id=session_id, unit_id=unit_all.unit_id)
+                except:
+                    print(f"###################################FAILED###################################FAILED###################################FAILED###################################")
 
                 print(f"-----------------------------------Plotting Contours-----------------------------------")
                 # print contours of all combination of units size 2
                 ##################################S2P Registration (Footprint position shift determination)##############################
-                best_unit = session.get_most_good_cell_unit()
-                min_num_usefull_cells = best_unit.num_not_geldrying() / 3
-                units = session.get_usefull_units(min_num_usefull_cells)
-                for unit_id, unit in units.items():
-                    if unit_id != best_unit.unit_id:
-                        if unit.yx_shift == [0, 0]:
-                            session.calc_unit_yx_shifts(best_unit, units)
-                            break
-                from itertools import permutations
-                unit_ids = list(units.keys())
-                combinations = list(permutations(unit_ids, 2))
-                ##Plotting original contours
-                #for combination in combinations:
-                #    if combination[0] < combination[1]:
-                #        plt.figure(figsize=(20, 20))
-                #        viz.multi_unit_contours(units, combination=combination, plot_center=True)
-                #Plotting shifted contours
-                for combination in combinations:
-                    if combination[0] < combination[1]:
-                        plt.figure(figsize=(20, 20))
-                        viz.multi_unit_contours(units, combination=combination, plot_center=True, shift=True)
-
+                try:
+                    best_unit = session.get_most_good_cell_unit()
+                    min_num_usefull_cells = best_unit.num_not_geldrying() / 3
+                    units = session.get_usefull_units(min_num_usefull_cells)
+                    for unit_id, unit in units.items():
+                        if unit_id != best_unit.unit_id:
+                            if unit.yx_shift == [0, 0]:
+                                session.calc_unit_yx_shifts(best_unit, units)
+                                break
+                    from itertools import permutations
+                    unit_ids = list(units.keys())
+                    combinations = list(permutations(unit_ids, 2))
+                    ##Plotting original contours
+                    #for combination in combinations:
+                    #    if combination[0] < combination[1]:
+                    #        plt.figure(figsize=(20, 20))
+                    #        viz.multi_unit_contours(units, combination=combination, plot_center=True)
+                    #Plotting shifted contours
+                    for combination in combinations:
+                        if combination[0] < combination[1]:
+                            plt.figure(figsize=(20, 20))
+                            viz.multi_unit_contours(units, combination=combination, plot_center=True, shift=True)
+                except:
+                    print(f"###################################FAILED###################################FAILED###################################FAILED###################################")
                 print(f"-----------------------------------Plotting Merged Session-----------------------------------")
-                # Plot merged contours
-                merged_contours = best_unit.contours
-                for unit_id, unit in units.items():
-                    if unit_id == best_unit.unit_id:
-                        continue
-                    merged_contours = np.concatenate([merged_contours, unit.contours])
-                plt.figure(figsize=(10, 10))
-                title_comment = f" {animal_id}_{session_id}_MUnit_{merged_unit.unit_id} merged"
-                viz.contours(merged_contours, comment=title_comment)
-                plt.savefig(os.path.join(viz.save_dir, f"Contours_{title_comment.replace(' ', '_')}.png"), dpi=300)
+                try:
+                    # Plot merged contours
+                    merged_contours = best_unit.contours
+                    for unit_id, unit in units.items():
+                        if unit_id == best_unit.unit_id:
+                            continue
+                        merged_contours = np.concatenate([merged_contours, unit.contours])
+                    plt.figure(figsize=(10, 10))
+                    title_comment = f" {animal_id}_{session_id}_MUnit_{merged_unit.unit_id} merged"
+                    viz.contours(merged_contours, comment=title_comment)
+                    plt.savefig(os.path.join(viz.save_dir, f"Contours_{title_comment.replace(' ', '_')}.png"), dpi=300)
+                except:
+                    print(f"###################################FAILED###################################FAILED###################################FAILED###################################")
+                try:
+                    # Plot deduplicated contours
+                    viz.unit_contours(merged_unit)   
+                except:
+                    print(f"###################################FAILED###################################FAILED###################################FAILED###################################")
+                try:
+                    # plot contours without geldrying
+                    plt.figure(figsize=(10, 10))
+                    title_comment = f" {animal_id}_{session_id}_MUnit {merged_unit.unit_id} not geldrying"
+                    viz.contours(np.array(merged_unit.contours)[merged_unit.cell_geldrying==False], comment=title_comment)
+                    plt.savefig(os.path.join(viz.save_dir, f"Contours_{title_comment.replace(' ', '_')}.png"), dpi=300)
+                except:
+                    print(f"###################################FAILED###################################FAILED###################################FAILED###################################")
 
-                # Plot deduplicated contours
-                viz.unit_contours(merged_unit)   
-
-                # plot contours without geldrying
-                plt.figure(figsize=(10, 10))
-                title_comment = f" {animal_id}_{session_id}_MUnit {merged_unit.unit_id} not geldrying"
-                viz.contours(np.array(merged_unit.contours)[merged_unit.cell_geldrying==False], comment=title_comment)
-                plt.savefig(os.path.join(viz.save_dir, f"Contours_{title_comment.replace(' ', '_')}.png"), dpi=300)
-
-
-                #viz.unit_fluorescence_good_bad(merged_unit, batch_size=10, interactive=False, plot_duplicates=False)
-                viz.unit_fluorescence_good_bad(merged_unit, batch_size="all", interactive=False, plot_duplicates=False)
-
+                try:
+                    #viz.unit_fluorescence_good_bad(merged_unit, batch_size=10, interactive=False, plot_duplicates=False)
+                    viz.unit_fluorescence_good_bad(merged_unit, batch_size="all", interactive=False, plot_duplicates=False)
+                except:
+                    print(f"###################################FAILED###################################FAILED###################################FAILED###################################")
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
