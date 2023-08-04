@@ -1448,7 +1448,6 @@ class Merger:
         """
         shift and merge, deduplicate, stat files with best_unit as reference position
         """
-
         num_batches = get_num_batches_based_on_available_ram()
         
         merged_footprints = best_unit.footprints
@@ -1578,8 +1577,8 @@ class Merger:
         num_footprints = footprints.shape[0]
         num_min_cells_per_process = 10
         num_parallel_processes = 30 if num_footprints/30>num_min_cells_per_process else int(num_footprints/num_min_cells_per_process)
-        ids = np.array_split(np.arange(num_footprints), num_parallel_processes)
-        
+        ids = np.array_split(np.arange(num_footprints, dtype="int64"), num_parallel_processes)
+
         if num_batches > num_parallel_processes:
             num_batches = num_parallel_processes
 

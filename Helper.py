@@ -38,7 +38,7 @@ import math
 
 # Mesc file analysis
 import pathlib
-
+import h5py
 # add root directory to be able to import packages
 # todo: make all packages installable so they can be called/imported by environment
 #module_path = os.path.abspath(os.path.join('../'))
