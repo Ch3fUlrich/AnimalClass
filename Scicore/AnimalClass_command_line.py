@@ -90,8 +90,9 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
     clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=False)
 
 def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, delete_used_subsessions=False):
-    plotting = True
+    plotting = False
     bad_sessions = []
+    viz = Vizualizer(animals, save_dir = Animal.root_dir)
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
             #if animal_id in skip_animal and session_id in skip_session:
