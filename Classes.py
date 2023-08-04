@@ -1582,7 +1582,7 @@ class Merger:
         if num_batches > num_parallel_processes:
             num_batches = num_parallel_processes
 
-        #TODO: will results in an error, if np.array_split is used on inhomogeneouse data like ids
+        #TODO: will results in an error, if np.array_split is used on inhomogeneouse data like ids on Scicore
         batches = np.array_split(ids, num_batches) if num_batches!=1 else [ids]
         results = np.array([])
         num_cells = 0
