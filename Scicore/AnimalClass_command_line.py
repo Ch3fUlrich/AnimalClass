@@ -68,7 +68,7 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
     #root_dir = "D:\\Rodrigo"
 
     year_list = ["2021", "2022"]
-    animals, bad_sessions = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=delete) # Load all animals
+    animals, bad_sessions = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=True) # Load all animals
     #animals = load_all(root_dir, generate=True) # Load all animals
     #animals = load_all(root_dir, generate=True, units="single")#, delete=True) # Load all animals
     #animal.sessions[session_id].run_suite2p(regenerate=True, units="S1")
@@ -87,7 +87,8 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
         print(f"{animal_id}: {list(animal.sessions.keys())}")
     load_all_procedure = "generating" if generate else "loading"
     print(f"Error {load_all_procedure} sessions: {bad_sessions}")
-    clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=False)
+    clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=True)
+    #clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=False)
 
 def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, delete_used_subsessions=False):
     plotting = True

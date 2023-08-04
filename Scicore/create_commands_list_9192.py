@@ -60,7 +60,7 @@ from Helper import *
 
 def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], skip_animal=[], skip_session=[]):
     #TODO: skipping option is not integrated
-    with open("commands.cmd", 'w') as f:
+    with open("commands_9192.cmd", 'w') as f:
         #root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
         root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
         Animal.root_dir = root_dir
