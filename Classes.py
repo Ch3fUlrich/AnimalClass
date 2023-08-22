@@ -800,7 +800,7 @@ class Session:
             self.get_cabincorr_data_paths()
             self.get_s2p_folder_paths()
             merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged")
-
+            merged_unit.get_geldrying_cells()
         return merged_unit
 
 class Animal:
