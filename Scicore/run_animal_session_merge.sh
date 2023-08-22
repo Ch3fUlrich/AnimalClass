@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=s2p_all_9192            #This is the name of your job
+#SBATCH --job-name=cleaning            #This is the name of your job
 #SBATCH --cpus-per-task=16                  #This is the number of cores reserved
 #SBATCH --mem-per-cpu=10G              #This is the memory reserved per core.
 
 
-#SBATCH --time=06:00:00        #This is the time that your task will run
-#SBATCH --qos=6hours	           #You will run in this queue
-#SBATCH --array=1-45        #This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
+#SBATCH --time=1-00:00:00         #This is the time that your task will run 01:00:00
+#SBATCH --qos=1day	           #You will run in this queue 1day
+#SBATCH --array=1-59        #This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory
 #SBATCH --output=outputs/animal_session%A_%a.o     #These are the STDOUT and STDERR files #j for jobID
