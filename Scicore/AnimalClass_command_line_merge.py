@@ -68,7 +68,8 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
     #root_dir = "D:\\Rodrigo"
 
     year_list = ["2021", "2022"]
-    animals, bad_sessions = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=True) # Load all animals
+    animals, bad_sessions = load_all(root_dir, units="all", wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=False) # Load all animals
+    animals, bad_sessions = load_all(root_dir, units="single", wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=False) # Load all animals
     #animals = load_all(root_dir, generate=True) # Load all animals
     #animals = load_all(root_dir, generate=True, units="single")#, delete=True) # Load all animals
     #animal.sessions[session_id].run_suite2p(regenerate=True, units="S1")
@@ -100,8 +101,13 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             #    continue
             print(f"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Starting {animal_id} {session_id} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
             print(f"-----------------------------------Generating Initial Suite2P Files-----------------------------------")
-            session.run_suite2p(regenerate=False, units="all")
-            session.get_cabincorr_data_paths(generate=True, regenerate=regenerate, units="all")
+            """
+            try:
+                session.run_suite2p(generate=False, regenerate=False, units="all")
+                session.get_cabincorr_data_paths(generate=False, regenerate=False, units="all")
+            except:
+                print(f"No tiff files present for full session generation")
+            """
 
 
             print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
@@ -136,6 +142,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             viz.save_dir = os.path.join(viz.save_dir, animal_id, session_id)
 
             if plotting:
+                """
                 print(f"-----------------------------------Plotting-----------------------------------")
                 print(f"-----------------------------------Plotting Individual Munits-----------------------------------")
                 try:
@@ -208,6 +215,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                     viz.unit_contours(merged_unit)   
                 except:
                     print(f"###################################FAILED###################################FAILED###################################FAILED###################################")
+                """
                 try:
                     # plot contours without geldrying
                     plt.figure(figsize=(10, 10))
@@ -231,8 +239,5 @@ if __name__ == "__main__":
         print("Command line usage: <animal_id> <session_id>")
         print("If an argument is not specified the corresponding argument is set to 'all'")
     print(f"Start Cleaning {wanted_animal_ids}, {wanted_session_ids}")
-    #main(wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids)#skip_animal=["DON-009191"], skip_session=["20220225"]
-    root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
-    Animal.root_dir = root_dir
-    animals, bad_sessions = load_all(root_dir, units="all", wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=True, delete=True) # Load all animals
-    #main(wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids)#skip_animal=["DON-009191"], skip_session=["20220225"]
+    main(wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=False)
+    #skip_animal=["DON-009191"], skip_session=["20220225"]
