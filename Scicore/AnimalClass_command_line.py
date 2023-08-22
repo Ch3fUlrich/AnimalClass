@@ -63,20 +63,8 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
     root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
     Animal.root_dir = root_dir
     #root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
-    #root_dir = "D:\\Steffen_Experiments"  
-    #root_dir = "F:\\Steffen_Experiments"
-    #root_dir = "D:\\Rodrigo"
 
-    year_list = ["2021", "2022"]
-    animals, bad_sessions = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=True) # Load all animals
-    #animals = load_all(root_dir, generate=True) # Load all animals
-    #animals = load_all(root_dir, generate=True, units="single")#, delete=True) # Load all animals
-    #animal.sessions[session_id].run_suite2p(regenerate=True, units="S1")
-    #animal.sessions[session_id].run_suite2p(regenerate=True, units=["S1", "S2"])
-    #animals["DON-009192"].sessions["20220306"].get_s2p_folder_paths(generate=True, regenerate=True, units="single")
-    #animals["DON-009192"].sessions["20220221"].get_s2p_folder_paths(generate=True, regenerate=True, units="single")
-
-
+    animals = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=True) # Load all animals
 
     fps = 30
     seconds = 60
@@ -85,14 +73,12 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
 
     for animal_id, animal in animals.items():
         print(f"{animal_id}: {list(animal.sessions.keys())}")
-    load_all_procedure = "generating" if generate else "loading"
-    print(f"Error {load_all_procedure} sessions: {bad_sessions}")
-    clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=True)
-    #clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=False)
+    load_all_procedure = "generat" if generate else "load"
+    print(f"Starting to {load_all_procedure}")
+    clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=delete)
 
 def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, delete_used_subsessions=False):
     plotting = True
-    bad_sessions = []
     viz = Vizualizer(animals, save_dir = Animal.root_dir)
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
@@ -120,8 +106,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                     if part_to_rerun:
                         print(f"binary file not present in {s2p_path}")
                         session.run_suite2p(regenerate=True, units=part_to_rerun)
-            #session.get_cabincorr_data_paths(regenerate=False, units="single")
-            #session.get_cabincorr_data_paths(regenerate=True, units="single")
+            #session.get_cabincorr_data_paths(regenerate=regenerate, units="single")
 
             
             print(f"-----------------------------------Loading Units-----------------------------------")
