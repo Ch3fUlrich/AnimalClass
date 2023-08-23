@@ -478,13 +478,20 @@ class Session:
                 self.s2p_folder_paths.append(suite2p_folder)
             elif generate:
                 self.run_suite2p(regenerate=regenerate, units=unit, delete=delete)
+        
+        if delete:
+            print("Removing Tiff...")
+            for data_path in self.tiff_data_paths:
+                os.remove(data_path)
 
         self.s2p_folder_paths = np.unique(self.s2p_folder_paths).tolist()
         return self.s2p_folder_paths
 
     def run_suite2p(self, regenerate=False, units="all", delete=False):
         
+        # Binary data from Suite2p for all MUnits is not needed for merging
         delete_bin = True if units=="all" else False
+        move_bin = False if units=="all" else True
 
         save_folder=os.path.join("tif", "suite2p")
         tiff_file_name = f"{self.animal_id}_{self.session_id}_{Animal.dir_}"
@@ -544,7 +551,7 @@ class Session:
             'delete_bin': delete_bin,    # delete binary files afterwards
             'keep_movie_raw': False, # keep the binary file of the non-registered frames
             #'reg_tif': True,        # write the registered binary to tiff files
-            'move_bin': True,       # If True and ops['fast_disk'] is different from ops[save_disk], the created binary file is moved to ops['save_disk']
+            'move_bin': move_bin,       # If True and ops['fast_disk'] is different from ops[save_disk], the created binary file is moved to ops['save_disk']
             'save_disk': os.path.join(self.session_dir, save_folder) # Move the bin files to this location afterwards
             #'combined': False      # combine results across planes in separate folder “combined” at end of processing.
             }
@@ -552,9 +559,6 @@ class Session:
         opsEnd = run_s2p(ops=ops, db=db)
         self.s2p_folder_paths.append(os.path.join(self.session_dir, save_folder))
         self.s2p_folder_paths = np.unique(self.s2p_folder_paths).tolist()
-        if delete:
-            print("Removing Tiff...")
-            os.remove(data_path)
         
         if os.path.exists(s2p_temp_binary_location):
             print(f"Deleting reused binary file {s2p_temp_binary_location}")
@@ -1707,7 +1711,6 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], ge
     animals_dict = {}
 
     # Search for animal_ids
-    bad_sessions = []
     for animal_id in present_animal_ids:
         if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
             sessions_path = os.path.join(root_dir, animal_id)
@@ -1718,14 +1721,9 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], ge
             # Search for 2P Sessions
             for session in present_sessions:
                 if session in wanted_session_ids or "all" in wanted_session_ids:
-                    #try:
                     animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
-                    #except:
-                    #    print(f"Error creating session files {animal_id} {session}")
-                    #    bad_sessions.append([animal_id, session])
-                    #    continue
             animals_dict[animal_id] = animal
-    return animals_dict, bad_sessions
+    return animals_dict
 
 def run_cabin_corr(root_dir, data_dir, animal_id, session_id):
     #TODO: update code to newest version of cabincorr

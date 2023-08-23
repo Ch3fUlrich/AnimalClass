@@ -115,6 +115,7 @@ def main():
     fname = os.path.join("Intrinsic_CA3_database-September_7,_10_08_AM.xlsx")
     animals = get_animal_dict_from_spreadsheet(fname)
     animals = add_session_info_from_file_move_file(animals)
+    #TODO: remove duplicate entries 
     add_yaml_to_folders(animals)
     with open('intrinsic_imaging.yaml', 'w') as file:
         yaml.dump(animals, file)
