@@ -232,7 +232,7 @@
       - [ ] Adults ,002865 ,003165 ,003343
     - [ ] 2022
       - [ ] Pubs ,9191, 9192, 10473, 10477
-      - [ ] Adults ,2865 ,8497 ,8498 ,8499
+      - [ ] Adults ,8497 ,8498 ,8499
 
 - [x] replicate problem
   - [x] Mouse 9192 (most Experiments and most often abd)

@@ -1707,7 +1707,6 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], ge
     animals_dict = {}
 
     # Search for animal_ids
-    bad_sessions = []
     for animal_id in present_animal_ids:
         if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
             sessions_path = os.path.join(root_dir, animal_id)
@@ -1718,14 +1717,9 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], ge
             # Search for 2P Sessions
             for session in present_sessions:
                 if session in wanted_session_ids or "all" in wanted_session_ids:
-                    #try:
                     animal.get_session_data(session, generate=generate, regenerate=regenerate, units=units, delete=delete)
-                    #except:
-                    #    print(f"Error creating session files {animal_id} {session}")
-                    #    bad_sessions.append([animal_id, session])
-                    #    continue
             animals_dict[animal_id] = animal
-    return animals_dict, bad_sessions
+    return animals_dict
 
 def run_cabin_corr(root_dir, data_dir, animal_id, session_id):
     #TODO: update code to newest version of cabincorr
