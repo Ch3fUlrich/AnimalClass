@@ -86,7 +86,7 @@ if __name__ == "__main__":
                 wanted_animal_ids.append(argument)
             else:
                 wanted_session_ids.append(argument)
-    wanted_animal_ids = sys.argv[1:2] if len(wanted_animal_ids) > 0 else ["all"]
-    wanted_session_ids = sys.argv[2:3] if len(wanted_session_ids) > 0 else ["all"]
+    wanted_animal_ids = wanted_animal_ids if len(wanted_animal_ids) > 0 else ["all"]
+    wanted_session_ids = wanted_session_ids if len(wanted_session_ids) > 0 else ["all"]
     print(f"Creating commands.cmd for {wanted_animal_ids}, {wanted_session_ids}")
     main(wanted_animal_ids, wanted_session_ids)#skip_animal=["DON-009191"], skip_session=["20220225"]
