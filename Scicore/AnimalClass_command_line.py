@@ -64,7 +64,7 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
     Animal.root_dir = root_dir
     #root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
 
-    animals = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=True) # Load all animals
+    animals = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=delete) # Load all animals
 
     fps = 30
     seconds = 60
@@ -216,8 +216,4 @@ if __name__ == "__main__":
         print("Command line usage: <animal_id> <session_id>")
         print("If an argument is not specified the corresponding argument is set to 'all'")
     print(f"Start Cleaning {wanted_animal_ids}, {wanted_session_ids}")
-    #main(wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids)#skip_animal=["DON-009191"], skip_session=["20220225"]
-    root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
-    Animal.root_dir = root_dir
-    animals, bad_sessions = load_all(root_dir, units="all", wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=True, delete=True) # Load all animals
-    #main(wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids)#skip_animal=["DON-009191"], skip_session=["20220225"]
+    main(wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids)#skip_animal=["DON-009191"], skip_session=["20220225"]
