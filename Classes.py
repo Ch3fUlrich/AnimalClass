@@ -1478,10 +1478,10 @@ class Merger:
                 yx_shift = unit.yx_shift
                 for axis in ["ypix", "xpix"]:
                     shift = yx_shift[0] if axis=="ypix" else yx_shift[1]
-                    max_location = image_y_size if axis=="ypix" else image_y_size
                     shifted = cell[axis]+shift
 
                     # check if cell is out of bound
+                    max_location = image_y_size-1 if axis=="ypix" else image_x_size-1
                     if sum(shifted>=max_location)>0 or sum(shifted<0)>0:
                         abroad = True
                         break
