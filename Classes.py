@@ -1460,16 +1460,16 @@ class Merger:
             if unit_id == best_unit.unit_id:
                 continue
             shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
-            shifted_footprints = self.stat_to_footprints(shifted_unit_stat)
+            shifted_unit_stat_no_abroad = self.remove_abroad_cells(shifted_unit_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
+            shifted_footprints = self.stat_to_footprints(shifted_unit_stat_no_abroad)
             clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints, parallel=True, num_batches=num_batches)
-            merged_stat = np.concatenate([merged_stat, shifted_unit_stat])[clean_cell_ids]
-        merged_stat_no_abroad = self.remove_abroad_cells(merged_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
-        return merged_stat_no_abroad
+            merged_stat = np.concatenate([merged_stat, shifted_unit_stat_no_abroad])[clean_cell_ids]
+        return merged_stat
     
-    def remove_abroad_cells(self, merged_stat, units, image_x_size=512, image_y_size=512):
+    def remove_abroad_cells(self, stat, units, image_x_size=512, image_y_size=512):
         # removing out of bound cells 
         remove_cells = []
-        for cell_num, cell in enumerate(merged_stat):
+        for cell_num, cell in enumerate(stat):
             abroad = False
             #check for every shift 
             for unit_id, unit in units.items():
@@ -1478,10 +1478,10 @@ class Merger:
                 yx_shift = unit.yx_shift
                 for axis in ["ypix", "xpix"]:
                     shift = yx_shift[0] if axis=="ypix" else yx_shift[1]
-                    max_location = image_y_size if axis=="ypix" else image_y_size
                     shifted = cell[axis]+shift
 
                     # check if cell is out of bound
+                    max_location = image_y_size-1 if axis=="ypix" else image_x_size-1
                     if sum(shifted>=max_location)>0 or sum(shifted<0)>0:
                         abroad = True
                         break
@@ -1489,9 +1489,9 @@ class Merger:
                 remove_cells.append(cell_num)
                 
         for abroad_cell in remove_cells[::-1]:
-            merged_stat = np.delete(merged_stat, abroad_cell)
+            stat = np.delete(stat, abroad_cell)
             print(f"removed cell {abroad_cell}")
-        return merged_stat
+        return stat
 
     def merge_s2p_files(self, units, stat, ops):
         """
@@ -1542,7 +1542,12 @@ class Merger:
 
             # save footprint
             img_temp = np.zeros((dims[0], dims[1]))
-            img_temp[x, y] = stat[k]['lam']
+            try:
+                img_temp[x, y] = stat[k]['lam']
+            except:
+                print("scheiss leben")
+                print("scheiss leben")
+                print("scheiss leben")
 
             img_temp_norm = (img_temp - np.min(img_temp)) / (np.max(img_temp) - np.min(img_temp))
             imgs.append(img_temp_norm)
