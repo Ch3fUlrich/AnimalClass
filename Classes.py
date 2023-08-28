@@ -794,6 +794,7 @@ class Session:
                 merged_unit_id += str(unit_id)+"_"
             # concatenate S2P results
             ops = default_ops()
+            #FIXME: remove removed cells
             merged_F, _, _, _ = merger.merge_s2p_files(updated_units, merged_stat, ops) #best_unit.c.ops)
             #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
@@ -1385,7 +1386,7 @@ class Unit:
             b_loader = Binary_loader()
             frames = b_loader.load_binary_frames(self.suite2p_folder_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
             frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
-        self.yx_shift = [np.mean(ymax), np.mean(xmax)]
+        self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
         return self.yx_shift
 
     def print_s2p_iscell(self):
@@ -1434,39 +1435,40 @@ class Merger:
         for num, cell_stat in enumerate(new_stat):
             y_shifted = []
             for y in cell_stat["ypix"]:
-                y_shifted.append(round(y-yx_shift[0]))
+                y_shifted.append(y-yx_shift[0])
             cell_stat["ypix"] = np.array(y_shifted)
             
             x_shifted = []
             for x in cell_stat["xpix"]:
-                x_shifted.append(round(x-yx_shift[1]))
+                x_shifted.append(x-yx_shift[1])
             cell_stat["xpix"] = np.array(x_shifted)
 
             #center of cell_stat
             med = cell_stat["med"]
-            med_shifted = [round(med[0]-yx_shift[0]), round(med[1]-yx_shift[1])]
+            med_shifted = [med[0]-yx_shift[0], med[1]-yx_shift[1]]
             cell_stat["med"] = med_shifted
         return new_stat
     
-    def merge_stat(self, units, best_unit, image_x_size=512, image_y_size=512):
+    def merge_stat(self, units, best_unit, parallel=True, image_x_size=512, image_y_size=512):
         """
         shift and merge, deduplicate, stat files with best_unit as reference position
         """
         num_batches = get_num_batches_based_on_available_ram()
         
-        merged_footprints = best_unit.footprints
-        merged_stat = best_unit.c.stat
+        shifted_unit_stat_no_abroad, shifted_footprints_no_abroad = self.remove_abroad_cells(best_unit.c.stat, best_unit.footprints, units, image_x_size=image_x_size, image_y_size=image_y_size)
+        merged_stat = shifted_unit_stat_no_abroad
+        merged_footprints = shifted_footprints_no_abroad
         for unit_id, unit in units.items():
             if unit_id == best_unit.unit_id:
-                continue
+                continue    
             shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
-            shifted_unit_stat_no_abroad = self.remove_abroad_cells(shifted_unit_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
-            shifted_footprints = self.stat_to_footprints(shifted_unit_stat_no_abroad)
-            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints, parallel=True, num_batches=num_batches)
+            shifted_footprints = self.stat_to_footprints(shifted_unit_stat)
+            shifted_unit_stat_no_abroad, shifted_footprints_no_abroad = self.remove_abroad_cells(shifted_unit_stat, shifted_footprints, units, image_x_size=image_x_size, image_y_size=image_y_size)
+            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints_no_abroad, parallel=parallel, num_batches=num_batches)
             merged_stat = np.concatenate([merged_stat, shifted_unit_stat_no_abroad])[clean_cell_ids]
         return merged_stat
     
-    def remove_abroad_cells(self, stat, units, image_x_size=512, image_y_size=512):
+    def remove_abroad_cells(self, stat, footprints, units, image_x_size=512, image_y_size=512):
         # removing out of bound cells 
         remove_cells = []
         for cell_num, cell in enumerate(stat):
@@ -1481,17 +1483,18 @@ class Merger:
                     shifted = cell[axis]+shift
 
                     # check if cell is out of bound
-                    max_location = image_y_size-1 if axis=="ypix" else image_x_size-1
+                    max_location = image_y_size if axis=="ypix" else image_x_size
                     if sum(shifted>=max_location)>0 or sum(shifted<0)>0:
                         abroad = True
-                        break
+                        break    
             if abroad:
                 remove_cells.append(cell_num)
                 
         for abroad_cell in remove_cells[::-1]:
             stat = np.delete(stat, abroad_cell)
+            footprints = np.delete(footprints, abroad_cell, 0) #delete row
             print(f"removed cell {abroad_cell}")
-        return stat
+        return stat, footprints
 
     def merge_s2p_files(self, units, stat, ops):
         """
@@ -1542,12 +1545,7 @@ class Merger:
 
             # save footprint
             img_temp = np.zeros((dims[0], dims[1]))
-            try:
-                img_temp[x, y] = stat[k]['lam']
-            except:
-                print("scheiss leben")
-                print("scheiss leben")
-                print("scheiss leben")
+            img_temp[x, y] = stat[k]['lam']
 
             img_temp_norm = (img_temp - np.min(img_temp)) / (np.max(img_temp) - np.min(img_temp))
             imgs.append(img_temp_norm)
@@ -1690,7 +1688,7 @@ class Merger:
     def shift_update_unit_s2p_files(self, unit, new_stat, image_x_size=512, image_y_size=512, deduplicate = False):
         data_path = os.path.join(unit.suite2p_folder_path, "plane0")
         # shift merged mask
-        shift_to_unit = np.array([-1, -1]) * unit.yx_shift
+        shift_to_unit = np.array([-1]) * unit.yx_shift
         shifted_unit_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_unit, image_x_size=image_x_size, image_y_size=image_y_size)
 
         backup_s2p_files(data_path, note="backup")
