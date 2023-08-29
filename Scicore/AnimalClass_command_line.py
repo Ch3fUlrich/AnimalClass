@@ -116,6 +116,8 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             merged_unit = session.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
             #merged_unit = session.merge_units(generate=True, regenerate=False, delete_used_subsessions=True)
             merged_unit.get_geldrying_cells()
+
+            
             dir_exist_create(os.path.join(viz.save_dir, animal_id))
             dir_exist_create(os.path.join(viz.save_dir, animal_id, session_id))
             viz.save_dir = os.path.join(viz.save_dir, animal_id, session_id)

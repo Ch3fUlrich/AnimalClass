@@ -299,7 +299,8 @@ class Session:
         self.s2p_folder_paths = self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, units=units, delete=delete)
 
         self.cabincorr_data_paths = self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, units=units)
-        
+        self.units = None
+        self.merged_unit = None
         #TODO: implement cabincorr functions for filtering correct data
         #self.corr_mean, self.corr_std = self.get_corr_mean_std()
         print(f"Finished {animal_id}: {session_id}")
@@ -371,11 +372,12 @@ class Session:
         return self.tiff_data_paths
 
     def generate_tiff_from_mesc(self, units="all", delete=False, regenerate=False):
+        fps = 30
         if isinstance(units, str):
             units = [units]
 
         if "all" in units:
-            tiff_file_name = mesc_file_name.replace('.mesc','.tif')
+            tiff_file_name = self.mesc_data_path.replace('.mesc','.tif')
             units = self.get_session_parts()
         else:
             tiff_file_name = os.path.join(self.session_dir, f"{self.animal_id}_{self.session_id}_{Animal.dir_}_")
@@ -395,7 +397,6 @@ class Session:
                 
                 # Get MUnit number list of first Mescfile session MSession_0
                 with h5py.File(mesc_file_name, 'r') as file:
-                    fps = 30
                     munits = file[list(file.keys())[0]]
                     fluoresence_recording_session_numbers = []
                     for name, unit in munits.items():
@@ -559,10 +560,6 @@ class Session:
         opsEnd = run_s2p(ops=ops, db=db)
         self.s2p_folder_paths.append(os.path.join(self.session_dir, save_folder))
         self.s2p_folder_paths = np.unique(self.s2p_folder_paths).tolist()
-        
-        if os.path.exists(s2p_temp_binary_location):
-            print(f"Deleting reused binary file {s2p_temp_binary_location}")
-            os.remove(s2p_temp_binary_location)
         print("Finished Suite2p.")
 
     def get_cabincorr_data_paths(self, generate=False, regenerate=False, units="all"):
@@ -618,25 +615,33 @@ class Session:
         self.cabincorr_data_paths.append(current_cabincorr_data_path)
         return current_cabincorr_data_path
     
-    def load_cabincorr_data(self, units="all"):
-        if units != "all":
-            units_name = "_".join(units)
-            for path in self.cabincorr_data_paths:
-                try:
-                    session_part = int(path.split("suite2p_")[1].split("\\")[0])
-                    if units_name == session_part:
-                        bin_traces_zip = np.load(path)
-                except:
-                    #TODO: create a better solution for filtering out folder without session path
+    def load_cabincorr_data(self, unit="all"):
+        unit = "" if unit != "all" else unit
+        for path in self.cabincorr_data_paths:
+            path_unit = path.split("suite2p_")[-1].split("\plane0")[0]
+            if path_unit == unit:
+                if os.path.exists(path):
+                    bin_traces_zip = np.load(path)
+                else:
                     print("No CaBincorrPath found")
-                    continue
-        else:
-            bin_traces_zip = np.load(self.cabincorr_data_paths[0]) #TODO: will give false results if the correct folder is not choosen
+                    return None
         return bin_traces_zip
-    
-    def load_corr_matrix(self):
-        #TODO: change after cabincorr package is finished
+
+    def load_corr_matrix(self, unit="all"):
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        """
+        with open('items.yml') as f:
+        dict = yaml.load(f, Loader=yaml.FullLoader)
+        print(dict)
+        """
         corr_file_names = ["allcell_correlation_array_upphase.npy", "allcell_correlation_array_filtered.npy"]
+        bin_traces_zip = self.load_cabincorr_data(unit=unit)
+        #corr_matrix = bin_traces_zip[].................
         for corr_file_name in corr_file_names:
             for s2p_folder in self.s2p_folder_paths:
                 corr_matrix_path = search_file(s2p_folder, corr_file_name)
@@ -669,17 +674,18 @@ class Session:
             backup_s2p_files(data_path, restore=False)
             unit = Unit(s2p_folder_path, session=self, unit_id=unit_id)
             backup_s2p_files(data_path, restore=False)
-            units[unit_id] = unit
-
-            #Print amount of cells vs good cells
-            unit.print_s2p_iscell()
-
-            #single cells sliding mean detector for gel detection
-            if get_geldrying:
-                cell_drying = unit.get_geldrying_cells()
-                bad = sum(unit.cell_geldrying)
-                good = len(unit.cell_geldrying)-bad
-                print(f"Autodetection Cells: {good+bad}    Good: {good}   geldrying:{bad} ")
+            num_good_cells = unit.print_s2p_iscell()
+            if num_good_cells < 100: #If less than 100 good cells
+                #Print amount of cells vs good cells
+                print(f"Skipping Unit {unit.unit_id} (<100 cells)")    
+            else:
+                units[unit_id] = unit
+                #single cells sliding mean detector for gel detection
+                if get_geldrying:
+                    cell_drying = unit.get_geldrying_cells()
+                    bad = sum(unit.cell_geldrying)
+                    good = len(unit.cell_geldrying)-bad
+                    print(f"Autodetection Cells: {good+bad}    Good: {good}   geldrying:{bad} ")
 
         self.units = units
         return units
@@ -806,6 +812,34 @@ class Session:
             self.get_s2p_folder_paths()
             merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged")
             merged_unit.get_geldrying_cells()
+            self.merged_unit = merged_unit
+        return merged_unit
+    
+    def merge_units_get_geldrying(self, generate=True, regenerate=False, delete_used_subsessions=False):
+        print(f"-------------------------------Generating Initial Suite2P Files for individual units ---------------------")
+        self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, units="single")
+        self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, units="single")
+        print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
+        # Rerunning Suite2p if binary file is not present
+        bin_fname = "data.bin"
+        for s2p_path in self.s2p_folder_paths:
+            binary_file_present = False
+            part_to_rerun = False
+            for part in self.session_parts:
+                if part in s2p_path:
+                    binary_file_present = os.path.exists(os.path.join(s2p_path, "plane0", bin_fname))
+                    if binary_file_present:
+                        break
+                    else:
+                        part_to_rerun = part
+                if part_to_rerun:
+                    print(f"binary file not present in {s2p_path}")
+                    self.run_suite2p(regenerate=True, units=part_to_rerun)
+        print(f"-----------------------------------Loading Units-----------------------------------")
+        session.get_units(get_geldrying=True)
+        print(f"-----------------------------------Merging Units-----------------------------------")
+        merged_unit = self.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
+        merged_unit.get_geldrying_cells()
         return merged_unit
 
 class Animal:
@@ -887,7 +921,7 @@ class Animal:
         overview_df = pd.DataFrame(columns = ['session_name', 'date', 'P', 'suite2p_folder_paths'])#, 'duration [min]'])
         for session_id, session in self.sessions.items():
             overview_df.loc[len(overview_df)] = {'session_name': session_id, 'date': session.session_date, 'P':session.age, 'suite2p_folder_paths':session.s2p_folder_paths}
-        print(overview_df)
+        display(overview_df)
         print("-----------------------------------------------")
         return overview_df
 
@@ -897,7 +931,7 @@ class Vizualizer:
         self.save_dir = os.path.join(save_dir, "figures")
         dir_exist_create(self.save_dir)
         # Collor pallet for plotting
-        self.colors = mlp.colormaps["rainbow"](range(0,300))
+        self.colors = mlp.colormaps["rainbow"](range(0,301))
 
     def add_animal(self, animal):
         self.animals[animal.animal_id] = animal
@@ -942,16 +976,19 @@ class Vizualizer:
     
 
         #for s2p_folder in self.animals[animal_id].sessions[session].s2p_folder_paths:
-        bin_traces_zip = self.animals[animal_id].sessions[session_id].load_cabincorr_data(unit=unit_id)
+        bin_traces_zip = self.animals[animal_id].sessions[session_id].load_cabincorr_data(units=unit_id)
         fluorescence = bin_traces_zip[f"F_{fluoresence_type}"]
         self.traces(fluorescence, animal_id, session_id, unit_id, num_cells, dpi, fps)
         return fluorescence
 
-    def traces(self, fluorescence, animal_id, session_id, unit_id="all", num_cells="all", fit_line=False, dpi=300, fps="30",
+    def traces(self, fluorescence, animal_id, session_id, unit_id="all", num_cells="all", low_pass_filter=True, fit_line=False, dpi=300, fps="30",
                xlabel=f"seconds", 
                ylabel='Fluoresence based on Ca in Cell',
                title=f"Bursts from "):
         # plot fluorescence
+        if low_pass_filter:
+            fluorescence = butter_lowpass_filter(fluorescence, cutoff=0.5, fs=30, order=2)
+        
         fluorescence = np.array(fluorescence)
         fluorescence = np.transpose(fluorescence) if len(fluorescence.shape)==2 else fluorescence
         plt.figure()
@@ -965,7 +1002,6 @@ class Vizualizer:
             file_name = f"{animal_id}_{session_id}_Unit_{unit_id}"
         else:
             file_name = f"{animal_id}_{session_id}"
-
 
         seconds = 5
         num_frames = 30*seconds
@@ -991,9 +1027,9 @@ class Vizualizer:
             length = range(len(fluorescence))
             plt.plot(length, intercept+length*slope, color = "r")
 
-        plt.savefig(os.path.join(self.save_dir, f"{file_title}{file_name}.png"),
-                    dpi=dpi)
-        #plt.show()
+        #plt.savefig(os.path.join(self.save_dir, f"{file_title}{file_name}.png"), dpi=dpi)
+        #FIXME: savefig error, why?
+        plt.show()
 
     def save_rasters_fig(self, calcium_object, animal_id, session_id, unit_id="all"): #TODO: Update to classes
         #TODO: yes?
@@ -1062,7 +1098,7 @@ class Vizualizer:
             line_plot_steps = round(len(unique_sorted_ages)/17)
 
         for age in np.unique(unique_sorted_ages[::line_plot_steps]):
-                handles.append(Line2D([0], [0], color=self.colors[(age-min_age)*colorsteps], linewidth=2, linestyle='-', label=f"Age {age}"))
+            handles.append(Line2D([0], [0], color=self.colors[(age-min_age)*colorsteps], linewidth=2, linestyle='-', label=f"Age {age}"))
         #handles=[Patch(color="tab:red", label="Bad=mean+sigma > 0.3"), Patch(color="tab:blue", label="Good=mean+sigma < 0.3")]
         plt.xlabel("Correlation")
         plt.ylabel("Frequency")
@@ -1396,6 +1432,7 @@ class Unit:
         num_good_cells = sum(iscell[:, 0])
         num_bad_cells = num_cells-num_good_cells
         print(f"Suite2p: Cells: {num_cells}  Good: {num_good_cells}  Bad: {num_bad_cells}")
+        return num_good_cells
 
     def num_not_geldrying(self):
         return len(self.cell_geldrying)-sum(self.cell_geldrying)
