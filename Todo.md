@@ -11,54 +11,27 @@
       - [ ] red line at min # of cells = 100 
 - [ ] Create Picture HTML for explanation of classes, methods, plots
 - [ ] Intrinsic Imaging Pipeline
-    - [x] Write Animal class 
-    - [x] Session
-    - [x] Vizualizer
-    - [x] Fixer
-    - [x] Analyzer
     - [ ] Cell
   - [ ] Code Algo Autodetection for Errors in Data 
     - [ ] Look into Training of a Transformer
     - [ ] Error types
       - [x] autodetect error if pearson correlation histogram is not normally distr around 0. (max diff 0.3)
-        - [x] **Create plot**
-      - [x] **increasing bursts at the end** Gel drying
-      - [ ] **Offset at Start**
+       - [ ] **Offset at Start**
       - [ ] **Offset changes**
       - [ ] **Sudden bubble** ask Steffen for more information
-      - [x] **Correlations match**? with steffens spreadsheet
-    - [x] Get spreadsheet of the intrinsic data is for 2021 and 2022 **Intrinsic_CA3_database-September_7,_10_08_AM**
   - [ ] **replicate problem**
-    - [x] Builder correlation graph pictures shown in slack chat with sergej
-    - [x] At first by person correlation, afterwards histogram with pearson for
-    - [x] Correlations
     - [ ] Density Graphs
 
 - [ ] Write Paper
-
-- [ ] PR about work
-  - [ ] How many bad Sessions in %?
-  - [x] Are they detected by Steffen?
-
-- [ ] update binarization code for Nathalies 
 
 - [ ] Get to know
   - [ ] Paper from Catalin
     - [ ] Overview
     - [ ] Detailed
   - [ ] Paper from Andres
-    - [x] Talk to Andres, so he can explain the setting
     - [ ] Powerpoint Summarys
     - [ ] Detailed
     - [ ] PR from 09.05.23 was send in slack 
-  - [ ] 2PMicroscopy
-      - [x] get familiar with 
-          - [x] experiments especially the [ca] imaging ones 
-          - [x] the methods 
-              - proprocessing --> Suite2P (https://github.com/MouseLand/suite2p)
-      - [ ] Problems
-          - [ ] PMT is noisy because random photons
-          - [ ] Baseline is not equally set if session is bad 
   
 ##  Own Questsions
   - [ ] Connectomex --> Neurons + connections (do they have usefull data forstatistics)
@@ -98,14 +71,12 @@
 ## <ins>**Detailed Information for Intrisic Imaging Pipeline**</ins>
 ### **Todos**
 - [ ] Create Class 
-  - [ ] Detector?
-    - [ ] run s2p for 
   - [x] Visualizer
     - [x] Traces
     - [x] Raster
     - [x] Histograms
     - [x] KDE
-  - [ ] Analyzer
+  - [x] Analyzer
   - [x] Animal
     - [x] Session
       - [x] Run Cabincorr
@@ -131,8 +102,6 @@
         - [x] include steffens colors
         - [x] Validate detection by comparing with 2021
         - [x] Create KDE
-  - [ ] Detector Class
-  - [ ] Fixer Class
   - [ ] 1. **Preparation**
     - [x] Take Bad Session (9191 20220227, 9192 20220221, 20220319)
     - [x] break up in parts
@@ -185,8 +154,7 @@
       - [ ] <span style="color:green">Normalize with Common Average Referencing (CAR)</span>
     - [ ] Is it really an error?
   - [ ] High amount of **increasing bursts at the end**
-    - [ ] Are these even neurons?
-    - [ ] Gel dries out ?? &rarr; <span style="color:green">Cut at the end</span>
+    - [x] Are these even neurons? Gel dries out ?? &rarr; <span style="color:green">Cut at the end</span>
   - [ ] **Baseline changes** in burst analysis
     - [ ] Detect by sliding window mode of distribution
       - [ ] https://centre-borelli.github.io/ruptures-docs/
@@ -265,12 +233,29 @@
   - [Notebook for visualize some of the problems]
   - [Mesc to Tiff] 
 
+## <ins>**Manifolds for individual comparisson**</ins>
+- [ ] Projects to try:
+  - [ ] Active Avoidance paradigm
+  - [ ] Sensory Treadmil 
+    -  Steffen
+    - Treadmil+VR &rarr; pillar counting
+
+
+- Methods
+  - [ ] Look at Manifolds
+    - [ ] [Cebra](https://cebra.ai/)
+    - [ ] [MIND](https://www.biorxiv.org/content/10.1101/418939v2.full)
+      - Based on IsoMap + Metrics
+      - Code has Catalin
+    - [ ] [pi-VAE](https://arxiv.org/abs/2011.04798)
+  - [ ] Decoder
+    - [x] Baeysian-Decoder (Done by Catalin)
+    - [x] PCA+KNN (Done by Catalin)
+
+## <ins>**Active Avoidance paradigm**</ins>
 
 ## <ins>**Nathalie Muouse in a Bo**</ins>
-- [ ] update binarization method to acutal one
-  - Uses csv files
-## <ins>**Active Avoidance paradigm**</ins>
-- [ ] Try [Cebra](https://cebra.ai/)
+## <ins>**Nathalie Volition/Imagination**</ins>
 
 ## <ins>**Detailed Information for BMI**</ins>
 - [ ] BMI GUI
