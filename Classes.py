@@ -634,6 +634,69 @@ class Session:
         #FIXME: write better yaml file reader
         #FIXME: write better yaml file reader
         #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
         """
         with open('items.yml') as f:
         dict = yaml.load(f, Loader=yaml.FullLoader)
@@ -1046,7 +1109,7 @@ class Vizualizer:
         #change picture location
         os.rename(show_rasters_savelocation_name, own_location_name)    
 
-    def pearson_hist(self, animal_id, session_id, dpi=300, 
+    def pearson_hist(self, animal_id, session_id, unit="", dpi=300, 
                                 title = "Pearson Correlation and Histogram",
                                 hist_title='Pearson Correlation Coefficient Histogram',
                                 hist_xlabel="Coefficients combined in 0.1 size bins",
@@ -1056,7 +1119,7 @@ class Vizualizer:
         # Create a figure and two subplots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
 
-        corr_matrix, pval_matrix = self.animals[animal_id].sessions[session_id].load_corr_matrix()
+        corr_matrix, pval_matrix = self.animals[animal_id].sessions[session_id].load_corr_matrix(unit)
 
         # First subplot
         sns.heatmap(corr_matrix, annot=False, cmap='YlGnBu', ax=ax1)
@@ -1075,7 +1138,7 @@ class Vizualizer:
         #plt.show()
         return corr_matrix, pval_matrix
 
-    def pearson_kde(self, filters=[], dpi=300):
+    def pearson_kde(self, filters=[], unit="", dpi=300):
         # Plot Kernel density Estimation
         filtered_animals = filter_animals(self.animals, filters)
         unique_sorted_ages, min_age, max_age = get_age_range(filtered_animals)
@@ -1088,7 +1151,7 @@ class Vizualizer:
             for session_id, session in animal.sessions.items():
                 age = session.age
                 try:
-                    corr_matrix, pval_matrix = session.load_corr_matrix()
+                    corr_matrix, pval_matrix = session.load_corr_matrix(unit)
                 except:
                     continue
                 sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
@@ -1109,7 +1172,7 @@ class Vizualizer:
 
         # Plot Bars to compare 2 numbers
     
-    def plot_means_stds(self, filters=[], dpi=300, x_tick_jumps = 4):
+    def plot_means_stds(self, filters=[], unit="", dpi=300, x_tick_jumps = 4):
         mean_threshold = Analyzer.mean_threshold
         std_threshold = Analyzer.std_threshold
 
@@ -1124,7 +1187,7 @@ class Vizualizer:
             stds = []
             for session_id, session in animal.sessions.items():
                 try:
-                    corr_matrix, pval_matrix = session.load_corr_matrix()
+                    corr_matrix, pval_matrix = session.load_corr_matrix(unit)
                 except:
                     continue
                 ages.append(session.age)
@@ -1492,20 +1555,20 @@ class Merger:
         """
         num_batches = get_num_batches_based_on_available_ram()
         
-        shifted_unit_stat_no_abroad, shifted_footprints_no_abroad = self.remove_abroad_cells(best_unit.c.stat, best_unit.footprints, units, image_x_size=image_x_size, image_y_size=image_y_size)
+        shifted_unit_stat_no_abroad = self.remove_abroad_cells(best_unit.c.stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
+        merged_footprints = self.stat_to_footprints(shifted_unit_stat_no_abroad)
         merged_stat = shifted_unit_stat_no_abroad
-        merged_footprints = shifted_footprints_no_abroad
         for unit_id, unit in units.items():
             if unit_id == best_unit.unit_id:
                 continue    
             shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
-            shifted_footprints = self.stat_to_footprints(shifted_unit_stat)
-            shifted_unit_stat_no_abroad, shifted_footprints_no_abroad = self.remove_abroad_cells(shifted_unit_stat, shifted_footprints, units, image_x_size=image_x_size, image_y_size=image_y_size)
-            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints_no_abroad, parallel=parallel, num_batches=num_batches)
+            shifted_unit_stat_no_abroad = self.remove_abroad_cells(shifted_unit_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
+            shifted_footprints = self.stat_to_footprints(shifted_unit_stat_no_abroad)
+            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints, parallel=parallel, num_batches=num_batches)
             merged_stat = np.concatenate([merged_stat, shifted_unit_stat_no_abroad])[clean_cell_ids]
         return merged_stat
     
-    def remove_abroad_cells(self, stat, footprints, units, image_x_size=512, image_y_size=512):
+    def remove_abroad_cells(self, stat, units, image_x_size=512, image_y_size=512):
         # removing out of bound cells 
         remove_cells = []
         for cell_num, cell in enumerate(stat):
@@ -1529,9 +1592,8 @@ class Merger:
                 
         for abroad_cell in remove_cells[::-1]:
             stat = np.delete(stat, abroad_cell)
-            footprints = np.delete(footprints, abroad_cell, 0) #delete row
             print(f"removed cell {abroad_cell}")
-        return stat, footprints
+        return stat
 
     def merge_s2p_files(self, units, stat, ops):
         """
@@ -1779,7 +1841,7 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id):
     c.mode_window = 30*30
     c.percentile_threshold = 0.000001
     c.dff_min = 0.02
-
+    c.data_type = "2p"
     #
     c.load_suite2p()
 
