@@ -123,6 +123,64 @@ def update_s2p_files(data_path, stat):
     np.save(os.path.join(data_path, 'spks.npy'), spks)
     np.save(os.path.join(data_path, 'stat.npy'), stat)
 
+def extract_cell_numbers(animals):
+    """
+    Extracts cell numbers from a dictionary of animals and their sessions.
+
+    :param animals: A dictionary of animals, where the keys are animal IDs and the values are animal objects.
+    :return: A dictionary where the keys are animal IDs and the values are dictionaries containing session IDs, ages, and cell numbers.
+    """
+    cell_numbers_dict = {}
+    for animal_id, animal in animals.items():
+        cell_numbers_dict[animal_id] = {}
+        ages = []
+        for session_id, session in animal.sessions.items():
+            cell_numbers = {}
+            cell_numbers["iscell"] = -1
+            cell_numbers["not_geldrying"] = -1
+            for path in session.s2p_folder_paths:
+                path_ending = path.split("suite2p")[-1]
+                path = os.path.join(path, "plane0")
+                if path_ending=="":
+                    try:
+                        iscell = np.load(os.path.join(path, "iscell.npy"))
+                        before = int(np.sum(iscell[:,0]))
+                    except:
+                        before = -1
+                    cell_numbers["iscell"] = before
+                elif path_ending == "_merged":
+                    try:
+                        geldrying = np.load(os.path.join(path, "cell_drying.npy"))
+                        after = sum(np.array(geldrying==False, dtype="int32")) #not geldrying cells
+                    except:
+                        after = -1
+                    cell_numbers["not_geldrying"] = after
+                
+            ages.append(session.age)
+            cell_numbers_dict[animal_id][session_id] = cell_numbers
+        cell_numbers_dict[animal_id]["ages"] = ages
+    return cell_numbers_dict
+
+def get_sorted_cells_notgeldyring_lists(cell_numbers_dict):
+    """
+    Sorts the cells in a dictionary of cell numbers by age.
+
+    :param cell_numbers_dict: A dictionary of cell numbers where the keys are session IDs and the values are dictionaries containing ages and cell numbers.
+    :return: A tuple containing three numpy arrays: sorted ages, sorted iscells, and sorted notgeldrying.
+    """
+    ages = np.array(cell_numbers_dict["ages"])
+    sort_ages_ids = np.argsort(ages)
+    sorted_ages = ages[sort_ages_ids]
+    sessiondates = np.array(list(cell_numbers_dict.keys())[:-1])
+    sorted_sessiondates = sessiondates[sort_ages_ids]
+    iscells = []
+    notgeldrying = []
+    for sessiondate in sorted_sessiondates:
+        iscells.append(cell_numbers_dict[sessiondate]["iscell"])
+        notgeldrying.append(cell_numbers_dict[sessiondate]["not_geldrying"])
+    return np.array(sorted_ages), np.array(iscells), np.array(notgeldrying)
+    
+
 def filter_animals(animal_dict, filters = []):
     """
     Filters the animal dictionary based on the specified filters.

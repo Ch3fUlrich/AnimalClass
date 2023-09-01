@@ -299,7 +299,8 @@ class Session:
         self.s2p_folder_paths = self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, units=units, delete=delete)
 
         self.cabincorr_data_paths = self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, units=units)
-        
+        self.units = None
+        self.merged_unit = None
         #TODO: implement cabincorr functions for filtering correct data
         #self.corr_mean, self.corr_std = self.get_corr_mean_std()
         print(f"Finished {animal_id}: {session_id}")
@@ -371,11 +372,12 @@ class Session:
         return self.tiff_data_paths
 
     def generate_tiff_from_mesc(self, units="all", delete=False, regenerate=False):
+        fps = 30
         if isinstance(units, str):
             units = [units]
 
         if "all" in units:
-            tiff_file_name = mesc_file_name.replace('.mesc','.tif')
+            tiff_file_name = self.mesc_data_path.replace('.mesc','.tif')
             units = self.get_session_parts()
         else:
             tiff_file_name = os.path.join(self.session_dir, f"{self.animal_id}_{self.session_id}_{Animal.dir_}_")
@@ -395,7 +397,6 @@ class Session:
                 
                 # Get MUnit number list of first Mescfile session MSession_0
                 with h5py.File(mesc_file_name, 'r') as file:
-                    fps = 30
                     munits = file[list(file.keys())[0]]
                     fluoresence_recording_session_numbers = []
                     for name, unit in munits.items():
@@ -559,10 +560,6 @@ class Session:
         opsEnd = run_s2p(ops=ops, db=db)
         self.s2p_folder_paths.append(os.path.join(self.session_dir, save_folder))
         self.s2p_folder_paths = np.unique(self.s2p_folder_paths).tolist()
-        
-        if os.path.exists(s2p_temp_binary_location):
-            print(f"Deleting reused binary file {s2p_temp_binary_location}")
-            os.remove(s2p_temp_binary_location)
         print("Finished Suite2p.")
 
     def get_cabincorr_data_paths(self, generate=False, regenerate=False, units="all"):
@@ -618,25 +615,96 @@ class Session:
         self.cabincorr_data_paths.append(current_cabincorr_data_path)
         return current_cabincorr_data_path
     
-    def load_cabincorr_data(self, units="all"):
-        if units != "all":
-            units_name = "_".join(units)
-            for path in self.cabincorr_data_paths:
-                try:
-                    session_part = int(path.split("suite2p_")[1].split("\\")[0])
-                    if units_name == session_part:
-                        bin_traces_zip = np.load(path)
-                except:
-                    #TODO: create a better solution for filtering out folder without session path
+    def load_cabincorr_data(self, unit="all"):
+        unit = "" if unit != "all" else unit
+        for path in self.cabincorr_data_paths:
+            path_unit = path.split("suite2p_")[-1].split("\plane0")[0]
+            if path_unit == unit:
+                if os.path.exists(path):
+                    bin_traces_zip = np.load(path)
+                else:
                     print("No CaBincorrPath found")
-                    continue
-        else:
-            bin_traces_zip = np.load(self.cabincorr_data_paths[0]) #TODO: will give false results if the correct folder is not choosen
+                    return None
         return bin_traces_zip
-    
-    def load_corr_matrix(self):
-        #TODO: change after cabincorr package is finished
+
+    def load_corr_matrix(self, unit="all"):
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        #FIXME: write better yaml file reader
+        """
+        with open('items.yml') as f:
+        dict = yaml.load(f, Loader=yaml.FullLoader)
+        print(dict)
+        """
         corr_file_names = ["allcell_correlation_array_upphase.npy", "allcell_correlation_array_filtered.npy"]
+        bin_traces_zip = self.load_cabincorr_data(unit=unit)
+        #corr_matrix = bin_traces_zip[].................
         for corr_file_name in corr_file_names:
             for s2p_folder in self.s2p_folder_paths:
                 corr_matrix_path = search_file(s2p_folder, corr_file_name)
@@ -669,17 +737,18 @@ class Session:
             backup_s2p_files(data_path, restore=False)
             unit = Unit(s2p_folder_path, session=self, unit_id=unit_id)
             backup_s2p_files(data_path, restore=False)
-            units[unit_id] = unit
-
-            #Print amount of cells vs good cells
-            unit.print_s2p_iscell()
-
-            #single cells sliding mean detector for gel detection
-            if get_geldrying:
-                cell_drying = unit.get_geldrying_cells()
-                bad = sum(unit.cell_geldrying)
-                good = len(unit.cell_geldrying)-bad
-                print(f"Autodetection Cells: {good+bad}    Good: {good}   geldrying:{bad} ")
+            num_good_cells = unit.print_s2p_iscell()
+            if num_good_cells < 100: #If less than 100 good cells
+                #Print amount of cells vs good cells
+                print(f"Skipping Unit {unit.unit_id} (<100 cells)")    
+            else:
+                units[unit_id] = unit
+                #single cells sliding mean detector for gel detection
+                if get_geldrying:
+                    cell_drying = unit.get_geldrying_cells()
+                    bad = sum(unit.cell_geldrying)
+                    good = len(unit.cell_geldrying)-bad
+                    print(f"Autodetection Cells: {good+bad}    Good: {good}   geldrying:{bad} ")
 
         self.units = units
         return units
@@ -806,6 +875,34 @@ class Session:
             self.get_s2p_folder_paths()
             merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged")
             merged_unit.get_geldrying_cells()
+            self.merged_unit = merged_unit
+        return merged_unit
+    
+    def merge_units_get_geldrying(self, generate=True, regenerate=False, delete_used_subsessions=False):
+        print(f"-------------------------------Generating Initial Suite2P Files for individual units ---------------------")
+        self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, units="single")
+        self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, units="single")
+        print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
+        # Rerunning Suite2p if binary file is not present
+        bin_fname = "data.bin"
+        for s2p_path in self.s2p_folder_paths:
+            binary_file_present = False
+            part_to_rerun = False
+            for part in self.session_parts:
+                if part in s2p_path:
+                    binary_file_present = os.path.exists(os.path.join(s2p_path, "plane0", bin_fname))
+                    if binary_file_present:
+                        break
+                    else:
+                        part_to_rerun = part
+                if part_to_rerun:
+                    print(f"binary file not present in {s2p_path}")
+                    self.run_suite2p(regenerate=True, units=part_to_rerun)
+        print(f"-----------------------------------Loading Units-----------------------------------")
+        session.get_units(get_geldrying=True)
+        print(f"-----------------------------------Merging Units-----------------------------------")
+        merged_unit = self.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
+        merged_unit.get_geldrying_cells()
         return merged_unit
 
 class Animal:
@@ -887,7 +984,7 @@ class Animal:
         overview_df = pd.DataFrame(columns = ['session_name', 'date', 'P', 'suite2p_folder_paths'])#, 'duration [min]'])
         for session_id, session in self.sessions.items():
             overview_df.loc[len(overview_df)] = {'session_name': session_id, 'date': session.session_date, 'P':session.age, 'suite2p_folder_paths':session.s2p_folder_paths}
-        print(overview_df)
+        display(overview_df)
         print("-----------------------------------------------")
         return overview_df
 
@@ -897,7 +994,7 @@ class Vizualizer:
         self.save_dir = os.path.join(save_dir, "figures")
         dir_exist_create(self.save_dir)
         # Collor pallet for plotting
-        self.colors = mlp.colormaps["rainbow"](range(0,300))
+        self.colors = mlp.colormaps["rainbow"](range(0,301))
 
     def add_animal(self, animal):
         self.animals[animal.animal_id] = animal
@@ -942,16 +1039,19 @@ class Vizualizer:
     
 
         #for s2p_folder in self.animals[animal_id].sessions[session].s2p_folder_paths:
-        bin_traces_zip = self.animals[animal_id].sessions[session_id].load_cabincorr_data(unit=unit_id)
+        bin_traces_zip = self.animals[animal_id].sessions[session_id].load_cabincorr_data(units=unit_id)
         fluorescence = bin_traces_zip[f"F_{fluoresence_type}"]
         self.traces(fluorescence, animal_id, session_id, unit_id, num_cells, dpi, fps)
         return fluorescence
 
-    def traces(self, fluorescence, animal_id, session_id, unit_id="all", num_cells="all", fit_line=False, dpi=300, fps="30",
+    def traces(self, fluorescence, animal_id, session_id, unit_id="all", num_cells="all", low_pass_filter=True, fit_line=False, dpi=300, fps="30",
                xlabel=f"seconds", 
                ylabel='Fluoresence based on Ca in Cell',
                title=f"Bursts from "):
         # plot fluorescence
+        if low_pass_filter:
+            fluorescence = butter_lowpass_filter(fluorescence, cutoff=0.5, fs=30, order=2)
+        
         fluorescence = np.array(fluorescence)
         fluorescence = np.transpose(fluorescence) if len(fluorescence.shape)==2 else fluorescence
         plt.figure()
@@ -965,7 +1065,6 @@ class Vizualizer:
             file_name = f"{animal_id}_{session_id}_Unit_{unit_id}"
         else:
             file_name = f"{animal_id}_{session_id}"
-
 
         seconds = 5
         num_frames = 30*seconds
@@ -991,9 +1090,9 @@ class Vizualizer:
             length = range(len(fluorescence))
             plt.plot(length, intercept+length*slope, color = "r")
 
-        plt.savefig(os.path.join(self.save_dir, f"{file_title}{file_name}.png"),
-                    dpi=dpi)
-        #plt.show()
+        #plt.savefig(os.path.join(self.save_dir, f"{file_title}{file_name}.png"), dpi=dpi)
+        #FIXME: savefig error, why?
+        plt.show()
 
     def save_rasters_fig(self, calcium_object, animal_id, session_id, unit_id="all"): #TODO: Update to classes
         #TODO: yes?
@@ -1010,7 +1109,7 @@ class Vizualizer:
         #change picture location
         os.rename(show_rasters_savelocation_name, own_location_name)    
 
-    def pearson_hist(self, animal_id, session_id, dpi=300, 
+    def pearson_hist(self, animal_id, session_id, unit="", dpi=300, 
                                 title = "Pearson Correlation and Histogram",
                                 hist_title='Pearson Correlation Coefficient Histogram',
                                 hist_xlabel="Coefficients combined in 0.1 size bins",
@@ -1020,7 +1119,7 @@ class Vizualizer:
         # Create a figure and two subplots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
 
-        corr_matrix, pval_matrix = self.animals[animal_id].sessions[session_id].load_corr_matrix()
+        corr_matrix, pval_matrix = self.animals[animal_id].sessions[session_id].load_corr_matrix(unit)
 
         # First subplot
         sns.heatmap(corr_matrix, annot=False, cmap='YlGnBu', ax=ax1)
@@ -1039,7 +1138,7 @@ class Vizualizer:
         #plt.show()
         return corr_matrix, pval_matrix
 
-    def pearson_kde(self, filters=[], dpi=300):
+    def pearson_kde(self, filters=[], unit="", dpi=300):
         # Plot Kernel density Estimation
         filtered_animals = filter_animals(self.animals, filters)
         unique_sorted_ages, min_age, max_age = get_age_range(filtered_animals)
@@ -1052,7 +1151,7 @@ class Vizualizer:
             for session_id, session in animal.sessions.items():
                 age = session.age
                 try:
-                    corr_matrix, pval_matrix = session.load_corr_matrix()
+                    corr_matrix, pval_matrix = session.load_corr_matrix(unit)
                 except:
                     continue
                 sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
@@ -1062,7 +1161,7 @@ class Vizualizer:
             line_plot_steps = round(len(unique_sorted_ages)/17)
 
         for age in np.unique(unique_sorted_ages[::line_plot_steps]):
-                handles.append(Line2D([0], [0], color=self.colors[(age-min_age)*colorsteps], linewidth=2, linestyle='-', label=f"Age {age}"))
+            handles.append(Line2D([0], [0], color=self.colors[(age-min_age)*colorsteps], linewidth=2, linestyle='-', label=f"Age {age}"))
         #handles=[Patch(color="tab:red", label="Bad=mean+sigma > 0.3"), Patch(color="tab:blue", label="Good=mean+sigma < 0.3")]
         plt.xlabel("Correlation")
         plt.ylabel("Frequency")
@@ -1073,7 +1172,7 @@ class Vizualizer:
 
         # Plot Bars to compare 2 numbers
     
-    def plot_means_stds(self, filters=[], dpi=300, x_tick_jumps = 4):
+    def plot_means_stds(self, filters=[], unit="", dpi=300, x_tick_jumps = 4):
         mean_threshold = Analyzer.mean_threshold
         std_threshold = Analyzer.std_threshold
 
@@ -1088,7 +1187,7 @@ class Vizualizer:
             stds = []
             for session_id, session in animal.sessions.items():
                 try:
-                    corr_matrix, pval_matrix = session.load_corr_matrix()
+                    corr_matrix, pval_matrix = session.load_corr_matrix(unit)
                 except:
                     continue
                 ages.append(session.age)
@@ -1396,6 +1495,7 @@ class Unit:
         num_good_cells = sum(iscell[:, 0])
         num_bad_cells = num_cells-num_good_cells
         print(f"Suite2p: Cells: {num_cells}  Good: {num_good_cells}  Bad: {num_bad_cells}")
+        return num_good_cells
 
     def num_not_geldrying(self):
         return len(self.cell_geldrying)-sum(self.cell_geldrying)
@@ -1455,20 +1555,20 @@ class Merger:
         """
         num_batches = get_num_batches_based_on_available_ram()
         
-        shifted_unit_stat_no_abroad, shifted_footprints_no_abroad = self.remove_abroad_cells(best_unit.c.stat, best_unit.footprints, units, image_x_size=image_x_size, image_y_size=image_y_size)
+        shifted_unit_stat_no_abroad = self.remove_abroad_cells(best_unit.c.stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
+        merged_footprints = self.stat_to_footprints(shifted_unit_stat_no_abroad)
         merged_stat = shifted_unit_stat_no_abroad
-        merged_footprints = shifted_footprints_no_abroad
         for unit_id, unit in units.items():
             if unit_id == best_unit.unit_id:
                 continue    
             shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
-            shifted_footprints = self.stat_to_footprints(shifted_unit_stat)
-            shifted_unit_stat_no_abroad, shifted_footprints_no_abroad = self.remove_abroad_cells(shifted_unit_stat, shifted_footprints, units, image_x_size=image_x_size, image_y_size=image_y_size)
-            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints_no_abroad, parallel=parallel, num_batches=num_batches)
+            shifted_unit_stat_no_abroad = self.remove_abroad_cells(shifted_unit_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
+            shifted_footprints = self.stat_to_footprints(shifted_unit_stat_no_abroad)
+            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints, parallel=parallel, num_batches=num_batches)
             merged_stat = np.concatenate([merged_stat, shifted_unit_stat_no_abroad])[clean_cell_ids]
         return merged_stat
     
-    def remove_abroad_cells(self, stat, footprints, units, image_x_size=512, image_y_size=512):
+    def remove_abroad_cells(self, stat, units, image_x_size=512, image_y_size=512):
         # removing out of bound cells 
         remove_cells = []
         for cell_num, cell in enumerate(stat):
@@ -1492,9 +1592,8 @@ class Merger:
                 
         for abroad_cell in remove_cells[::-1]:
             stat = np.delete(stat, abroad_cell)
-            footprints = np.delete(footprints, abroad_cell, 0) #delete row
             print(f"removed cell {abroad_cell}")
-        return stat, footprints
+        return stat
 
     def merge_s2p_files(self, units, stat, ops):
         """
@@ -1742,7 +1841,7 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id):
     c.mode_window = 30*30
     c.percentile_threshold = 0.000001
     c.dff_min = 0.02
-
+    c.data_type = "2p"
     #
     c.load_suite2p()
 
