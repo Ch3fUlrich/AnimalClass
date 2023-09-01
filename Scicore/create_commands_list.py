@@ -57,17 +57,16 @@ from manifolds.donlabtools.utils.calcium.calcium import *
 from Classes import Analyzer, Session, Animal, Vizualizer, Unit, Binary_loader, Merger, load_all
 from Helper import *
 
+#root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
+root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
+Animal.root_dir = root_dir
 
 def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], skip_animal=[], skip_session=[]):
     #TODO: skipping option is not integrated
     with open("commands.cmd", 'w') as f:
-        #root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
-        root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
-        Animal.root_dir = root_dir
-        animals, bad_sessions = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids) # Load all animals
+        animals = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids) # Load all animals
         for animal_id, animal in animals.items():
             if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
-
                 for session_id, session in animal.sessions.items():
                     if session_id in wanted_session_ids or "all" in wanted_session_ids:
                         f.write(f"python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py {animal_id} {session_id}\n")

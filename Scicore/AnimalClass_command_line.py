@@ -53,17 +53,17 @@ sys.path.append(module_path)
 
 from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
-from Classes import Analyzer, Session, Animal, Vizualizer, Unit, Binary_loader, Merger, load_all
+from Classes import *
 from Helper import *
+
+# Init Directories and Notebook settings
+#root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
+root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
+Animal.root_dir = root_dir
 
 
 def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True, delete=False, skip_animal=[], skip_session=[]):
     #TODO: skipping option is not integrated
-    # Init Directories and Notebook settings
-    root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
-    Animal.root_dir = root_dir
-    #root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
-
     animals = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=delete) # Load all animals
 
     fps = 30
@@ -116,6 +116,12 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             merged_unit = session.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
             #merged_unit = session.merge_units(generate=True, regenerate=False, delete_used_subsessions=True)
             merged_unit.get_geldrying_cells()
+            
+            delete_bin_tiff(session)
+
+            do_cabincoor(session, unit="")
+            do_cabincoor(session, unit="merged")
+            
             dir_exist_create(os.path.join(viz.save_dir, animal_id))
             dir_exist_create(os.path.join(viz.save_dir, animal_id, session_id))
             viz.save_dir = os.path.join(viz.save_dir, animal_id, session_id)
@@ -207,6 +213,59 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                     viz.unit_fluorescence_good_bad(merged_unit, batch_size="all", interactive=False, plot_duplicates=False)
                 except:
                     print(f"###################################FAILED###################################FAILED###################################FAILED###################################")
+
+def do_cabincoor(session, unit=""):
+    for s2p_path in session.s2p_folder_paths:
+            splitted_path = s2p_path.split("suite2p_")
+            if splitted_path[-1] == unit or len(splitted_path)==1:
+                c = run_cabin_corr(root_dir, os.path.join(s2p_path, "plane0"), session.animal_id, session.session_id)
+                c.corr_parallel_flag = True
+                c.zscore = True 
+                c.n_tests_zscore = 1000
+                c.n_cores = 32
+                c.recompute_correlation = False
+                c.binning_window = 30        # binning window in frames
+                c.subsample = 1              # subsample traces by this factor
+                c.scale_by_DFF = True        # scale traces by DFF
+                c.shuffle_data = True
+                c.subselect_moving_only = False
+                c.subselect_quiescent_only = False
+                c.make_correlation_dirs()
+                c.compute_correlations()
+
+def delete_bin_tiff(session):
+    #Delete binaries
+    del_tiff = True
+    for s2p_folder in session.s2p_folder_paths:
+        s2p_folder_ending = s2p_folder.split("suite2p")[1]
+        iscell_path = os.path.join(s2p_folder, "plane0", "iscell.npy)")
+        iscell_count = -1
+        if os.path.exists(iscell_path):
+            iscell = np.load(iscell_path)[:,0]
+            iscell_count = sum(iscell)
+        
+        notgel_path = os.path.join(s2p_folder, "plane0", "cell_drying.npy")
+        notgel_count = -1
+        if os.path.exists(notgel_path):
+            notgel = np.load(notgel_path)==0
+            notgel_count = sum(notgel)
+
+        if s2p_folder_ending == "":
+            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
+            if os.path.exists(binary_path):
+                os.remove(binary_path)
+        elif iscell_count != -1 and notgel_count !=-1:
+            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
+            if os.path.exists(binary_path):
+                os.remove(binary_path)
+        else:
+            del_tiff = False
+
+    #Delete Tiffs
+    if del_tiff:
+        for tiff_path in session.tiff_data_paths:
+            if os.path.exists(tiff_path):
+                os.remove(tiff_path)  
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
