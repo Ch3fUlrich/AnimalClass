@@ -344,7 +344,7 @@ class Session:
         return self.session_parts
 
     def get_tiff_data_paths(self, generate=False, regenerate=False, units="all", delete=False):
-        delete = False #FIXME: Mesc ist probably always usefull.
+        delete = False #FIXME: Mesc is probably always usefull.
         tiff_data_paths = []
         self.tiff_data_paths = []
         if regenerate:
@@ -615,95 +615,21 @@ class Session:
         self.cabincorr_data_paths.append(current_cabincorr_data_path)
         return current_cabincorr_data_path
     
-    def load_cabincorr_data(self, unit="all"):
-        unit = "" if unit != "all" else unit
+    def load_cabincorr_data(self, unit_id="all"):
+        bin_traces_zip = None
         for path in self.cabincorr_data_paths:
-            path_unit = path.split("suite2p_")[-1].split("\plane0")[0]
-            if path_unit == unit:
+            path_unit = path.split("suite2p")[-1].split("/plane0")[0]
+            if path_unit == unit_id or unit_id == "all" and len(path_unit)==0:
                 if os.path.exists(path):
                     bin_traces_zip = np.load(path)
                 else:
                     print("No CaBincorrPath found")
-                    return None
         return bin_traces_zip
 
-    def load_corr_matrix(self, unit="all"):
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        #FIXME: write better yaml file reader
-        """
-        with open('items.yml') as f:
-        dict = yaml.load(f, Loader=yaml.FullLoader)
-        print(dict)
-        """
+    def load_corr_matrix(self, unit_id="all"):
+        corr_matrix, pval_matrix = None, None
         corr_file_names = ["allcell_correlation_array_upphase.npy", "allcell_correlation_array_filtered.npy"]
-        bin_traces_zip = self.load_cabincorr_data(unit=unit)
+        bin_traces_zip = self.load_cabincorr_data(unit_id=unit_id)
         #corr_matrix = bin_traces_zip[].................
         for corr_file_name in corr_file_names:
             for s2p_folder in self.s2p_folder_paths:
@@ -712,9 +638,10 @@ class Session:
                     break
             if corr_matrix_path != None:
                     break
-        corr_pval_matrix = np.load(corr_matrix_path) # 1D correlation matrix, 2D pvalues
-        corr_matrix = corr_pval_matrix[:,:,0]
-        pval_matrix = corr_pval_matrix[:,:,1]
+        if corr_matrix_path:
+            corr_pval_matrix = np.load(corr_matrix_path) # 1D correlation matrix, 2D pvalues
+            corr_matrix = corr_pval_matrix[:,:,0]
+            pval_matrix = corr_pval_matrix[:,:,1]
         return corr_matrix, pval_matrix
 
     def get_units(self, get_geldrying=False):
@@ -916,59 +843,19 @@ class Animal:
         self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
         print(f"Loading animal: {self.animal_id}")
 
-    def load_data(self, yaml_file_path):
-        with open(yaml_file_path) as f:
-            lines = f.readlines()
-        pdays = []
-        session_dates = []
-        session_names = []
-        skip = 0
-        for num, line in enumerate(lines):
-            if skip > 0:
-                skip -= 1
-                continue
-            if "cohort_year" in line:
-                try:
-                    cohort_year = int(lines[num+1].split("- ")[1])
-                except:
-                    cohort_year = int(line.split(": ")[1])
-            if "dob" in line:
-                dob = line.split(": ")[1][1:-2].strip()
-            if "name: D" in line:
-                animal_id = line.split(": ")[1].strip()
-            if "pdays" in line:
-                pdays = self.get_array_from_text_list(lines[num+1:], "session_dates")
-                pdays = [int(pday) for pday in pdays]
-                skip = len(pdays)
-            if "session_dates" in line:
-                session_dates = self.get_array_from_text_list(lines[num+1:], "session_names")
-                skip = len(session_dates)
-            if "session_names" in line:
-                session_names = self.get_array_from_text_list(lines[num+1:], "sex")
-                skip = len(session_names)
-            if "sex" in line:
-                sex = line.split(": ")[1].strip()
-        return cohort_year, dob, animal_id, pdays, session_dates, session_names, sex
+    def load_data(self, yaml_path):
+        #TODO: integrate variable loading of properties
+        with open(yaml_path, "r") as yaml_file:
+            animal_metadata_dict = yaml.safe_load(yaml_file)
+        cohort_year = int(animal_metadata_dict["cohort_year"])
+        dob = animal_metadata_dict["dob"]
+        animal_id = animal_metadata_dict["name"]
+        pdays = [int(pday) for pday in animal_metadata_dict["pdays"]]
+        session_dates = animal_metadata_dict["session_dates"]
+        session_names = animal_metadata_dict["session_names"]
+        sex = animal_metadata_dict["sex"]
 
-    def get_array_from_text_list(self, text_list, stop_word = ""):
-        """
-        This function takes in a list of text strings and an optional stop word as arguments. It returns a filtered list of strings.
-        
-        :param text_list: A list of text strings to be filtered.
-        :type text_list: list
-        :param stop_word: An optional argument that specifies a word to stop the filtering process. Default is an empty string.
-        :type stop_word: str
-        :return: A filtered list of strings.
-        :rtype: list
-        """
-        filtered_list = []
-        for line in text_list:
-            if stop_word not in line:
-                value = line[1:].strip().replace("'", "")
-                filtered_list.append(value)
-            else:
-                break
-        return filtered_list
+        return cohort_year, dob, animal_id, pdays, session_dates, session_names, sex
 
     def get_session_data(self, session_id, generate=False, regenerate=False, units="all", delete=False):
         yaml_file_index = self.session_names.index(session_id)
@@ -1036,12 +923,15 @@ class Vizualizer:
         #is_not_cells_ids = np.where(calcium_object.iscell==0)[0]
         #num_is_cells = is_cells_ids.shape[0] #get is cells
         #calcium_object.plot_traces(calcium_object.F_filtered, np.arange(num_is_cells))
-    
 
         #for s2p_folder in self.animals[animal_id].sessions[session].s2p_folder_paths:
-        bin_traces_zip = self.animals[animal_id].sessions[session_id].load_cabincorr_data(units=unit_id)
-        fluorescence = bin_traces_zip[f"F_{fluoresence_type}"]
-        self.traces(fluorescence, animal_id, session_id, unit_id, num_cells, dpi, fps)
+        bin_traces_zip = self.animals[animal_id].sessions[session_id].load_cabincorr_data(unit_id=unit_id)
+        fluorescence = None
+        if bin_traces_zip:
+            fluorescence = bin_traces_zip[f"F_{fluoresence_type}"]
+            self.traces(fluorescence, animal_id, session_id, unit_id, num_cells, dpi, fps)
+        else:
+            print(f"{animal_id} {session_id} No Fluoresence data of type {fluoresence_type} in binarized_traces.npz")
         return fluorescence
 
     def traces(self, fluorescence, animal_id, session_id, unit_id="all", num_cells="all", low_pass_filter=True, fit_line=False, dpi=300, fps="30",
@@ -1109,7 +999,7 @@ class Vizualizer:
         #change picture location
         os.rename(show_rasters_savelocation_name, own_location_name)    
 
-    def pearson_hist(self, animal_id, session_id, unit="", dpi=300, 
+    def pearson_hist(self, animal_id, session_id, unit_id="", dpi=300, 
                                 title = "Pearson Correlation and Histogram",
                                 hist_title='Pearson Correlation Coefficient Histogram',
                                 hist_xlabel="Coefficients combined in 0.1 size bins",
@@ -1119,26 +1009,27 @@ class Vizualizer:
         # Create a figure and two subplots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
 
-        corr_matrix, pval_matrix = self.animals[animal_id].sessions[session_id].load_corr_matrix(unit)
+        corr_matrix, pval_matrix = self.animals[animal_id].sessions[session_id].load_corr_matrix(unit_id)
 
-        # First subplot
-        sns.heatmap(corr_matrix, annot=False, cmap='YlGnBu', ax=ax1)
-        ax1.set_xlabel("Neuron id")
-        ax1.set_ylabel("Neuron id")
-        ax1.set_title('Pearson Correlation Matrix')
-
-        # Second subplot
-        hist_data = corr_matrix if isinstance(corr_matrix, np.ndarray) else corr_matrix.to_numpy()
-        sns.histplot(data=hist_data.flatten(), binwidth=0.1, ax=ax2, facecolor=facecolor)
-        ax2.set_title(hist_title)
-        ax2.set_xlabel(hist_xlabel)
-        ax2.set_ylabel(hist_ylabel)
-        plt.savefig(os.path.join(self.save_dir, title),
-                    dpi=dpi)
-        #plt.show()
+        if corr_matrix:
+            # First subplot
+            sns.heatmap(corr_matrix, annot=False, cmap='YlGnBu', ax=ax1)
+            ax1.set_xlabel("Neuron id")
+            ax1.set_ylabel("Neuron id")
+            ax1.set_title('Pearson Correlation Matrix')
+    
+            # Second subplot
+            hist_data = corr_matrix if isinstance(corr_matrix, np.ndarray) else corr_matrix.to_numpy()
+            sns.histplot(data=hist_data.flatten(), binwidth=0.1, ax=ax2, facecolor=facecolor)
+            ax2.set_title(hist_title)
+            ax2.set_xlabel(hist_xlabel)
+            ax2.set_ylabel(hist_ylabel)
+            plt.savefig(os.path.join(self.save_dir, title),
+                        dpi=dpi)
+            #plt.show()
         return corr_matrix, pval_matrix
 
-    def pearson_kde(self, filters=[], unit="", dpi=300):
+    def pearson_kde(self, filters=[], unit_id="", dpi=300):
         # Plot Kernel density Estimation
         filtered_animals = filter_animals(self.animals, filters)
         unique_sorted_ages, min_age, max_age = get_age_range(filtered_animals)
@@ -1150,9 +1041,8 @@ class Vizualizer:
         for animal_id, animal in filtered_animals.items():
             for session_id, session in animal.sessions.items():
                 age = session.age
-                try:
-                    corr_matrix, pval_matrix = session.load_corr_matrix(unit)
-                except:
+                corr_matrix, pval_matrix = session.load_corr_matrix(unit_id)
+                if not corr_matrix:
                     continue
                 sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
         handles = []
@@ -1161,7 +1051,12 @@ class Vizualizer:
             line_plot_steps = round(len(unique_sorted_ages)/17)
 
         for age in np.unique(unique_sorted_ages[::line_plot_steps]):
-            handles.append(Line2D([0], [0], color=self.colors[(age-min_age)*colorsteps], linewidth=2, linestyle='-', label=f"Age {age}"))
+            #FIXME: colorsteps ist not correctly working
+            color_number = (age-min_age)*colorsteps
+            if color_number >= len(self.colors):
+                print(f"color is to big: {color_number} --changing to {len(self.colors)-1}")
+                color_number =  len(self.colors)-1
+            handles.append(Line2D([0], [0], color=self.colors[color_number], linewidth=2, linestyle='-', label=f"Age {age}"))
         #handles=[Patch(color="tab:red", label="Bad=mean+sigma > 0.3"), Patch(color="tab:blue", label="Good=mean+sigma < 0.3")]
         plt.xlabel("Correlation")
         plt.ylabel("Frequency")
@@ -1172,7 +1067,7 @@ class Vizualizer:
 
         # Plot Bars to compare 2 numbers
     
-    def plot_means_stds(self, filters=[], unit="", dpi=300, x_tick_jumps = 4):
+    def plot_means_stds(self, filters=[], unit_id="", dpi=300, x_tick_jumps = 4):
         mean_threshold = Analyzer.mean_threshold
         std_threshold = Analyzer.std_threshold
 
@@ -1187,7 +1082,7 @@ class Vizualizer:
             stds = []
             for session_id, session in animal.sessions.items():
                 try:
-                    corr_matrix, pval_matrix = session.load_corr_matrix(unit)
+                    corr_matrix, pval_matrix = session.load_corr_matrix(unit_id)
                 except:
                     continue
                 ages.append(session.age)
