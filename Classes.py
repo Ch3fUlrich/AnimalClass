@@ -344,7 +344,7 @@ class Session:
         return self.session_parts
 
     def get_tiff_data_paths(self, generate=False, regenerate=False, units="all", delete=False):
-        delete = False #FIXME: Mesc ist probably always usefull.
+        delete = False #FIXME: Mesc is probably always usefull.
         tiff_data_paths = []
         self.tiff_data_paths = []
         if regenerate:
@@ -627,12 +627,6 @@ class Session:
         return bin_traces_zip
 
     def load_corr_matrix(self, unit_id="all"):
-        #FIXME: write better yaml file reader
-        """
-        with open('items.yml') as f:
-        dict = yaml.load(f, Loader=yaml.FullLoader)
-        print(dict)
-        """
         corr_matrix, pval_matrix = None, None
         corr_file_names = ["allcell_correlation_array_upphase.npy", "allcell_correlation_array_filtered.npy"]
         bin_traces_zip = self.load_cabincorr_data(unit_id=unit_id)
@@ -849,14 +843,16 @@ class Animal:
         self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
         print(f"Loading animal: {self.animal_id}")
 
-    def load_data(self, yaml_file_path):
+    def load_data(self, yaml_path):
+        #TODO: integrate variable loading of properties
         with open(yaml_path, "r") as yaml_file:
             animal_metadata_dict = yaml.safe_load(yaml_file)
-        f["session_dates"]
         cohort_year = int(animal_metadata_dict["cohort_year"])
         dob = animal_metadata_dict["dob"]
         animal_id = animal_metadata_dict["name"]
         pdays = [int(pday) for pday in animal_metadata_dict["pdays"]]
+        session_dates = animal_metadata_dict["session_dates"]
+        session_names = animal_metadata_dict["session_names"]
         sex = animal_metadata_dict["sex"]
 
         return cohort_year, dob, animal_id, pdays, session_dates, session_names, sex
