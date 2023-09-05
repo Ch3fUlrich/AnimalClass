@@ -123,6 +123,11 @@ def update_s2p_files(data_path, stat):
     np.save(os.path.join(data_path, 'spks.npy'), spks)
     np.save(os.path.join(data_path, 'stat.npy'), stat)
 
+def remove_rows_cols(data, remove_rows, remove_cols):
+    data = np.delete(data, remove_rows, 0)
+    data = np.delete(data, remove_cols, 1)
+    return data
+
 def extract_cell_numbers(animals):
     """
     Extracts cell numbers from a dictionary of animals and their sessions.
