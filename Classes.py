@@ -377,15 +377,15 @@ class Session:
 
     def generate_tiff_from_mesc(self, unit_ids="all", delete=False, regenerate=False):
         fps = 30
-        if isinstance(units, str):
-            units = [units]
+        if isinstance(unit_ids, str):
+            unit_ids = [unit_ids]
 
-        if "all" in units:
+        if "all" in unit_ids:
             tiff_file_name = self.mesc_data_path.replace('.mesc','.tif')
-            units = self.get_session_parts()
+            unit_ids = self.get_session_parts()
         else:
             tiff_file_name = os.path.join(self.session_dir, f"{self.animal_id}_{self.session_id}_{Animal.dir_}_")
-            for unit in units:
+            for unit in unit_ids:
                 tiff_file_name += unit + "-"
             tiff_file_name = tiff_file_name[:-1] + ".tiff"
         
@@ -416,7 +416,7 @@ class Session:
                 number_shift = biggest_session_number-biggest_possible_session_number
 
                 sess_list = []
-                for unit in units:
+                for unit in unit_ids:
                     temp = unit.replace("S",'')
                     temp = 'MUnit_'+str(int(temp)-1-number_shift)
                     print ("session loaded: ", temp)
@@ -677,6 +677,7 @@ class Session:
         :return: A tuple containing the correlation matrix and p-value matrix.
         :rtype: tuple
         """
+        merged = True if unit_id == "merged" else False
         s2p_folder_ending = "merged" if merged else unit_id
         s2p_folder_ending = "" if s2p_folder_ending == "all" else s2p_folder_ending
         for path in self.s2p_folder_paths:
@@ -687,7 +688,6 @@ class Session:
         if not os.path.exists(corr_matrix_path):
             print("Loading correlation data from individual cell.npz files...")
             corr_matrix, pval_matrix = None, None
-            merged = True if unit_id == "merged" else False
             cells = self.get_cells(merged)
             if type(cells) == dict:
                 pearson_corrs = []

@@ -239,7 +239,7 @@ def delete_bin_tiff(session):
     del_tiff = True
     for s2p_folder in session.s2p_folder_paths:
         s2p_folder_ending = s2p_folder.split("suite2p")[1]
-        iscell_path = os.path.join(s2p_folder, "plane0", "iscell.npy)")
+        iscell_path = os.path.join(s2p_folder, "plane0", "iscell.npy")
         iscell_count = -1
         if os.path.exists(iscell_path):
             iscell = np.load(iscell_path)[:,0]

@@ -7,7 +7,7 @@
 
 #SBATCH --time=06:00:00         #This is the time that your task will run 01:00:00 or 1-00:00:00
 #SBATCH --qos=6hours          #You will run in this queue 6hours or 1day  or 1week
-#SBATCH --array=1-213        #This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
+#SBATCH --array=1-create_corr        #This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory
 #SBATCH --output=outputs/animal_session%A_%a.o     #These are the STDOUT and STDERR files #j for jobID
