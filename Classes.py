@@ -1440,8 +1440,9 @@ class Vizualizer:
 
     def binary_frames(self, frames, num_images_x=2):
         num_frames = frames.shape[0]
-        fig, ax = plt.subplots(round(num_frames/num_images_x), num_images_x, figsize =(15, 15))
-        fig.suptitle(f"Binary Frames", fontsize=20)
+        num_rows = round(num_frames/num_images_x)
+        fig, ax = plt.subplots(num_rows, num_images_x, figsize =(5*num_images_x, 5*num_rows))
+        fig.suptitle(f"{num_frames} Binary Frames", fontsize=20)
         for i, image in enumerate(frames):
             x = int(i/num_images_x)
             y = i%num_images_x
@@ -1543,25 +1544,32 @@ class Binary_loader:
     def load_binary(self, data_path, n_frames_to_be_acquired, fname="data.bin", image_x_size=512, image_y_size=512):
         # load binary file from suite2p_folder from unit
         image_size=image_x_size*image_y_size
-        fpath = os.path.join(data_path, "plane0", fname)
+        fpath = search_file(data_path, fname)
         binary = np.memmap(fpath,
                             dtype='uint16',
                             mode='r',
-                            shape=n_frames_to_be_acquired*image_size)
+                            shape=(n_frames_to_be_acquired, image_x_size, image_y_size))
         return binary
     
-    def get_binary_frames(self, binary, n_frames_to_be_acquired, image_x_size=512, image_y_size=512):
-        # load binary frames from binary
-        image_size = image_x_size * image_y_size
-        num_frames = round(len(binary)/image_size)
-        n_frames_to_be_acquired = n_frames_to_be_acquired if n_frames_to_be_acquired < num_frames else num_frames
-        frames = np.reshape(binary, [n_frames_to_be_acquired, image_x_size, image_y_size])
-        return frames
-    
-    def load_binary_frames(self, data_path, n_frames_to_be_acquired, fname="data.bin", image_x_size=512, image_y_size=512):
-        binary = self.load_binary(data_path, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
-        binary_frames = self.get_binary_frames(binary, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
-        return binary_frames.copy()
+    def binary_frames_to_animation(frames, frame_range=[0, -1], save_dir="animation"):
+        import matplotlib.animation as animation
+
+        range_start, range_end = frame_range
+        gif_save_path = os.path.join(save_dir, f"{range_start}-{range_end}.gif")
+
+        images = []
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        for i, frame in enumerate(frames):
+            if i%100 == 0:
+                print(i)
+            p1 = ax.text(512/2-50, 0, f"Frame {i}", animated=True)
+            p2 = ax.imshow(frame, animated=True)
+            images.append([p1, p2])
+        ani = animation.ArtistAnimation(fig, images, interval=50, blit=True,
+                                        repeat_delay=1000)
+        ani.save(gif_save_path)
+        return ani
     
 class Merger:
     """

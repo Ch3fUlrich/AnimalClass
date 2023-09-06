@@ -48,6 +48,12 @@ import h5py
 import time
 from multiprocessing import Pool
 
+def gif_to_mp4(path):
+    import moviepy.editor as mp
+    clip = mp.VideoFileClip(path)
+    save_path = path.split(".")[0]+".mp4"
+    clip.write_videofile(save_path)
+
 def show_mesc_units(path):
     h5 = h5py.File(path, 'r')
     for munit_id, MUnits in h5['MSession_0'].items():
