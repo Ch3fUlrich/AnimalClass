@@ -49,6 +49,17 @@ import time
 from multiprocessing import Pool
 
 def gif_to_mp4(path):
+    """
+    Converts a GIF file to an MP4 file.
+
+    This function takes the path of a GIF file as input, converts it to an MP4 file, and saves the resulting MP4 file in the same directory as the input GIF file. The name of the output MP4 file is the same as the input GIF file, with the file extension changed from `.gif` to `.mp4`.
+
+    Args:
+        path (str): The path of the input GIF file.
+
+    Returns:
+        None
+    """
     import moviepy.editor as mp
     clip = mp.VideoFileClip(path)
     save_path = path.split(".")[0]+".mp4"
@@ -171,6 +182,39 @@ def extract_cell_numbers(animals):
             cell_numbers_dict[animal_id][session_id] = cell_numbers
         cell_numbers_dict[animal_id]["ages"] = ages
     return cell_numbers_dict
+
+def summary_df_s2p_vs_geldrying(cell_numbers_dict):
+    """
+    Generates a summary DataFrame comparing Suite2p and gel drying results.
+
+    This function takes as input a dictionary containing cell numbers data for multiple animals. The dictionary keys are animal IDs and 
+    the values are data structures containing information about the cells for each animal. The function processes this data to generate a 
+    summary DataFrame comparing the results of Suite2p and gel drying for each animal. The resulting DataFrame has one row for each animal 
+    and columns for various summary statistics, including the number of cells identified by Suite2p, the number of cells not affected by gel 
+    drying, the proportion of cells that survived gel drying, and the proportion of sessions that failed for each method.
+
+    Args:
+        cell_numbers_dict (Dict[str, Any]): A dictionary containing cell numbers data for multiple animals. The keys are animal IDs and the 
+        values are data structures containing information about the cells for each animal.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing summary statistics comparing Suite2p and gel drying results for each animal.
+    """
+    data = []
+    for animal_id, animal in cell_numbers_dict.items():
+        sorted_ages, iscells, notgeldrying = get_sorted_cells_notgeldyring_lists(animal)
+        sumiscells = sum(iscells)
+        sumnotgeldrying = sum(notgeldrying)
+        survived_cells = sumnotgeldrying/sumiscells
+        sess_count = len(iscells)
+        failed_S2P = sum(np.array(iscells)==-1)/sess_count #f"{sum(np.array(iscells)==0)/sess_count:.2%}"
+        failed_own = sum(np.array(notgeldrying)==-1)/sess_count #f"{sum(np.array(notgeldrying)==0)/sess_count:.2%}"
+        data.append([animal_id, sumiscells, sumnotgeldrying, survived_cells, sess_count, failed_S2P, failed_own])
+
+    pipeline_stats = pd.DataFrame(data, columns=["animal_id", "iscells", "notgeldrying", "survived_cells", "sess count", "Failed_S2P", "Failed_Own"])
+    pipeline_stats = pipeline_stats.set_index("animal_id")
+    pipeline_stats = pipeline_stats.sort_index()
+    return pipeline_stats
 
 def get_sorted_cells_notgeldyring_lists(cell_numbers_dict):
     """

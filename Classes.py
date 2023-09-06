@@ -64,7 +64,6 @@ class Analyzer:
     std_threshold = 0.15
     correct_mean = 0.007428876195354758
 
-
     def __init__(self, animals={}):
         self.animals = animals
         self.good = self.bad = self.evaluate_datasets_count()
@@ -531,8 +530,8 @@ class Session:
         # deleting binary file from old s2p run
         s2p_temp_binary_location = os.path.join(self.session_dir, "suite2p", "plane0", "data.bin")
         print(f"Deleting old binary file from {s2p_temp_binary_location}")
-        if os.path.exists(s2p_temp_binary_location):
-            os.remove(s2p_temp_binary_location)
+        #if os.path.exists(s2p_temp_binary_location):
+        #    os.remove(s2p_temp_binary_location)
 
         s2p_binary_file = os.path.join(save_folder, "plane0", "data.bin")
         if os.path.exists(s2p_binary_file):
@@ -1449,7 +1448,56 @@ class Vizualizer:
             ax[x, y].imshow(image)
             ax[x, y].invert_yaxis()
         #plt.show()
+    
+    def show_survived_cell_percentage(self, animals=None, pipeline_stats=None):
+        if type(pipeline_stats) != pd.DataFrame:
+            if not animals:
+                animals = self.animals
+            else:
+                raise ValueError("No data was given.")
+            cell_numbers_dict = extract_cell_numbers(animals)
+            # Create table to show statistics for comparison of S2P vs Own Pipeline
+            pipeline_stats = summary_df_s2p_vs_geldrying(cell_numbers_dict)
+        fig, (ax1) = plt.subplots(1, 1, figsize=(18, 4))
+        ax1.bar(pipeline_stats.index, pipeline_stats.survived_cells)
 
+        #fig.suptitle('Survived cell percentages')
+        ax1.set_ylabel("% Cells")
+        ax1.set_xlabel("Animal")
+        ax1.set_title(f'Survived cell: {np.mean(pipeline_stats.survived_cells):.2%}')
+        for i, v in enumerate(pipeline_stats.survived_cells):
+            plt.text(range(len(pipeline_stats.index))[i] - 0.2, v + 0.01, f"{v:.2%}")
+
+    def show_survived_cell_numbers(self, animals=None, cell_numbers_dict=None, min_num_cells=200):
+        if not cell_numbers_dict:
+            if not animals:
+                animals = self.animals
+            else:
+                raise ValueError("No data was given.")
+            cell_numbers_dict = extract_cell_numbers(animals)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
+        for animal_id, animal in cell_numbers_dict.items():
+            ages, iscells, notgeldrying = get_sorted_cells_notgeldyring_lists(animal)
+            usefull_iscells = iscells > min_num_cells
+            usefull_notgeldrying = notgeldrying > min_num_cells
+            if len(usefull_iscells) > 0:
+                ax1.plot(ages[usefull_iscells], iscells[usefull_iscells], label=f"{animal_id}", marker=".")
+            if len(usefull_notgeldrying) > 0:
+                ax2.plot(ages[usefull_notgeldrying], notgeldrying[usefull_notgeldrying], label=f"{animal_id}", marker=".", )
+
+        fig.suptitle(f'Compare Cell Numbers before, after Geldrying Detector with at least {min_num_cells} Cells')
+        ax1.set_ylabel("# Cells")
+        ax1.set_xlabel("pday")
+        ax1.set_ylim(bottom=0, top=1300)
+        ax1.set_title('Suite2P iscell')
+        ax1.legend()
+        ax2.set_ylabel("# Cells")
+        ax2.set_xlabel("pday")
+        ax2.set_ylim(bottom=0, top=1300)
+        ax2.set_title('Not Geldrying Cells (Own Pipeline)')
+        ax2.legend()
+
+        
 class Unit:
     def __init__(self, suite2p_folder_path, session, unit_id):
         self.suite2p_folder_path = suite2p_folder_path
@@ -1541,7 +1589,30 @@ class Unit:
         return len(self.cell_geldrying)-sum(self.cell_geldrying)
 
 class Binary_loader:
+    """
+    A class for loading binary data and converting it into an animation.
+
+    This class provides methods for loading binary data from a file and converting a sequence of binary frames into an animated GIF. The `load_binary` method loads binary data from a specified file and returns it as a NumPy array. The `binary_frames_to_animation` method takes a sequence of binary frames and converts them into an animated GIF, which is saved to the specified directory.
+
+    Attributes:
+        None
+    """
     def load_binary(self, data_path, n_frames_to_be_acquired, fname="data.bin", image_x_size=512, image_y_size=512):
+        """
+        Loads binary data from a file.
+
+        This method takes the path of a binary data file as input, along with the number of frames to be acquired and the dimensions of each frame. It loads the binary data from the specified file and returns it as a NumPy array.
+
+        Args:
+            data_path (str): The path of the binary data file.
+            n_frames_to_be_acquired (int): The number of frames to be acquired from the binary data file.
+            fname (str): The name of the binary data file. Defaults to "data.bin".
+            image_x_size (int): The width of each frame in pixels. Defaults to 512.
+            image_y_size (int): The height of each frame in pixels. Defaults to 512.
+
+        Returns:
+            np.ndarray: A NumPy array containing the loaded binary data.
+        """
         # load binary file from suite2p_folder from unit
         image_size=image_x_size*image_y_size
         fpath = search_file(data_path, fname)
@@ -1552,6 +1623,19 @@ class Binary_loader:
         return binary
     
     def binary_frames_to_animation(frames, frame_range=[0, -1], save_dir="animation"):
+        """
+        Converts a sequence of binary frames into an animated GIF.
+
+        This method takes a sequence of binary frames as input, along with the range of frames to include in the animation and the directory in which to save the resulting GIF. It converts the specified frames into an animated GIF and saves it to the specified directory.
+
+        Args:
+            frames (np.ndarray): A NumPy array containing the sequence of binary frames.
+            frame_range (List[int]): A list specifying the range of frames to include in the animation. Defaults to [0, -1], which includes all frames.
+            save_dir (str): The directory in which to save the resulting GIF. Defaults to "animation".
+
+        Returns:
+            animation.ArtistAnimation: An instance of `animation.ArtistAnimation` representing the created animation.
+        """
         import matplotlib.animation as animation
 
         range_start, range_end = frame_range
