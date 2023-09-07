@@ -11,6 +11,7 @@ plt.style.use('dark_background')
 #plt.style.use('default')
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+from matplotlib.patches import Rectangle
 
 # Regular Expression searching
 import re
@@ -71,7 +72,7 @@ class Analyzer:
     def good_mean_std(self, mean, std):
         return True if mean < Analyzer.mean_threshold or std > Analyzer.std_threshold else False
 
-    def evaluate_datasets_count(self, animals=None):
+    def evaluate_datasets_count(self, animals=None, generate_corr=False):
         good = 0
         bad = 0
         if animals == None:
@@ -79,7 +80,7 @@ class Analyzer:
         for animal_id, animal in animals.items():
             try:
                 for session_id, session in animal.sessions.items():
-                    corr_matrix, pval_matrix = session.load_corr_matrix()
+                    corr_matrix, pval_matrix = session.load_corr_matrix(generate_corr=generate_corr)
                     mean = np.mean(corr_matrix.flatten())
                     std = np.std(corr_matrix.flatten())
                     if self.good_mean_std(mean, std):
@@ -665,7 +666,7 @@ class Session:
             print(f"{cell_fname} not found. Assuming no correlation data is present.")
         return self.cells
 
-    def load_corr_matrix(self, unit_id="merged"):
+    def load_corr_matrix(self, unit_id="merged", generate_corr=False):
         """
         Loads the correlation matrix for the specified unit ID.
 
@@ -676,6 +677,7 @@ class Session:
         :return: A tuple containing the correlation matrix and p-value matrix.
         :rtype: tuple
         """
+        corr_matrix, pval_matrix = None, None
         merged = True if unit_id == "merged" else False
         s2p_folder_ending = "merged" if merged else unit_id
         s2p_folder_ending = "" if s2p_folder_ending == "all" else s2p_folder_ending
@@ -685,21 +687,24 @@ class Session:
         corr_matrix_path = os.path.join(path, "plane0", f"allcell_correlation_array.npy")
         
         if not os.path.exists(corr_matrix_path):
-            print("Loading correlation data from individual cell.npz files...")
-            corr_matrix, pval_matrix = None, None
-            cells = self.get_cells(merged)
-            if type(cells) == dict:
-                pearson_corrs = []
-                pvalue_pearson_corrs = []
-                num_cells = len(cells)
-                for cell_id, cell in cells.items():
-                    pearson_corrs = np.concatenate([pearson_corrs, cell.get_correlation_properties()["pearson_corr"]])
-                    pvalue_pearson_corrs = np.concatenate([pvalue_pearson_corrs, cell.get_correlation_properties()["pvalue_pearson_corr"]])
-                corr_matrix = pearson_corrs.reshape([num_cells, num_cells])
-                pval_matrix = pvalue_pearson_corrs.reshape([num_cells, num_cells])
-                
-                print("Saving correlation matrix")
-                np.save(corr_matrix_path, (corr_matrix, pval_matrix))
+            if generate_corr:
+                print("Loading correlation data from individual cell.npz files...")
+                corr_matrix, pval_matrix = None, None
+                cells = self.get_cells(merged)
+                if type(cells) == dict:
+                    pearson_corrs = []
+                    pvalue_pearson_corrs = []
+                    num_cells = len(cells)
+                    for cell_id, cell in cells.items():
+                        pearson_corrs = np.concatenate([pearson_corrs, cell.get_correlation_properties()["pearson_corr"]])
+                        pvalue_pearson_corrs = np.concatenate([pvalue_pearson_corrs, cell.get_correlation_properties()["pvalue_pearson_corr"]])
+                    corr_matrix = pearson_corrs.reshape([num_cells, num_cells])
+                    pval_matrix = pvalue_pearson_corrs.reshape([num_cells, num_cells])
+                    
+                    print("Saving correlation matrix")
+                    np.save(corr_matrix_path, (corr_matrix, pval_matrix))
+            else:
+                print("No correlation data. Returning None, None")
         else:
             print(f"Loading {corr_matrix_path}")
             corr_matrix, pval_matrix = np.load(corr_matrix_path)
@@ -1013,13 +1018,14 @@ class Vizualizer:
         self.animals = animals
         self.save_dir = os.path.join(save_dir, "figures")
         dir_exist_create(self.save_dir)
+        self.max_color_number = 301
         # Collor pallet for plotting
-        self.colors = mlp.colormaps["rainbow"](range(0,301))
+        self.colors = mlp.colormaps["rainbow"](range(0, self.max_color_number))
 
     def add_animal(self, animal):
         self.animals[animal.animal_id] = animal
 
-    def create_colorsteps(self, min_value, max_value, max_color_number=300):
+    def create_colorsteps(self, min_value, max_value, max_color_number=None):
         """
         This function calculates the number of color steps between a minimum and maximum value.
         
@@ -1032,8 +1038,10 @@ class Vizualizer:
         :return: The number of color steps between the minimum and maximum values.
         :rtype: int
         """
+        if not max_color_number:
+            max_color_number = self.max_color_number
         value_diff = max_value-min_value if max_value-min_value != 0 else 1
-        return round(max_color_number/(value_diff))
+        return math.floor(max_color_number/(value_diff))
 
     def plot_colorsteps_example(self):
         # Colorexample
@@ -1132,27 +1140,24 @@ class Vizualizer:
         #change picture location
         os.rename(show_rasters_savelocation_name, own_location_name)    
 
-    def pearson_hist(self, animal_id, session_id, unit_id="", show_geldrying_cells=False, dpi=300, 
-                                title = "Pearson Correlation and Histogram",
-                                hist_title='Pearson Correlation Coefficient Histogram',
-                                hist_xlabel="Coefficients combined in 0.1 size bins",
-                                hist_ylabel="Number of coefficients in bin",
+    def pearson_hist(self, animal_id, session_id, unit_id="all", show_geldrying_cells=False, dpi=300, generate_corr=False, color_classify=False,
                                 facecolor="tab:blue"):
-        
+        title_unit_text = "Suite2P" if unit_id == "all" else unit_id  
+        title = f"Corr_Hist {animal_id} {session_id} {title_unit_text}"
+        unit_id = "" if unit_id=="all" else unit_id
         # Create a figure and two subplots
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
         session = self.animals[animal_id].sessions[session_id]
-        corr_matrix, pval_matrix = session.load_corr_matrix(unit_id)
-        if not show_geldrying_cells:
-            # removes geldrying cells in matrix with shape (#cell x #cells)
-            geldrying = session.load_geldrying()
-            geldrying_indexes = np.argwhere(geldrying==True).flatten()
-            corr_matrix = remove_rows_cols(corr_matrix, geldrying_indexes, geldrying_indexes)
-            pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
-            print("remove gelddrying cells")
-
-        print(corr_matrix.shape)
+        corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr)
         if type(corr_matrix) == np.ndarray:
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
+            print(corr_matrix.shape) #TODO: remove when finished
+            if not show_geldrying_cells and unit_id == "merged":
+                # removes geldrying cells in matrix with shape (#cell x #cells)
+                geldrying = session.load_geldrying()
+                geldrying_indexes = np.argwhere(geldrying==True).flatten()
+                corr_matrix = remove_rows_cols(corr_matrix, geldrying_indexes, geldrying_indexes)
+                pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
+                print("remove gelddrying cells")
             # First subplot
             sns.heatmap(corr_matrix, annot=False, cmap='YlGnBu', ax=ax1)
             ax1.set_xlabel("Neuron id")
@@ -1161,18 +1166,42 @@ class Vizualizer:
     
             # Second subplot
             hist_data = corr_matrix if isinstance(corr_matrix, np.ndarray) else corr_matrix.to_numpy()
+            mean = np.nanmean(corr_matrix)
+            std = np.nanstd(corr_matrix)
+            if color_classify:
+                anz = Analyzer()
+                corr_mean_std_good = anz.good_mean_std(mean, std)
+                facecolor = facecolor if corr_mean_std_good else "tab:red" 
             sns.histplot(data=hist_data.flatten(), binwidth=0.1, ax=ax2, facecolor=facecolor)
             ax2.set_title("Pearson Correlation Coefficient Histogram")
+            hist_xlabel="Coefficients combined in 0.1 size bins"
+            hist_ylabel="Number of coefficients in bin"
             ax2.set_xlabel(hist_xlabel)
             ax2.set_ylabel(hist_ylabel)
+            ax2.legend()
+
+            mean_text = f'Mean: {mean:.2}'
+            std_text = f'Std: {std:.2}'
+            
+            extra = Rectangle((0, 0), 1, 1, fc=facecolor, fill=True, edgecolor='none', linewidth=0)
+            extra = Rectangle((0, 0), 1, 1, fc=facecolor, fill=True, edgecolor='none', linewidth=0)
+            plt.legend([extra, extra],[mean_text, std_text], loc='upper right')#, title='Legend')
+
 
             fig.suptitle(title)
             plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")),
                         dpi=dpi)
             plt.show()
+        else:
+            print(f"No correlation data to be plotted")
         return corr_matrix, pval_matrix
 
-    def pearson_kde(self, filters=[], unit_id="", dpi=300):
+    def pearson_kde(self, filters=[], unit_id="all", dpi=300, generate_corr=False):
+        if type(filters) != list:
+            filters = [filters]
+        title_unit_text = "Suite2P" if unit_id == "all" else unit_id  
+        title = f"All correlation coefficient KDE {filters}{title_unit_text}"
+        unit_id = "" if unit_id=="all" else unit_id
         # Plot Kernel density Estimation
         filtered_animals = filter_animals(self.animals, filters)
         unique_sorted_ages, min_age, max_age = get_age_range(filtered_animals)
@@ -1184,7 +1213,7 @@ class Vizualizer:
         for animal_id, animal in filtered_animals.items():
             for session_id, session in animal.sessions.items():
                 age = session.age
-                corr_matrix, pval_matrix = session.load_corr_matrix(unit_id)
+                corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr)
                 if type(corr_matrix) != np.ndarray:
                     continue
                 sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
@@ -1194,22 +1223,16 @@ class Vizualizer:
             line_plot_steps = round(len(unique_sorted_ages)/17)
 
         for age in np.unique(unique_sorted_ages[::line_plot_steps]):
-            #FIXME: colorsteps ist not correctly working
-            color_number = (age-min_age)*colorsteps
-            if color_number >= len(self.colors):
-                print(f"color is to big: {color_number} --changing to {len(self.colors)-1}")
-                color_number =  len(self.colors)-1
-            handles.append(Line2D([0], [0], color=self.colors[color_number], linewidth=2, linestyle='-', label=f"Age {age}"))
+            handles.append(Line2D([0], [0], color=self.colors[(age-min_age)*colorsteps], linewidth=2, linestyle='-', label=f"Age {age}"))
         #handles=[Patch(color="tab:red", label="Bad=mean+sigma > 0.3"), Patch(color="tab:blue", label="Good=mean+sigma < 0.3")]
         plt.xlabel("Correlation")
         plt.ylabel("Frequency")
-        plt.title(f"{filters} KDE of all cell correlations")
+        plt.title(title)
+        plt.xlim(left=-0.1, right=0.3)
         plt.legend(handles=handles)
-        plt.savefig(os.path.join(self.save_dir,f"All_Correlation_Coefficient_KDE_{filters}.png"), dpi=300)
-        #plt.show()
+        plt.savefig(os.path.join(self.save_dir,title.replace(" ", "_")+".png"), dpi=300)
+        plt.show()
 
-        # Plot Bars to compare 2 numbers
-    
     def plot_means_stds(self, filters=[], unit_id="", dpi=300, x_tick_jumps = 4):
         mean_threshold = Analyzer.mean_threshold
         std_threshold = Analyzer.std_threshold
@@ -1467,6 +1490,7 @@ class Vizualizer:
         ax1.set_title(f'Survived cell: {np.mean(pipeline_stats.survived_cells):.2%}')
         for i, v in enumerate(pipeline_stats.survived_cells):
             plt.text(range(len(pipeline_stats.index))[i] - 0.2, v + 0.01, f"{v:.2%}")
+        plt.savefig(os.path.join(self.save_dir, f"Survived_cells_after_removing_geldrying.png"), dpi=300)
 
     def show_survived_cell_numbers(self, animals=None, cell_numbers_dict=None, min_num_cells=200):
         if not cell_numbers_dict:
@@ -1477,15 +1501,16 @@ class Vizualizer:
             cell_numbers_dict = extract_cell_numbers(animals)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
         for animal_id, animal in cell_numbers_dict.items():
-            ages, iscells, notgeldrying = get_sorted_cells_notgeldyring_lists(animal)
-            usefull_iscells = iscells > min_num_cells
-            usefull_notgeldrying = notgeldrying > min_num_cells
+            ages, iscells, notgeldrying, corrs, gel_corrs = get_sorted_cells_notgeldyring_lists(animal)
+            usefull_iscells = iscells >= min_num_cells
+            usefull_notgeldrying = notgeldrying >= min_num_cells
             if len(usefull_iscells) > 0:
                 ax1.plot(ages[usefull_iscells], iscells[usefull_iscells], label=f"{animal_id}", marker=".")
             if len(usefull_notgeldrying) > 0:
                 ax2.plot(ages[usefull_notgeldrying], notgeldrying[usefull_notgeldrying], label=f"{animal_id}", marker=".", )
 
-        fig.suptitle(f'Compare Cell Numbers before, after Geldrying Detector with at least {min_num_cells} Cells')
+        title = f'Compare Cell Numbers before, after Geldrying Detector with at least {min_num_cells} Cells'
+        fig.suptitle(title)
         ax1.set_ylabel("# Cells")
         ax1.set_xlabel("pday")
         ax1.set_ylim(bottom=0, top=1300)
@@ -1496,6 +1521,54 @@ class Vizualizer:
         ax2.set_ylim(bottom=0, top=1300)
         ax2.set_title('Not Geldrying Cells (Own Pipeline)')
         ax2.legend()
+        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")+".png"), dpi=300)
+
+    def show_usefull_sessions_comparisson(self, animals=None, cell_numbers_dict=None, min_num_cells=200, dpi=300, facecolor="tab:blue"):
+        if not cell_numbers_dict:
+            if not animals:
+                animals = self.animals
+            else:
+                raise ValueError("No data was given.")
+            cell_numbers_dict = extract_cell_numbers(animals)
+
+        pday_usefull_session_count = {}
+        for animal_id, animal in cell_numbers_dict.items():
+            ages, iscells, notgeldrying, corrs, gel_corrs = get_sorted_cells_notgeldyring_lists(animal)
+            for age, num_iscells, num_notgeldrying in zip(ages, iscells, notgeldrying):
+                if age not in pday_usefull_session_count:
+                    pday_usefull_session_count[age] = {"s2p" : 0, "notgeldrying" : 0}
+                pday_usefull_session_count[age]["s2p"] += 1 if num_iscells >= min_num_cells else 0
+                pday_usefull_session_count[age]["notgeldrying"] += 1 if num_notgeldrying >= min_num_cells else 0
+        pdays = (pday_usefull_session_count.keys())
+        pday_usefull_session_count = sorted(pday_usefull_session_count.items())
+
+        s2p_count_list = []
+        notgeldrying_count_list = []
+        for age, counts in pday_usefull_session_count:
+            s2p_count_list.append(counts["s2p"])
+            notgeldrying_count_list.append(counts["notgeldrying"])
+        xticks = range(10, max(pdays)+10, 5)
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 4))
+        title = f"Number of Sessions distributed across pdays with cell numbers > {min_num_cells}"
+        fig.suptitle(title)
+        ax1.set_title(f'{sum(s2p_count_list)} Sessions after Suite2P')
+        ax1.bar(pdays, s2p_count_list)
+        ax1.set_ylabel("# Sessions")
+        ax1.set_xlabel("pday")
+        ax1.grid(color='gray', linestyle='-', linewidth=0.3)
+        ax1.set_xticks(xticks, labels=xticks, rotation=40, ha='right', rotation_mode='anchor')
+        miny, maxy = ax1.get_ylim()
+
+        ax2.bar(pdays, notgeldrying_count_list)
+        ax2.set_title(f'{sum(notgeldrying_count_list)} Sessions after removing geldrying cells')
+        ax2.set_ylim(miny, maxy)
+        ax2.set_ylabel("# Sessions")
+        ax2.set_xlabel("pday")
+        ax2.set_xticks(xticks, labels=xticks, rotation=40, ha='right', rotation_mode='anchor')
+        ax2.grid(color='gray', linestyle='-', linewidth=0.3)
+        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
+
 
         
 class Unit:

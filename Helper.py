@@ -160,28 +160,32 @@ def extract_cell_numbers(animals):
             cell_numbers = {}
             cell_numbers["iscell"] = -1
             cell_numbers["not_geldrying"] = -1
+            cell_numbers["corr"] = -1
+            cell_numbers["gel_corr"] = -1
             for path in session.s2p_folder_paths:
                 path_ending = path.split("suite2p")[-1]
                 path = os.path.join(path, "plane0")
+                iscell_path = os.path.join(path, "iscell.npy")
+                cell_drying_path = os.path.join(path, "cell_drying.npy")
+                corr_path = os.path.join(path, "allcell_correlation_array.npy")
                 if path_ending=="":
-                    try:
-                        iscell = np.load(os.path.join(path, "iscell.npy"))
-                        before = int(np.sum(iscell[:,0]))
-                    except:
-                        before = -1
-                    cell_numbers["iscell"] = before
+                    cell_numbers["iscell"], cell_numbers["corr"] = get_cellnum_check_corr(iscell_path, corr_path)
                 elif path_ending == "_merged":
-                    try:
-                        geldrying = np.load(os.path.join(path, "cell_drying.npy"))
-                        after = sum(np.array(geldrying==False, dtype="int32")) #not geldrying cells
-                    except:
-                        after = -1
-                    cell_numbers["not_geldrying"] = after
-                
+                    cell_numbers["not_geldrying"], cell_numbers["gel_corr"] = get_cellnum_check_corr(cell_drying_path, corr_path, geldrying=True)
+
             ages.append(session.age)
             cell_numbers_dict[animal_id][session_id] = cell_numbers
         cell_numbers_dict[animal_id]["ages"] = ages
     return cell_numbers_dict
+
+def get_cellnum_check_corr(cell_path, corr_path, geldrying=False):
+    if os.path.exists(cell_path):
+        iscell = np.load(cell_path)
+        cell_number = sum(np.array(iscell==False, dtype="int32")) if geldrying else int(np.sum(iscell[:,0]))
+    else:
+        cell_number = -1
+    corr_present = True if os.path.exists(corr_path) else False
+    return cell_number, corr_present
 
 def summary_df_s2p_vs_geldrying(cell_numbers_dict):
     """
@@ -202,16 +206,22 @@ def summary_df_s2p_vs_geldrying(cell_numbers_dict):
     """
     data = []
     for animal_id, animal in cell_numbers_dict.items():
-        sorted_ages, iscells, notgeldrying = get_sorted_cells_notgeldyring_lists(animal)
+        sorted_ages, iscells, notgeldrying, corr, gel_corr = get_sorted_cells_notgeldyring_lists(animal)
         sumiscells = sum(iscells)
         sumnotgeldrying = sum(notgeldrying)
         survived_cells = sumnotgeldrying/sumiscells
         sess_count = len(iscells)
         failed_S2P = sum(np.array(iscells)==-1)/sess_count #f"{sum(np.array(iscells)==0)/sess_count:.2%}"
         failed_own = sum(np.array(notgeldrying)==-1)/sess_count #f"{sum(np.array(notgeldrying)==0)/sess_count:.2%}"
-        data.append([animal_id, sumiscells, sumnotgeldrying, survived_cells, sess_count, failed_S2P, failed_own])
+        failed_corr = sum(np.array(corr)==False)/sess_count 
+        failed_gel_corr = sum(np.array(gel_corr)==False)/sess_count 
+        data.append([animal_id, sumiscells, sumnotgeldrying, survived_cells, sess_count, failed_S2P, failed_own, failed_corr, failed_gel_corr])
 
-    pipeline_stats = pd.DataFrame(data, columns=["animal_id", "iscells", "notgeldrying", "survived_cells", "sess count", "Failed_S2P", "Failed_Own"])
+    pipeline_stats = pd.DataFrame(data, columns=
+                                  ["animal_id", "iscells", "notgeldrying", 
+                                   "survived_cells", "sess count", 
+                                   "Failed_S2P", "Failed_Own",
+                                   "Failed_corr", "Failed_gel_corr"])
     pipeline_stats = pipeline_stats.set_index("animal_id")
     pipeline_stats = pipeline_stats.sort_index()
     return pipeline_stats
@@ -230,10 +240,14 @@ def get_sorted_cells_notgeldyring_lists(cell_numbers_dict):
     sorted_sessiondates = sessiondates[sort_ages_ids]
     iscells = []
     notgeldrying = []
+    corrs = []
+    gel_corrs = []
     for sessiondate in sorted_sessiondates:
         iscells.append(cell_numbers_dict[sessiondate]["iscell"])
         notgeldrying.append(cell_numbers_dict[sessiondate]["not_geldrying"])
-    return np.array(sorted_ages), np.array(iscells), np.array(notgeldrying)
+        corrs.append(cell_numbers_dict[sessiondate]["corr"])
+        gel_corrs.append(cell_numbers_dict[sessiondate]["gel_corr"])
+    return np.array(sorted_ages), np.array(iscells), np.array(notgeldrying), np.array(corrs), np.array(gel_corrs)
     
 
 def filter_animals(animal_dict, filters = []):
@@ -278,7 +292,7 @@ def get_age_range(animal_dict):
     min_age = float('inf')
     max_age = 0
     for animal_id, animal in animal_dict.items():
-        ages_list.append(animal.pdays)
+        ages_list += animal.pdays
         min_age = min(animal.pdays) if min(animal.pdays) < min_age else min_age
         max_age = max(animal.pdays) if max(animal.pdays) > max_age else max_age
     unique_sorted_ages = np.unique(ages_list)
