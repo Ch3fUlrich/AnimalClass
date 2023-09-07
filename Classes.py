@@ -1539,7 +1539,7 @@ class Vizualizer:
                     pday_usefull_session_count[age] = {"s2p" : 0, "notgeldrying" : 0}
                 pday_usefull_session_count[age]["s2p"] += 1 if num_iscells >= min_num_cells else 0
                 pday_usefull_session_count[age]["notgeldrying"] += 1 if num_notgeldrying >= min_num_cells else 0
-        pdays = (pday_usefull_session_count.keys())
+        pdays = sorted(list(pday_usefull_session_count.keys()))
         pday_usefull_session_count = sorted(pday_usefull_session_count.items())
 
         s2p_count_list = []
@@ -1547,13 +1547,15 @@ class Vizualizer:
         for age, counts in pday_usefull_session_count:
             s2p_count_list.append(counts["s2p"])
             notgeldrying_count_list.append(counts["notgeldrying"])
-        xticks = range(10, max(pdays)+10, 5)
+        xticks = range(15, max(pdays)+5, 5)
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 4))
         title = f"Number of Sessions distributed across pdays with cell numbers > {min_num_cells}"
         fig.suptitle(title)
+        minx, maxx = min(pdays)-1, max(pdays)+1
         ax1.set_title(f'{sum(s2p_count_list)} Sessions after Suite2P')
         ax1.bar(pdays, s2p_count_list)
+        ax1.set_xlim(minx, maxx)
         ax1.set_ylabel("# Sessions")
         ax1.set_xlabel("pday")
         ax1.grid(color='gray', linestyle='-', linewidth=0.3)
@@ -1562,6 +1564,7 @@ class Vizualizer:
 
         ax2.bar(pdays, notgeldrying_count_list)
         ax2.set_title(f'{sum(notgeldrying_count_list)} Sessions after removing geldrying cells')
+        ax2.set_xlim(minx, maxx)
         ax2.set_ylim(miny, maxy)
         ax2.set_ylabel("# Sessions")
         ax2.set_xlabel("pday")
