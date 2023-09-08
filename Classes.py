@@ -72,7 +72,7 @@ class Analyzer:
     def good_mean_std(self, mean, std):
         return True if mean < Analyzer.mean_threshold or std > Analyzer.std_threshold else False
 
-    def evaluate_datasets_count(self, animals=None, generate_corr=False):
+    def evaluate_datasets_count(self, animals=None, generate_corr=False, remove_geldrying=True):
         good = 0
         bad = 0
         if animals == None:
@@ -80,7 +80,7 @@ class Analyzer:
         for animal_id, animal in animals.items():
             try:
                 for session_id, session in animal.sessions.items():
-                    corr_matrix, pval_matrix = session.load_corr_matrix(generate_corr=generate_corr)
+                    corr_matrix, pval_matrix = session.load_corr_matrix(generate_corr=generate_corr, remove_geldrying=remove_geldrying)
                     mean = np.mean(corr_matrix.flatten())
                     std = np.std(corr_matrix.flatten())
                     if self.good_mean_std(mean, std):
@@ -259,12 +259,12 @@ class Analyzer:
             mean_stds[num, 1] = np.std(window)
         return np.array(mean_stds)
 
-    def get_all_sliding_cell_stat(self, fluoresence, window_size=30*60, parallel=True, processes=16, mode="mean"):
+    def get_all_sliding_cell_stat(self, fluorescence, window_size=30*60, parallel=True, processes=16, mode="mean"):
         """
         Calculate the mean and standard deviation of sliding window (default: 30*60 = 1 sec.) fluorescence for each cell.
 
         Args:
-            fluoresence (numpy.ndarray): A 3D numpy array containing fluorescence data for each cell.
+            fluorescence (numpy.ndarray): A 3D numpy array containing fluorescence data for each cell.
 
         Returns:
             numpy.ndarray: A (cells, frames, 2) Dimensional numpy array containing the mean [:,:,0] and 
@@ -275,10 +275,10 @@ class Analyzer:
             stds = np.array(get_all_sliding_cell_stat)[:,:,1]
         """
         if mode=="mean":
-            get_all_sliding_cell_stat = parmap.map(self.sliding_mean_std, fluoresence, window_size, pm_processes=processes, 
+            get_all_sliding_cell_stat = parmap.map(self.sliding_mean_std, fluorescence, window_size, pm_processes=processes, 
                                     pm_pbar=True, pm_parallel=parallel)
         elif mode=="mode":
-            get_all_sliding_cell_stat = parmap.map(self.sliding_mode_std, fluoresence, window_size, pm_processes=processes, 
+            get_all_sliding_cell_stat = parmap.map(self.sliding_mode_std, fluorescence, window_size, pm_processes=processes, 
                                     pm_pbar=True, pm_parallel=parallel)
         return get_all_sliding_cell_stat
 
@@ -402,17 +402,17 @@ class Session:
                 # Get MUnit number list of first Mescfile session MSession_0
                 with h5py.File(mesc_file_name, 'r') as file:
                     munits = file[list(file.keys())[0]]
-                    fluoresence_recording_session_numbers = []
+                    fluorescence_recording_session_numbers = []
                     for name, unit in munits.items():
                         # if recording has at least 5 minutes
                         if unit["Channel_0"].shape[0] > fps*60*5: 
                             unit_number = name.split("_")[-1]
-                            fluoresence_recording_session_numbers.append(int(unit_number))
+                            fluorescence_recording_session_numbers.append(int(unit_number))
 
-                # Get number_shift, if a bad fluoresence file was manually deleted
+                # Get number_shift, if a bad fluorescence file was manually deleted
                 # CAUTION: if deletion is done in the middle the correction will break
                 biggest_session_number = max([int(unit.replace("S", ""))-1 for unit in self.session_parts])
-                biggest_possible_session_number = max(fluoresence_recording_session_numbers)
+                biggest_possible_session_number = max(fluorescence_recording_session_numbers)
                 number_shift = biggest_session_number-biggest_possible_session_number
 
                 sess_list = []
@@ -459,8 +459,8 @@ class Session:
         
         suite2p_folder = os.path.join(self.session_dir, "tif", "suite2p")
         if unit_ids == "all":
-            fluoresence_path = search_file(suite2p_folder, "F.npy")
-            if fluoresence_path != None:
+            fluorescence_path = search_file(suite2p_folder, "F.npy")
+            if fluorescence_path != None:
                 self.s2p_folder_paths.append(suite2p_folder)
             elif generate:
                 self.run_suite2p(regenerate=regenerate, unit_ids=unit_ids, delete=delete)
@@ -468,8 +468,8 @@ class Session:
         elif unit_ids == "single":
             for unit in self.session_parts:
                 suite2p_single = suite2p_folder + unit
-                fluoresence_path = search_file(suite2p_single, "F.npy")
-                if fluoresence_path != None:
+                fluorescence_path = search_file(suite2p_single, "F.npy")
+                if fluorescence_path != None:
                     self.s2p_folder_paths.append(suite2p_folder)
                 elif generate:
                     for unit in self.session_parts:
@@ -478,8 +478,8 @@ class Session:
         else: # custom session combination
             for unit in unit_ids:
                 suite2p_folder += "_"+unit
-            fluoresence_path = search_file(suite2p_folder, "F.npy")
-            if fluoresence_path != None:
+            fluorescence_path = search_file(suite2p_folder, "F.npy")
+            if fluorescence_path != None:
                 self.s2p_folder_paths.append(suite2p_folder)
             elif generate:
                 self.run_suite2p(regenerate=regenerate, unit_ids=unit, delete=delete)
@@ -514,9 +514,9 @@ class Session:
 
         dir_exist_create(os.path.join(self.session_dir, save_folder))
 
-        current_fluoresence_data_path = search_file(os.path.join(self.session_dir, save_folder), "F.npy")
-        if current_fluoresence_data_path != None and not regenerate:
-            return current_fluoresence_data_path
+        current_fluorescence_data_path = search_file(os.path.join(self.session_dir, save_folder), "F.npy")
+        if current_fluorescence_data_path != None and not regenerate:
+            return current_fluorescence_data_path
         
         for tiff_file_name in tiff_file_names:
             data_path = os.path.join(self.session_dir, tiff_file_name)
@@ -604,9 +604,9 @@ class Session:
         if current_cabincorr_data_path != None and not regenerate:
             return current_cabincorr_data_path
         
-        current_fluoresence_data_path = search_file(suite2p_folder, "F.npy")
+        current_fluorescence_data_path = search_file(suite2p_folder, "F.npy")
 
-        if current_fluoresence_data_path == None:
+        if current_fluorescence_data_path == None:
             print(f"Failed to run CaBinCorr \n No Suite2P data found: {suite2p_folder}")
             return None 
 
@@ -622,8 +622,8 @@ class Session:
     def load_cabincorr_data(self, unit_id="all"):
         bin_traces_zip = None
         for path in self.cabincorr_data_paths:
-            path_unit = path.split("suite2p")[-1].split("/plane0")[0]
-            if path_unit == unit_id or unit_id == "all" and len(path_unit)==0:
+            path_unit = path.split("suite2p")[-1].split("\plane0")[0]
+            if path_unit == "_"+unit_id or unit_id == "all" and len(path_unit)==0:
                 if os.path.exists(path):
                     bin_traces_zip = np.load(path)
                 else:
@@ -666,7 +666,7 @@ class Session:
             print(f"{cell_fname} not found. Assuming no correlation data is present.")
         return self.cells
 
-    def load_corr_matrix(self, unit_id="merged", generate_corr=False):
+    def load_corr_matrix(self, unit_id="merged", generate_corr=False, remove_geldrying=True):
         """
         Loads the correlation matrix for the specified unit ID.
 
@@ -708,6 +708,14 @@ class Session:
         else:
             print(f"Loading {corr_matrix_path}")
             corr_matrix, pval_matrix = np.load(corr_matrix_path)
+
+        if remove_geldrying and unit_id == "merged" and type(corr_matrix)==np.ndarray:
+            # removes geldrying cells in matrix with shape (#cell x #cells)
+            geldrying = self.load_geldrying()
+            geldrying_indexes = np.argwhere(geldrying==True).flatten()
+            corr_matrix = remove_rows_cols(corr_matrix, geldrying_indexes, geldrying_indexes)
+            pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
+            print("removed gelddrying cells")
         return corr_matrix, pval_matrix
 
     def load_geldrying(self):
@@ -949,9 +957,9 @@ class Cell:#(Session):
 
     def get_fluorescence(self):
         if type(self.fluorescence) != np.ndarray:
-            fluoresence_path = search_file(self.s2p_path, "F.npy")
-            self.fluoresence = np.load(fluoresence_path)[self.cell_id]
-        return self.fluoresence
+            fluorescence_path = search_file(self.s2p_path, "F.npy")
+            self.fluorescence = np.load(fluorescence_path)[self.cell_id]
+        return self.fluorescence
     
     def get_number_bursts(self):
         #TODO: 
@@ -1057,7 +1065,7 @@ class Vizualizer:
 
         #### save figures
     
-    def bursts(self, animal_id, session_id, fluoresence_type="raw", num_cells="all", unit_id="all", dpi=300, fps="30"):
+    def bursts(self, animal_id, session_id, fluorescence_type="F_raw", num_cells="all", unit_id="all", remove_geldrying=True, dpi=300, fps="30"):
 
         #TODO: insert possibility to filter for good cells?
         #is_cells_ids = np.where(calcium_object.iscell==1)[0]
@@ -1066,19 +1074,28 @@ class Vizualizer:
         #calcium_object.plot_traces(calcium_object.F_filtered, np.arange(num_is_cells))
 
         #for s2p_folder in self.animals[animal_id].sessions[session].s2p_folder_paths:
-        bin_traces_zip = self.animals[animal_id].sessions[session_id].load_cabincorr_data(unit_id=unit_id)
+        session = self.animals[animal_id].sessions[session_id]
+        bin_traces_zip = session.load_cabincorr_data(unit_id=unit_id)
         fluorescence = None
         if bin_traces_zip:
-            fluorescence = bin_traces_zip[f"F_{fluoresence_type}"]
-            self.traces(fluorescence, animal_id, session_id, unit_id, num_cells, dpi, fps)
+            if fluorescence_type in list(bin_traces_zip.keys()):
+                fluorescence = bin_traces_zip[fluorescence_type]
+            else:
+                print(f"{animal_id} {session_id} No fluorescence data of type {fluorescence_type} in binarized_traces.npz")
         else:
-            print(f"{animal_id} {session_id} No Fluoresence data of type {fluoresence_type} in binarized_traces.npz")
+            print(f"{animal_id} {session_id} no binarized_traces.npz found")
+
+        if remove_geldrying and unit_id == "merged" and type(fluorescence)==np.ndarray:
+            geldrying = session.load_geldrying()
+            geldrying_indexes = np.argwhere(geldrying==True).flatten()
+            fluorescence = np.delete(fluorescence, geldrying_indexes, 0)
+        
+        if type(fluorescence)==np.ndarray:
+            self.traces(fluorescence, animal_id, session_id, unit_id, num_cells, fluorescence_type=fluorescence_type, dpi=dpi)
         return fluorescence
 
-    def traces(self, fluorescence, animal_id, session_id, unit_id="all", num_cells="all", low_pass_filter=True, fit_line=False, dpi=300, fps="30",
-               xlabel=f"seconds", 
-               ylabel='Fluoresence based on Ca in Cell',
-               title=f"Bursts from "):
+    def traces(self, fluorescence, animal_id, session_id, unit_id="all", 
+               num_cells="all", fluorescence_type="", low_pass_filter=True, dpi=300):
         # plot fluorescence
         if low_pass_filter:
             fluorescence = butter_lowpass_filter(fluorescence, cutoff=0.5, fs=30, order=2)
@@ -1093,12 +1110,13 @@ class Vizualizer:
             plt.plot(fluorescence)
 
         if unit_id!="all":
-            file_name = f"{animal_id}_{session_id}_Unit_{unit_id}"
+            file_name = f"{animal_id} {session_id} Unit {unit_id}"
         else:
-            file_name = f"{animal_id}_{session_id}"
+            file_name = f"{animal_id} {session_id}"
 
         seconds = 5
-        num_frames = 30*seconds
+        fps=30
+        num_frames = fps*seconds
         num_x_ticks = 50
         written_label_steps = 2
 
@@ -1107,26 +1125,21 @@ class Vizualizer:
         x_time_shortened = x_time[::steps]
         x_pos = np.arange(0, len(fluorescence), num_frames)[::steps] 
         
+        title = f"Bursts from {file_name} {fluorescence_type}"
+        xlabel=f"seconds"
+        ylabel='fluorescence based on Ca in Cell'
         x_labels = [time if num%written_label_steps==0 else "" for num, time in enumerate(x_time_shortened)]
         plt.xticks(x_pos, x_labels, rotation=40, fontsize=8)
-        plt.title(title+f"{file_name}")
+        plt.title(title)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
-        file_title = title.replace(" ", "_")
 
-        if fit_line and len(fluorescence.shape)==1: #TODO: add to 2d data?
-            #TODO: move calculations to Analyzer
-            anz = Analyzer()
-            slope, intercept = anz.get_linreg_slope_intercept(fluorescence)
-            length = range(len(fluorescence))
-            plt.plot(length, intercept+length*slope, color = "r")
-
-        #plt.savefig(os.path.join(self.save_dir, f"{file_title}{file_name}.png"), dpi=dpi)
-        #FIXME: savefig error, why?
+        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")+".png"), dpi=dpi)
         plt.show()
+        plt.close()
 
-    def save_rasters_fig(self, calcium_object, animal_id, session_id, unit_id="all"): #TODO: Update to classes
-        #TODO: yes?
+    def save_rasters_fig(self, calcium_object, animal_id, session_id, unit_id="all"): 
+        #TODO: Update to classes
         show_rasters_savelocation = os.path.join(calcium_object.data_dir, "figures")
         show_rasters_savelocation_name = os.path.join(show_rasters_savelocation, "rasters.png")
         own_location_name = os.path.join(self.save_dir, f"Rasters_{animal_id}_{session_id}_Unit_{unit_id}.png")
@@ -1140,24 +1153,16 @@ class Vizualizer:
         #change picture location
         os.rename(show_rasters_savelocation_name, own_location_name)    
 
-    def pearson_hist(self, animal_id, session_id, unit_id="all", show_geldrying_cells=False, dpi=300, generate_corr=False, color_classify=False,
+    def pearson_hist(self, animal_id, session_id, unit_id="all", remove_geldrying=True, dpi=300, generate_corr=False, color_classify=False,
                                 facecolor="tab:blue"):
         title_unit_text = "Suite2P" if unit_id == "all" else unit_id  
         title = f"Corr_Hist {animal_id} {session_id} {title_unit_text}"
         unit_id = "" if unit_id=="all" else unit_id
         # Create a figure and two subplots
         session = self.animals[animal_id].sessions[session_id]
-        corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr)
+        corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=True)
         if type(corr_matrix) == np.ndarray:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
-            print(corr_matrix.shape) #TODO: remove when finished
-            if not show_geldrying_cells and unit_id == "merged":
-                # removes geldrying cells in matrix with shape (#cell x #cells)
-                geldrying = session.load_geldrying()
-                geldrying_indexes = np.argwhere(geldrying==True).flatten()
-                corr_matrix = remove_rows_cols(corr_matrix, geldrying_indexes, geldrying_indexes)
-                pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
-                print("remove gelddrying cells")
             # First subplot
             sns.heatmap(corr_matrix, annot=False, cmap='YlGnBu', ax=ax1)
             ax1.set_xlabel("Neuron id")
@@ -1196,11 +1201,11 @@ class Vizualizer:
             print(f"No correlation data to be plotted")
         return corr_matrix, pval_matrix
 
-    def pearson_kde(self, filters=[], unit_id="all", dpi=300, generate_corr=False):
+    def pearson_kde(self, filters=[], unit_id="all", x_axes_range=[-0.5, 0.5], generate_corr=False, remove_geldrying=True, dpi=300):
         if type(filters) != list:
             filters = [filters]
         title_unit_text = "Suite2P" if unit_id == "all" else unit_id  
-        title = f"All correlation coefficient KDE {filters}{title_unit_text}"
+        title = f"All correlation coefficient KDE {filters} {title_unit_text} {x_axes_range}"
         unit_id = "" if unit_id=="all" else unit_id
         # Plot Kernel density Estimation
         filtered_animals = filter_animals(self.animals, filters)
@@ -1213,7 +1218,7 @@ class Vizualizer:
         for animal_id, animal in filtered_animals.items():
             for session_id, session in animal.sessions.items():
                 age = session.age
-                corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr)
+                corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=remove_geldrying)
                 if type(corr_matrix) != np.ndarray:
                     continue
                 sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
@@ -1228,12 +1233,15 @@ class Vizualizer:
         plt.xlabel("Correlation")
         plt.ylabel("Frequency")
         plt.title(title)
-        plt.xlim(left=-0.1, right=0.3)
+        plt.xlim(left=x_axes_range[0], right=x_axes_range[1])
         plt.legend(handles=handles)
         plt.savefig(os.path.join(self.save_dir,title.replace(" ", "_")+".png"), dpi=300)
         plt.show()
 
-    def plot_means_stds(self, filters=[], unit_id="", dpi=300, x_tick_jumps = 4):
+    def plot_means_stds(self, filters=[], unit_id="", dpi=300, x_tick_jumps = 4, generate_corr=False, remove_geldrying=True):
+        if filters != list:
+            filters = [filters]
+        
         mean_threshold = Analyzer.mean_threshold
         std_threshold = Analyzer.std_threshold
 
@@ -1247,13 +1255,12 @@ class Vizualizer:
             means = []
             stds = []
             for session_id, session in animal.sessions.items():
-                try:
-                    corr_matrix, pval_matrix = session.load_corr_matrix(unit_id)
-                except:
+                corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=remove_geldrying)
+                if type(corr_matrix) != np.ndarray:
                     continue
                 ages.append(session.age)
-                means.append(np.mean(corr_matrix))
-                stds.append(np.std(corr_matrix))
+                means.append(np.nanmean(corr_matrix))
+                stds.append(np.nanstd(corr_matrix))
                 drawn_animal_ids.append(animal_id)
             if animal_id in drawn_animal_ids:
                 ax1.plot(ages, means, color=self.colors[number*colorsteps], marker=".")
@@ -1262,45 +1269,32 @@ class Vizualizer:
         age_labels = [str(age) if num%x_tick_jumps==0 else "" for num, age in enumerate(unique_sorted_ages)]
         unique_draws_animal_ids = np.unique(drawn_animal_ids)
         lines = [Line2D([0], [0], color=self.colors[number*colorsteps], linewidth=3, linestyle='-', label=unique_draws_animal_ids[number]) for number in range(len(unique_draws_animal_ids))]
-        title = f"{filters}_Means_and_Standard_Deviations.png"
-
+        unit_text = "Suite2P" if unit_id=="all" else unit_id
+        title = f"{filters}{unit_text} Means and Standard Deviations"
+        fig.suptitle(title)
 
         ax1.axhline(y = mean_threshold, color = 'r', linestyle = '--', label="Mean Threshold")
         ax1.set_xticks(unique_sorted_ages, age_labels, rotation=40, ha='right', rotation_mode='anchor')
-        ax1.set_xlabel("Age in days")
+        ax1.set_xlabel("pday")
         ax1.set_ylabel("Mean")
-        ax1.set_title(f'{filters} Means of correlations')
+        ax1.set_title(f'Means of pearson correlations')
         mean_threshold_legend_object = Line2D([0], [0], color='r', linewidth=2, linestyle='--', label=f"Mean thr={mean_threshold}")
         ax1_handles= lines+[mean_threshold_legend_object]
 
 
         ax2.axhline(y=std_threshold, color = 'r', linestyle = '--', label="Std Threshold")
         ax2.set_xticks(unique_sorted_ages, age_labels, rotation=40, ha='right', rotation_mode='anchor')
-        ax2.set_xlabel("Age in days")
+        ax2.set_xlabel("pday")
         ax2.set_ylabel("Standard Deviation")
-        ax2.set_title(f"{filters} Std of correlations")
+        ax2.set_title(f"Std of pearson correlations")
         std_threshold_legend_object = Line2D([0], [0], color='r', linewidth=2, linestyle='--', label=f"Std thr={std_threshold}")
         ax2_handles= lines+[std_threshold_legend_object]
 
         
         ax1.legend(handles=ax1_handles)
         ax2.legend(handles=ax2_handles)
-        plt.savefig(os.path.join(self.save_dir, title), dpi=300)
-        #plt.show()
-
-    def plot_good_bad(self, filters=[]):
-        filtered_animals = filter_animals(self.animals, filters)
-        anz = Analyzer(filtered_animals)
-        good, bad = anz.evaluate_datasets_count()
-        plt.figure()
-        plt.bar(1, bad, 1, label="Bad datasets: bad", color="red")
-        plt.bar(2, good, 1, label="Good datasets: good", color="green")
-        plt.title(f"bad_vs_good_{filters}")
-        plt.xticks([1], [""])
-        plt.ylabel("Count")
-        plt.legend()
-        plt.savefig(os.path.join(self.save_dir, f"bad_vs_good_{filters}.png"))
-        #plt.show()
+        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")+".npg"), dpi=300)
+        plt.show()
 
     def sanky_diagram(self):
         """
@@ -1400,25 +1394,25 @@ class Vizualizer:
     def unit_fluorescence_good_bad(self, unit, batch_size=10, starting=0, interactive=False, plot_duplicates=True):
         
         cell_geldrying = unit.get_geldrying_cells()
-        fluoresence = unit.fluoresence
+        fluorescence = unit.fluorescence
 
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
 
         if not plot_duplicates:
             if isinstance(unit.dedup_cell_ids, np.ndarray):
                 cell_geldrying = cell_geldrying[unit.dedup_cell_ids]
-                fluoresence = fluoresence[unit.dedup_cell_ids]
+                fluorescence = fluorescence[unit.dedup_cell_ids]
 
         cell_geldrying = cell_geldrying[starting:]
-        fluoresence = fluoresence[starting:]
+        fluorescence = fluorescence[starting:]
         cell_geldrying_batches = split_array(cell_geldrying, batch_size)
-        fluoresence_batches = split_array(fluoresence, batch_size)
-        num_batches = len(fluoresence_batches)
+        fluorescence_batches = split_array(fluorescence, batch_size)
+        num_batches = len(fluorescence_batches)
 
-        for i, (cell_geldrying_batch, fluoresence_batch) in enumerate(zip(cell_geldrying_batches, fluoresence_batches)):
+        for i, (cell_geldrying_batch, fluorescence_batch) in enumerate(zip(cell_geldrying_batches, fluorescence_batches)):
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 10))
 
-            for num, (cell_geldrying, neuron_data) in enumerate(zip(cell_geldrying_batch, fluoresence_batch)):
+            for num, (cell_geldrying, neuron_data) in enumerate(zip(cell_geldrying_batch, fluorescence_batch)):
                 cell_number = (i)*batch_size + num if batch_size != "all" else num
                 cell_number += starting
                 if not cell_geldrying:
@@ -1584,7 +1578,7 @@ class Unit:
         self.c, self.contours, self.footprints = self.get_c()
         self.dedup_cell_ids = None
         self.get_all_sliding_cell_stat = None
-        self.fluoresence = butter_lowpass_filter(self.c.dff, cutoff=0.5, fs=30, order=2)
+        self.fluorescence = butter_lowpass_filter(self.c.dff, cutoff=0.5, fs=30, order=2)
         self.cell_geldrying = None
         self.load_geldrying()
         self.cell_geldrying_reasons = None
@@ -1609,7 +1603,7 @@ class Unit:
             return self.cell_geldrying
         if type(self.get_all_sliding_cell_stat) is not np.ndarray:
             anz = Analyzer()
-            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(fluoresence=self.fluoresence, mode=mode)
+            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(fluorescence=self.fluorescence, mode=mode)
         anz = Analyzer()
         self.cell_geldrying = np.full([len(self.get_all_sliding_cell_stat)], True)
         self.cell_geldrying_reasons = [""]*len(self.get_all_sliding_cell_stat)
