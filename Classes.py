@@ -1293,7 +1293,7 @@ class Vizualizer:
         
         ax1.legend(handles=ax1_handles)
         ax2.legend(handles=ax2_handles)
-        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")+".npg"), dpi=300)
+        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")+".png"), dpi=300)
         plt.show()
 
     def sanky_diagram(self):
