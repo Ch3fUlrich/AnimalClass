@@ -891,30 +891,31 @@ class Session:
             self.merged_unit = merged_unit
         return merged_unit
     
-    def merge_units_get_geldrying(self, generate=True, regenerate=False, delete_used_subsessions=False):
+    def merge_units_get_geldrying(self, generate=True, regenerate=False, delete_used_subsessions=False, binary_needed=True):
         print(f"-------------------------------Generating Initial Suite2P Files for individual units ---------------------")
         self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, unit_ids="single")
         self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, unit_ids="single")
-        print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
-        # Rerunning Suite2p if binary file is not present
-        bin_fname = "data.bin"
-        for s2p_path in self.s2p_folder_paths:
-            binary_file_present = False
-            part_to_rerun = False
-            for part in self.session_parts:
-                if part in s2p_path:
-                    binary_file_present = os.path.exists(os.path.join(s2p_path, "plane0", bin_fname))
-                    if binary_file_present:
-                        break
-                    else:
-                        part_to_rerun = part
-                if part_to_rerun:
-                    print(f"binary file not present in {s2p_path}")
-                    self.run_suite2p(regenerate=True, unit_ids=part_to_rerun)
+        if binary_needed:
+            print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
+            # Rerunning Suite2p if binary file is not present
+            bin_fname = "data.bin"
+            for s2p_path in self.s2p_folder_paths:
+                binary_file_present = False
+                part_to_rerun = False
+                for part in self.session_parts:
+                    if part in s2p_path:
+                        binary_file_present = os.path.exists(os.path.join(s2p_path, "plane0", bin_fname))
+                        if binary_file_present:
+                            break
+                        else:
+                            part_to_rerun = part
+                    if part_to_rerun:
+                        print(f"binary file not present in {s2p_path}")
+                        self.run_suite2p(regenerate=True, unit_ids=part_to_rerun)
         print(f"-----------------------------------Loading Units-----------------------------------")
         self.get_units(get_geldrying=True)
         print(f"-----------------------------------Merging Units-----------------------------------")
-        merged_unit = self.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
+        merged_unit = self.merge_units(generate=False, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
         merged_unit.get_geldrying_cells()
         return merged_unit
 
