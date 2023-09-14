@@ -625,7 +625,7 @@ class Session:
             path_unit = path.split("suite2p")[-1].split("\plane0")[0]
             if path_unit == "_"+unit_id or unit_id == "all" and len(path_unit)==0:
                 if os.path.exists(path):
-                    bin_traces_zip = np.load(path)
+                    bin_traces_zip = np.load(path, allow_pickle=True)
                 else:
                     print("No CaBincorrPath found")
         return bin_traces_zip
@@ -1202,7 +1202,7 @@ class Vizualizer:
             print(f"No correlation data to be plotted")
         return corr_matrix, pval_matrix
 
-    def pearson_kde(self, filters=[], unit_id="all", x_axes_range=[-0.5, 0.5], generate_corr=False, remove_geldrying=True, dpi=300):
+    def pearson_kde(self, filters=[], unit_id="all", x_axes_range=[-0.5, 0.5], generate_corr=False, remove_geldrying=True, average_by_pday=False, dpi=300):
         if type(filters) != list:
             filters = [filters]
         title_unit_text = "Suite2P" if unit_id == "all" else unit_id  
@@ -1216,13 +1216,28 @@ class Vizualizer:
         plt.figure()
         plt.figure(figsize=(12, 7))
         
+        
+        sum_corrs_by_pday = {}
+        num_corrs = {}
         for animal_id, animal in filtered_animals.items():
             for session_id, session in animal.sessions.items():
                 age = session.age
                 corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=remove_geldrying)
                 if type(corr_matrix) != np.ndarray:
                     continue
-                sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
+                if not average_by_pday:
+                    sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
+                else:
+                    if age not in sum_corrs_by_pday:
+                        sum_corrs_by_pday[age] = corr_matrix.flatten()
+                        num_corrs[age] = 1
+                    else:
+                        sum_corrs_by_pday[age] = np.append(sum_corrs_by_pday[age], corr_matrix)
+                        num_corrs[age] += 1
+        if average_by_pday:
+            for age, sum_corrs in sum_corrs_by_pday.items():
+                corr_matrix = sum_corrs/num_corrs[age]
+                sns.kdeplot(data=corr_matrix, color=self.colors[(age-min_age)*colorsteps], linewidth=1)
         handles = []
         line_plot_steps = 1
         if len(unique_sorted_ages) > 17:
