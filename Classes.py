@@ -377,6 +377,7 @@ class Session:
 
     def generate_tiff_from_mesc(self, unit_ids="all", delete=False, regenerate=False):
         fps = 30
+        at_least_minutes_of_recording = 5
         if isinstance(unit_ids, str):
             unit_ids = [unit_ids]
 
@@ -404,8 +405,8 @@ class Session:
                     munits = file[list(file.keys())[0]]
                     fluorescence_recording_session_numbers = []
                     for name, unit in munits.items():
-                        # if recording has at least 5 minutes
-                        if unit["Channel_0"].shape[0] > fps*60*5: 
+                        # if recording has at least x minutes
+                        if unit["Channel_0"].shape[0] > fps*60*at_least_minutes_of_recording: 
                             unit_number = name.split("_")[-1]
                             fluorescence_recording_session_numbers.append(int(unit_number))
 
@@ -1582,7 +1583,45 @@ class Vizualizer:
         ax2.grid(color='gray', linestyle='-', linewidth=0.3)
         plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
 
+    def plot_usefull_session_pdays(self, animals=None, cell_numbers_dict=None, min_num_cells=200):
+        if not cell_numbers_dict:
+            if not animals:
+                animals = self.animals
+            else:
+                raise ValueError("No data was given.")
+            cell_numbers_dict = extract_cell_numbers(animals)
+        pday_cell_count_df = get_cells_pdays_df(cell_numbers_dict)
+        #from pandas import *
+        #display(pday_cell_count_df)
+        vals = np.around(pday_cell_count_df.values,2)
+        red = mlp.colors.TABLEAU_COLORS["tab:red"]
+        green = mlp.colors.TABLEAU_COLORS["tab:green"]
+        gray = mlp.colors.TABLEAU_COLORS["tab:gray"]
+        black = mlp.colors.BASE_COLORS["k"]
+        colours = []
+        for animal_values in vals:
+            colours.append([])
+            for val in animal_values:
+                col = gray
+                if val < min_num_cells and val > -1:
+                    col = red
+                elif val >= min_num_cells:
+                    col = green
+                col = mlp.colors.to_rgba(col)
+                colours[-1].append(col)
 
+        fig = plt.figure(figsize=(15,3))
+        ax = fig.add_subplot(111, frameon=False, xticks=[], yticks=[])
+        ax.set_frame_on = False
+        table=plt.table(#cellText=vals, 
+                        rowLabels=pday_cell_count_df.index, 
+                        rowColours=[black]*len(pday_cell_count_df.index),
+                        colLabels=pday_cell_count_df.columns,  
+                        colColours=[black]*len(pday_cell_count_df.columns),
+                        colWidths = [0.02]*vals.shape[1], loc='center', 
+                        cellColours=colours)
+        plt.show()
+        return pday_cell_count_df
         
 class Unit:
     def __init__(self, suite2p_folder_path, session, unit_id):
