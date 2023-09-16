@@ -1611,6 +1611,8 @@ class Vizualizer:
                 colours[-1].append(col)
 
         fig = plt.figure(figsize=(15,3))
+        title = "Usefull Sessions by Animal ID and pday"
+        fig.suptitle(title)
         ax = fig.add_subplot(111, frameon=False, xticks=[], yticks=[])
         ax.set_frame_on = False
         table=plt.table(#cellText=vals, 
@@ -1621,6 +1623,7 @@ class Vizualizer:
                         colWidths = [0.02]*vals.shape[1], loc='center', 
                         cellColours=colours)
         plt.show()
+        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
         return pday_cell_count_df
         
 class Unit:
