@@ -2109,3 +2109,20 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id):
     # getting contours and footprints
     c.load_footprints()
     return c
+
+def compute_correlations(c):
+    c.corr_parallel_flag = True
+    c.zscore = True 
+    c.n_tests_zscore = 1000
+    c.n_cores = 32
+    c.recompute_correlation = False
+    c.binning_window = 30        # binning window in frames
+    c.subsample = 1              # subsample traces by this factor
+    c.scale_by_DFF = True        # scale traces by DFF
+    c.shuffle_data = False
+    c.subselect_moving_only = False
+    c.subselect_quiescent_only = False
+    c.make_correlation_dirs()
+    c.compute_correlations()
+
+    
