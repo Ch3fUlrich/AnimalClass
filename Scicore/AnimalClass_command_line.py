@@ -86,8 +86,8 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             #    continue
             print(f"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Starting {animal_id} {session_id} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
             print(f"-----------------------------------Generating Initial Suite2P Files-----------------------------------")
-            session.run_suite2p(regenerate=False, units="all")
-            session.get_cabincorr_data_paths(generate=True, regenerate=regenerate, units="all")
+            session.run_suite2p(regenerate=False, unit_ids="all")
+            session.get_cabincorr_data_paths(generate=True, regenerate=regenerate, unit_ids="all")
 
 
             print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
@@ -105,8 +105,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                             part_to_rerun = part
                     if part_to_rerun:
                         print(f"binary file not present in {s2p_path}")
-                        session.run_suite2p(regenerate=True, units=part_to_rerun)
-            #session.get_cabincorr_data_paths(regenerate=regenerate, units="single")
+                        session.run_suite2p(regenerate=True, unit_ids=part_to_rerun)
 
             
             print(f"-----------------------------------Loading Units-----------------------------------")
@@ -121,6 +120,8 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
 
             do_cabincoor(session, unit="")
             do_cabincoor(session, unit="merged")
+            session.load_corr_matrix(unit_id="all")
+            session.load_corr_matrix(unit_id="merged")
             
             dir_exist_create(os.path.join(viz.save_dir, animal_id))
             dir_exist_create(os.path.join(viz.save_dir, animal_id, session_id))
@@ -223,7 +224,7 @@ def do_cabincoor(session, unit=""):
                 c.zscore = True 
                 c.n_tests_zscore = 1000
                 c.n_cores = 32
-                c.recompute_correlation = True
+                c.recompute_correlation = False
                 c.binning_window = 30        # binning window in frames
                 c.subsample = 1              # subsample traces by this factor
                 c.scale_by_DFF = True        # scale traces by DFF
@@ -232,13 +233,12 @@ def do_cabincoor(session, unit=""):
                 c.subselect_quiescent_only = False
                 c.make_correlation_dirs()
                 c.compute_correlations()
-    #TODO: compbine correlations
 
 def delete_bin_tiff(session):
     #Delete binaries
     del_tiff = True
     for s2p_folder in session.s2p_folder_paths:
-        s2p_folder_ending = s2p_folder.split("suite2p")[1]
+        s2p_folder_ending = s2p_folder.split("suite2p")[-1]
         iscell_path = os.path.join(s2p_folder, "plane0", "iscell.npy")
         iscell_count = -1
         if os.path.exists(iscell_path):
@@ -250,13 +250,13 @@ def delete_bin_tiff(session):
         if os.path.exists(notgel_path):
             notgel = np.load(notgel_path)==0
             notgel_count = sum(notgel)
-
         if s2p_folder_ending == "":
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
             if os.path.exists(binary_path):
                 os.remove(binary_path)
         elif iscell_count != -1 and notgel_count !=-1:
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
+            print(binary_path)
             if os.path.exists(binary_path):
                 os.remove(binary_path)
         else:

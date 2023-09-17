@@ -75,8 +75,8 @@ def create_corr(animals):
         for session_id, session in animal.sessions.items():
             do_cabincoor(session, unit="")
             do_cabincoor(session, unit="merged")
-            session.load_corr_matrix(unit_id="all")
-            session.load_corr_matrix(unit_id="merged")
+            session.load_corr_matrix(generate_corr=True, unit_id="all")
+            session.load_corr_matrix(generate_corr=True, unit_id="merged")
             delete_bin_tiff(session)
             
 
@@ -104,10 +104,8 @@ def delete_bin_tiff(session):
     del_tiff = True
     for s2p_folder in session.s2p_folder_paths:
         s2p_folder_ending = s2p_folder.split("suite2p")[-1]
-        print(s2p_folder_ending)
         iscell_path = os.path.join(s2p_folder, "plane0", "iscell.npy")
         iscell_count = -1
-        print(iscell_path)
         if os.path.exists(iscell_path):
             iscell = np.load(iscell_path)[:,0]
             iscell_count = sum(iscell)
@@ -117,8 +115,6 @@ def delete_bin_tiff(session):
         if os.path.exists(notgel_path):
             notgel = np.load(notgel_path)==0
             notgel_count = sum(notgel)
-        print(iscell_count)
-        print(notgel_count)
         if s2p_folder_ending == "":
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
             if os.path.exists(binary_path):

@@ -1630,7 +1630,7 @@ class Unit:
     def get_reference_image(self, n_frames_to_be_acquired=1000, image_x_size=512, image_y_size=512):
         if self.refImg is None:
             b_loader = Binary_loader()
-            frames = b_loader.load_binary_frames(self.suite2p_folder_path, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
+            frames = b_loader.load_binary(self.suite2p_folder_path, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
             self.refImg = register.compute_reference(frames, ops=self.ops)
         return self.refImg
     
@@ -1642,7 +1642,7 @@ class Unit:
     def calc_yx_shift(self, refAndMasks, num_align_frames=1000, image_x_size=512, image_y_size=512):
         if self.yx_shift == [0, 0]:
             b_loader = Binary_loader()
-            frames = b_loader.load_binary_frames(self.suite2p_folder_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
+            frames = b_loader.load_binary(self.suite2p_folder_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
             frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
         self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
         return self.yx_shift
@@ -1691,7 +1691,8 @@ class Binary_loader:
                             dtype='uint16',
                             mode='r',
                             shape=(n_frames_to_be_acquired, image_x_size, image_y_size))
-        return binary
+        binary_frames = copy.deepcopy(binary)
+        return binary_frames
     
     def binary_frames_to_animation(frames, frame_range=[0, -1], save_dir="animation"):
         """
