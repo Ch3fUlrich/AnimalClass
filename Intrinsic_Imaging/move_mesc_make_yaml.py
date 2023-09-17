@@ -64,7 +64,7 @@ def add_session_info_from_file_move_file(animals, directory=None):
             if splitted_fname[0][:3] != "DON": #not animal file
                 continue
             animal_id = splitted_fname[0]
-            session_id = splitted_fname[1]
+            session_id = splitted_fname[1].split(".")[0]
             if animal_id in animals:
                 session_date = session_id
                 animals[animal_id]["session_dates"].append(session_id)
@@ -115,7 +115,6 @@ def main():
     fname = os.path.join("Intrinsic_CA3_database-September_7,_10_08_AM.xlsx")
     animals = get_animal_dict_from_spreadsheet(fname)
     animals = add_session_info_from_file_move_file(animals)
-    #TODO: remove duplicate entries 
     add_yaml_to_folders(animals)
     with open('intrinsic_imaging.yaml', 'w') as file:
         yaml.dump(animals, file)

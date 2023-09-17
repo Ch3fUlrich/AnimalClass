@@ -226,6 +226,32 @@ def summary_df_s2p_vs_geldrying(cell_numbers_dict):
     pipeline_stats = pipeline_stats.sort_index()
     return pipeline_stats
 
+def get_cells_pdays_df(cell_numbers_dict):
+    #show tabular visualization of usefull mice
+    animal_ids = list(cell_numbers_dict.keys())
+
+    ages = []
+    for animal_id, animal in cell_numbers_dict.items():
+        sorted_ages, iscells, notgeldrying, corr, gel_corr = get_sorted_cells_notgeldyring_lists(animal)
+        ages += list(sorted_ages)
+    ages = np.unique(ages)
+
+    #create pday_cell_count_dict and set num_cells to -1 for all ages
+    pday_cell_count_dict = {}
+    for animal_id in animal_ids:
+        pday_cell_count_dict[animal_id] = {}
+        for age in ages:
+            pday_cell_count_dict[animal_id][age] = -1
+
+    #set pday_cell_count_dict[animal_id][age] to the number of not geldrdying cells
+    for animal_id, animal in cell_numbers_dict.items():
+        sorted_ages, iscells, notgeldrying, corr, gel_corr = get_sorted_cells_notgeldyring_lists(animal)
+        for age, session_cells in zip(sorted_ages, notgeldrying):
+            pday_cell_count_dict[animal_id][age] = session_cells
+
+    pday_cell_count_df = pd.DataFrame(pday_cell_count_dict).transpose()
+    return pday_cell_count_df
+
 def get_sorted_cells_notgeldyring_lists(cell_numbers_dict):
     """
     Sorts the cells in a dictionary of cell numbers by age.

@@ -194,13 +194,15 @@
 
 
 - [ ] Important Data: Replicate, Detect, Clean
-  - [ ] Focus on Clean Datasets from pubs from 2021, than adults and 2022
-    - [ ] 2021
-      - [ ] Pups 00608X, 4, 5, 7
-      - [ ] Adults ,002865 ,003165 ,003343
-    - [ ] 2022
-      - [ ] Pubs ,9191, 9192, 10473, 10477
-      - [ ] Adults ,8497 ,8498 ,8499
+  - [x] Focus on Clean Datasets from pubs from 2021, than adults and 2022
+    - [x] 2021
+      - [x] Pups 00608X, 4, 5, 7
+      - [x] Adults ,002865 ,003165 ,003343
+    - [x] 2022
+      - [x] Pubs ,9191, 9192, 10473, 10477
+      - [x] Adults ,8497 ,8498 ,8499
+    - [ ] 2023
+      - [ ] DON-014837 DON-014838 DON-014840 DON-014847 DON-014849 DON-015078 DON-015079
 
 - [x] replicate problem
   - [x] Mouse 9192 (most Experiments and most often abd)

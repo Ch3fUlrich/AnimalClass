@@ -377,6 +377,7 @@ class Session:
 
     def generate_tiff_from_mesc(self, unit_ids="all", delete=False, regenerate=False):
         fps = 30
+        at_least_minutes_of_recording = 5
         if isinstance(unit_ids, str):
             unit_ids = [unit_ids]
 
@@ -404,8 +405,8 @@ class Session:
                     munits = file[list(file.keys())[0]]
                     fluorescence_recording_session_numbers = []
                     for name, unit in munits.items():
-                        # if recording has at least 5 minutes
-                        if unit["Channel_0"].shape[0] > fps*60*5: 
+                        # if recording has at least x minutes
+                        if unit["Channel_0"].shape[0] > fps*60*at_least_minutes_of_recording: 
                             unit_number = name.split("_")[-1]
                             fluorescence_recording_session_numbers.append(int(unit_number))
 
@@ -625,7 +626,7 @@ class Session:
             path_unit = path.split("suite2p")[-1].split("\plane0")[0]
             if path_unit == "_"+unit_id or unit_id == "all" and len(path_unit)==0:
                 if os.path.exists(path):
-                    bin_traces_zip = np.load(path)
+                    bin_traces_zip = np.load(path, allow_pickle=True)
                 else:
                     print("No CaBincorrPath found")
         return bin_traces_zip
@@ -1202,7 +1203,7 @@ class Vizualizer:
             print(f"No correlation data to be plotted")
         return corr_matrix, pval_matrix
 
-    def pearson_kde(self, filters=[], unit_id="all", x_axes_range=[-0.5, 0.5], generate_corr=False, remove_geldrying=True, dpi=300):
+    def pearson_kde(self, filters=[], unit_id="all", x_axes_range=[-0.5, 0.5], generate_corr=False, remove_geldrying=True, average_by_pday=False, dpi=300):
         if type(filters) != list:
             filters = [filters]
         title_unit_text = "Suite2P" if unit_id == "all" else unit_id  
@@ -1216,13 +1217,28 @@ class Vizualizer:
         plt.figure()
         plt.figure(figsize=(12, 7))
         
+        
+        sum_corrs_by_pday = {}
+        num_corrs = {}
         for animal_id, animal in filtered_animals.items():
             for session_id, session in animal.sessions.items():
                 age = session.age
                 corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=remove_geldrying)
                 if type(corr_matrix) != np.ndarray:
                     continue
-                sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
+                if not average_by_pday:
+                    sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
+                else:
+                    if age not in sum_corrs_by_pday:
+                        sum_corrs_by_pday[age] = corr_matrix.flatten()
+                        num_corrs[age] = 1
+                    else:
+                        sum_corrs_by_pday[age] = np.append(sum_corrs_by_pday[age], corr_matrix)
+                        num_corrs[age] += 1
+        if average_by_pday:
+            for age, sum_corrs in sum_corrs_by_pday.items():
+                corr_matrix = sum_corrs/num_corrs[age]
+                sns.kdeplot(data=corr_matrix, color=self.colors[(age-min_age)*colorsteps], linewidth=1)
         handles = []
         line_plot_steps = 1
         if len(unique_sorted_ages) > 17:
@@ -1567,7 +1583,48 @@ class Vizualizer:
         ax2.grid(color='gray', linestyle='-', linewidth=0.3)
         plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
 
+    def plot_usefull_session_pdays(self, animals=None, cell_numbers_dict=None, min_num_cells=200):
+        if not cell_numbers_dict:
+            if not animals:
+                animals = self.animals
+            else:
+                raise ValueError("No data was given.")
+            cell_numbers_dict = extract_cell_numbers(animals)
+        pday_cell_count_df = get_cells_pdays_df(cell_numbers_dict)
+        #from pandas import *
+        #display(pday_cell_count_df)
+        vals = np.around(pday_cell_count_df.values,2)
+        red = mlp.colors.TABLEAU_COLORS["tab:red"]
+        green = mlp.colors.TABLEAU_COLORS["tab:green"]
+        gray = mlp.colors.TABLEAU_COLORS["tab:gray"]
+        black = mlp.colors.BASE_COLORS["k"]
+        colours = []
+        for animal_values in vals:
+            colours.append([])
+            for val in animal_values:
+                col = gray
+                if val < min_num_cells and val > -1:
+                    col = red
+                elif val >= min_num_cells:
+                    col = green
+                col = mlp.colors.to_rgba(col)
+                colours[-1].append(col)
 
+        fig = plt.figure(figsize=(15,3))
+        title = "Usefull Sessions by Animal ID and pday"
+        fig.suptitle(title)
+        ax = fig.add_subplot(111, frameon=False, xticks=[], yticks=[])
+        ax.set_frame_on = False
+        table=plt.table(#cellText=vals, 
+                        rowLabels=pday_cell_count_df.index, 
+                        rowColours=[black]*len(pday_cell_count_df.index),
+                        colLabels=pday_cell_count_df.columns,  
+                        colColours=[black]*len(pday_cell_count_df.columns),
+                        colWidths = [0.02]*vals.shape[1], loc='center', 
+                        cellColours=colours)
+        plt.show()
+        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
+        return pday_cell_count_df
         
 class Unit:
     def __init__(self, suite2p_folder_path, session, unit_id):
