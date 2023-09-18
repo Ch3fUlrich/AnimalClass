@@ -80,7 +80,7 @@ class Analyzer:
         for animal_id, animal in animals.items():
             try:
                 for session_id, session in animal.sessions.items():
-                    corr_matrix, pval_matrix = session.load_corr_matrix(generate_corr=generate_corr, remove_geldrying=remove_geldrying)
+                    corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(generate_corr=generate_corr, remove_geldrying=remove_geldrying)
                     mean = np.mean(corr_matrix.flatten())
                     std = np.std(corr_matrix.flatten())
                     if self.good_mean_std(mean, std):
@@ -685,25 +685,30 @@ class Session:
         for path in self.s2p_folder_paths:
             if path.split("suite2p")[-1] == s2p_folder_ending or path.split("suite2p")[-1] == "_"+s2p_folder_ending:
                 break
-        corr_matrix_path = os.path.join(path, "plane0", f"allcell_correlation_array.npy")
+        corr_matrix_path = os.path.join(path, "plane0", f"allcell_corr_pval_zscore.npy")
         
         if not os.path.exists(corr_matrix_path):
             if generate_corr:
                 print("Loading correlation data from individual cell.npz files...")
-                corr_matrix, pval_matrix = None, None
+                corr_matrix, pval_matrix, z_score_matrix = None, None, None
                 cells = self.get_cells(merged)
                 if type(cells) == dict:
-                    pearson_corrs = []
+                    pearson_corrs = [] 
                     pvalue_pearson_corrs = []
+                    z_scores = []
                     num_cells = len(cells)
                     for cell_id, cell in cells.items():
-                        pearson_corrs = np.concatenate([pearson_corrs, cell.get_correlation_properties()["pearson_corr"]])
-                        pvalue_pearson_corrs = np.concatenate([pvalue_pearson_corrs, cell.get_correlation_properties()["pvalue_pearson_corr"]])
+                        cell_pearson_corr, cell_pvalue, cell_z_scores = cell.get_corr_pval_zscore()
+                        print(cell_pearson_corr, cell_pvalue, cell_z_scores)
+                        pearson_corrs = np.concatenate([pearson_corrs, cell_pearson_corr])
+                        pvalue_pearson_corrs = np.concatenate([pvalue_pearson_corrs, cell_pvalue])
+                        z_scores = np.concatenate([z_scores, cell_z_scores])
                     corr_matrix = pearson_corrs.reshape([num_cells, num_cells])
                     pval_matrix = pvalue_pearson_corrs.reshape([num_cells, num_cells])
+                    z_score_matrix = z_scores.reshape([num_cells, num_cells])
                     
                     print("Saving correlation matrix")
-                    np.save(corr_matrix_path, (corr_matrix, pval_matrix))
+                    np.save(corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
             else:
                 print("No correlation data. Returning None, None")
         else:
@@ -716,8 +721,9 @@ class Session:
             geldrying_indexes = np.argwhere(geldrying==True).flatten()
             corr_matrix = remove_rows_cols(corr_matrix, geldrying_indexes, geldrying_indexes)
             pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
+            z_score_matrix = remove_rows_cols(z_score_matrix, geldrying_indexes, geldrying_indexes)
             print("removed gelddrying cells")
-        return corr_matrix, pval_matrix
+        return corr_matrix, pval_matrix, z_score_matrix
 
     def load_geldrying(self):
         self.cell_geldrying = None
@@ -945,8 +951,11 @@ class Cell:#(Session):
     def get_corr_prop_names(self):
         return list(self.get_correlation_properties().keys())
 
-    def get_corr_pval(self):
-        return np.array(self.get_correlation_properties()["pearson_corr"]), np.array(self.get_correlation_properties()["pvalue_pearson_corr"])
+    def get_corr_pval_zscore(self):
+        person_corr = np.array(self.get_correlation_properties()["pearson_corr"])
+        pvalue_pearson_corr = np.array(self.get_correlation_properties()["pvalue_pearson_corr"])
+        z_score_pearson_corr = np.array(self.get_correlation_properties()["z_score_pearson_corr"])
+        return person_corr, pvalue_pearson_corr, z_score_pearson_corr
 
     def is_geldrying(self):
         if type(self.geldrying) != bool:
@@ -964,19 +973,8 @@ class Cell:#(Session):
         return self.fluorescence
     
     def get_number_bursts(self):
-        #TODO: 
-        #detect the upphase of boolean time series from 0 to 1
-        #upphase_bin = 
-        #detected upphase is parameterized --> keep track of duration of bursts
-        #firering rate 
-        #firering_rate = # bursts/second
-        #num_bursts
-        #if num_burtsts < flavio_number:
-        #    asdf
-        #distribution of number of bursts or firering rate per session should be shown
-        if type(num_bursts) != int:
-            pass
-        num_bursts = 0
+        #TODO: needed?
+        num_bursts = None
         return num_bursts
 
 
@@ -1162,7 +1160,7 @@ class Vizualizer:
         unit_id = "" if unit_id=="all" else unit_id
         # Create a figure and two subplots
         session = self.animals[animal_id].sessions[session_id]
-        corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=True)
+        corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=True)
         if type(corr_matrix) == np.ndarray:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
             # First subplot
@@ -1223,7 +1221,7 @@ class Vizualizer:
         for animal_id, animal in filtered_animals.items():
             for session_id, session in animal.sessions.items():
                 age = session.age
-                corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=remove_geldrying)
+                corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=remove_geldrying)
                 if type(corr_matrix) != np.ndarray:
                     continue
                 if not average_by_pday:
@@ -1272,7 +1270,7 @@ class Vizualizer:
             means = []
             stds = []
             for session_id, session in animal.sessions.items():
-                corr_matrix, pval_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=remove_geldrying)
+                corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=remove_geldrying)
                 if type(corr_matrix) != np.ndarray:
                     continue
                 ages.append(session.age)
@@ -2087,12 +2085,12 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], ge
             animals_dict[animal_id] = animal
     return animals_dict
 
-def run_cabin_corr(root_dir, data_dir, animal_id, session_id):
-    #TODO: update code to newest version of cabincorr
+def run_cabin_corr(root_dir, data_dir, animal_id, session_id, parallel=True):
     #Init
     c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
     print(c.data_dir) #TODO: remove when finished
 
+    #c.parallel_flag = parallel
     c.animal_id = animal_id 
     c.detrend_model_order = 1
     c.recompute_binarization = False
@@ -2110,3 +2108,20 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id):
     # getting contours and footprints
     c.load_footprints()
     return c
+
+def run_compute_correlations(c, parallel=True, min_number_bursts=0):
+    c.corr_parallel_flag = parallel
+    c.zscore = True 
+    c.n_tests_zscore = 1000
+    c.n_cores = 32
+    c.recompute_correlation = False
+    c.binning_window = 30        # binning window in frames
+    c.subsample = 1              # subsample traces by this factor
+    c.scale_by_DFF = True        # scale traces by DFF
+    c.shuffle_data = False
+    c.subselect_moving_only = False
+    c.subselect_quiescent_only = False
+    c.make_correlation_dirs()
+    c.compute_correlations(min_number_bursts=min_number_bursts)
+
+    
