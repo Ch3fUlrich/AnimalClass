@@ -120,8 +120,8 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
 
             do_cabincoor(session, unit="")
             do_cabincoor(session, unit="merged")
-            session.load_corr_matrix(unit_id="all")
-            session.load_corr_matrix(unit_id="merged")
+            session.load_corr_matrix(generate_corr=True, unit_id="all")
+            session.load_corr_matrix(generate_corr=True, unit_id="merged")
             
             dir_exist_create(os.path.join(viz.save_dir, animal_id))
             dir_exist_create(os.path.join(viz.save_dir, animal_id, session_id))
@@ -266,7 +266,7 @@ def delete_bin_tiff(session):
     if del_tiff:
         for tiff_path in session.tiff_data_paths:
             if os.path.exists(tiff_path):
-                os.remove(tiff_path)  
+                os.remove(tiff_path) 
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
