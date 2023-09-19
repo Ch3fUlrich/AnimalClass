@@ -686,7 +686,8 @@ class Session:
             if path.split("suite2p")[-1] == s2p_folder_ending or path.split("suite2p")[-1] == "_"+s2p_folder_ending:
                 break
         corr_matrix_path = os.path.join(path, "plane0", f"allcell_corr_pval_zscore.npy")
-        
+        cleaned_corr_matrix_path = os.path.join(path, "plane0", f"allcell_clean_corr_pval_zscore.npy")
+
         if not os.path.exists(corr_matrix_path):
             if generate_corr:
                 print("Loading correlation data from individual cell.npz files...")
@@ -699,7 +700,6 @@ class Session:
                     num_cells = len(cells)
                     for cell_id, cell in cells.items():
                         cell_pearson_corr, cell_pvalue, cell_z_scores = cell.get_corr_pval_zscore()
-                        print(cell_pearson_corr, cell_pvalue, cell_z_scores)
                         pearson_corrs = np.concatenate([pearson_corrs, cell_pearson_corr])
                         pvalue_pearson_corrs = np.concatenate([pvalue_pearson_corrs, cell_pvalue])
                         z_scores = np.concatenate([z_scores, cell_z_scores])
@@ -713,7 +713,7 @@ class Session:
                 print("No correlation data. Returning None, None")
         else:
             print(f"Loading {corr_matrix_path}")
-            corr_matrix, pval_matrix = np.load(corr_matrix_path)
+            corr_matrix, pval_matrix, z_score_matrix = np.load(corr_matrix_path)
 
         if remove_geldrying and unit_id == "merged" and type(corr_matrix)==np.ndarray:
             # removes geldrying cells in matrix with shape (#cell x #cells)
@@ -723,6 +723,8 @@ class Session:
             pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
             z_score_matrix = remove_rows_cols(z_score_matrix, geldrying_indexes, geldrying_indexes)
             print("removed gelddrying cells")
+            if not os.path.exists(cleaned_corr_matrix_path):
+                np.save(cleaned_corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
         return corr_matrix, pval_matrix, z_score_matrix
 
     def load_geldrying(self):
