@@ -979,7 +979,6 @@ class Cell:#(Session):
         num_bursts = None
         return num_bursts
 
-
 class Animal:
     root_dir = os.path.join("F:", "Steffen_Experiments")
     dir_ = r'002P-F'
@@ -1002,7 +1001,6 @@ class Animal:
         session_dates = animal_metadata_dict["session_dates"]
         session_names = animal_metadata_dict["session_names"]
         sex = animal_metadata_dict["sex"]
-
         return cohort_year, dob, animal_id, pdays, session_dates, session_names, sex
 
     def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", delete=False):
@@ -1278,6 +1276,7 @@ class Vizualizer:
                 ages.append(session.age)
                 means.append(np.nanmean(corr_matrix))
                 stds.append(np.nanstd(corr_matrix))
+          
                 drawn_animal_ids.append(animal_id)
             if animal_id in drawn_animal_ids:
                 ax1.plot(ages, means, color=self.colors[number*colorsteps], marker=".")
@@ -1499,6 +1498,8 @@ class Vizualizer:
         ax1.set_ylabel("% Cells")
         ax1.set_xlabel("Animal")
         ax1.set_title(f'Survived cell: {np.mean(pipeline_stats.survived_cells):.2%}')
+        animal_ids = list(pipeline_stats.index)
+        ax1.set_xticks(range(len(animal_ids)), animal_ids, rotation=40, ha='right', rotation_mode='anchor')
         for i, v in enumerate(pipeline_stats.survived_cells):
             plt.text(range(len(pipeline_stats.index))[i] - 0.2, v + 0.01, f"{v:.2%}")
         plt.savefig(os.path.join(self.save_dir, f"Survived_cells_after_removing_geldrying.png"), dpi=300)
@@ -1583,14 +1584,14 @@ class Vizualizer:
         ax2.grid(color='gray', linestyle='-', linewidth=0.3)
         plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
 
-    def plot_usefull_session_pdays(self, animals=None, cell_numbers_dict=None, min_num_cells=200):
+    def plot_usefull_session_pdays(self, animals=None, cell_numbers_dict=None, min_num_cells=200, suite2p_cells=False):
         if not cell_numbers_dict:
             if not animals:
                 animals = self.animals
             else:
                 raise ValueError("No data was given.")
             cell_numbers_dict = extract_cell_numbers(animals)
-        pday_cell_count_df = get_cells_pdays_df(cell_numbers_dict)
+        pday_cell_count_df = get_cells_pdays_df(cell_numbers_dict, suite2p_cells=suite2p_cells)
         #from pandas import *
         #display(pday_cell_count_df)
         vals = np.around(pday_cell_count_df.values,2)

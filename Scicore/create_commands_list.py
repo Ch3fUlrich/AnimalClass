@@ -60,7 +60,9 @@ from Helper import *
 #root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"  
 root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"  
 Animal.root_dir = root_dir
-
+mice_dict = {"mice21": ["DON-002865", "DON-003165", "DON-003343", "DON-006084", "DON-006085", "DON-006087"],
+             "mice22": ["DON-008497", "DON-008498", "DON-008499", "DON-009191", "DON-009192", "DON-010473", "DON-010477"],
+             "mice23": ["DON-014837", "DON-014838", "DON-014840", "DON-014847", "DON-014849", "DON-015078", "DON-015079"]}
 def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], skip_animal=[], skip_session=[]):
     #TODO: skipping option is not integrated
     with open("commands.cmd", 'w') as f:
@@ -83,9 +85,14 @@ if __name__ == "__main__":
         if argument != "all":
             if argument[:3] == "DON":
                 wanted_animal_ids.append(argument)
+            elif argument[:4] == "mice":
+                wanted_animal_ids += mice_dict[argument]
             else:
                 wanted_session_ids.append(argument)
     wanted_animal_ids = wanted_animal_ids if len(wanted_animal_ids) > 0 else ["all"]
+    print(wanted_animal_ids)
+    wanted_animal_ids = np.unique(wanted_animal_ids)
+    print(wanted_animal_ids)
     wanted_session_ids = wanted_session_ids if len(wanted_session_ids) > 0 else ["all"]
     print(f"Creating commands.cmd for {wanted_animal_ids}, {wanted_session_ids}")
     main(wanted_animal_ids, wanted_session_ids)#skip_animal=["DON-009191"], skip_session=["20220225"]
