@@ -160,14 +160,14 @@ def extract_cell_numbers(animals):
             cell_numbers = {}
             cell_numbers["iscell"] = -1
             cell_numbers["not_geldrying"] = -1
-            cell_numbers["corr"] = -1
-            cell_numbers["gel_corr"] = -1
+            cell_numbers["corr"] = False
+            cell_numbers["gel_corr"] = False
             for path in session.s2p_folder_paths:
                 path_ending = path.split("suite2p")[-1]
                 path = os.path.join(path, "plane0")
                 iscell_path = os.path.join(path, "iscell.npy")
                 cell_drying_path = os.path.join(path, "cell_drying.npy")
-                corr_path = os.path.join(path, "allcell_correlation_array.npy")
+                corr_path = os.path.join(path, "allcell_corr_pval_zscore.npy")
                 if path_ending=="":
                     cell_numbers["iscell"], cell_numbers["corr"] = get_cellnum_check_corr(iscell_path, corr_path)
                 elif path_ending == "_merged":
@@ -226,7 +226,7 @@ def summary_df_s2p_vs_geldrying(cell_numbers_dict):
     pipeline_stats = pipeline_stats.sort_index()
     return pipeline_stats
 
-def get_cells_pdays_df(cell_numbers_dict):
+def get_cells_pdays_df(cell_numbers_dict, suite2p_cells = False):
     #show tabular visualization of usefull mice
     animal_ids = list(cell_numbers_dict.keys())
 
@@ -246,7 +246,8 @@ def get_cells_pdays_df(cell_numbers_dict):
     #set pday_cell_count_dict[animal_id][age] to the number of not geldrdying cells
     for animal_id, animal in cell_numbers_dict.items():
         sorted_ages, iscells, notgeldrying, corr, gel_corr = get_sorted_cells_notgeldyring_lists(animal)
-        for age, session_cells in zip(sorted_ages, notgeldrying):
+        cell_count = iscells if suite2p_cells else notgeldrying
+        for age, session_cells in zip(sorted_ages, cell_count):
             pday_cell_count_dict[animal_id][age] = session_cells
 
     pday_cell_count_df = pd.DataFrame(pday_cell_count_dict).transpose()
@@ -480,7 +481,8 @@ def get_directories(directory):
     """
     # Get a list of directories in the specified folder
     # Filter the list to include only directories (excluding the "figures" directory)
-    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and name!="figures"]
+    other_folders = ["figures", "rodrigo"]
+    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and name not in other_folders]
     return directories
 
 def get_files(directory, ending="all"):
