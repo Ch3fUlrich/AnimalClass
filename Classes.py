@@ -792,7 +792,7 @@ class Session:
         most_good_cells = 0
         for unit_id, unit in self.units.items():
             num_good_cells = unit.num_not_geldrying()
-            if num_good_cells > most_good_cells:
+            if num_good_cells >= most_good_cells:
                 most_good_cells = num_good_cells 
                 best_unit = unit
         print(f"Best Mask has {most_good_cells} cells and is from {best_unit.unit_id}")
@@ -1352,12 +1352,12 @@ class Vizualizer:
             plt.imshow(footprint, cmap=cmap)
         plt.gca().invert_yaxis()
 
-    def unit_contours(self, unit):
+    def unit_contours(self, unit, figsize=(10,10), color=None, plot_center=False, comment=""):
         # Plot Contours
         plt.figure(figsize=(10,10))
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
         contours = unit.contours
-        self.contours(contours)
+        self.contours(contours, color, plot_center, comment)
         plt.title(f"{len(contours)} contours {title}")
         plt.savefig(os.path.join(self.save_dir, f"Contours_{title}.png"), dpi=300)
 
@@ -1478,8 +1478,14 @@ class Vizualizer:
         for i, image in enumerate(frames):
             x = int(i/num_images_x)
             y = i%num_images_x
-            ax[x, y].imshow(image)
-            ax[x, y].invert_yaxis()
+            if len(ax.shape) == 2:
+                ax[x, y].imshow(image)
+                ax[x, y].invert_yaxis()
+                ax[x, y].set_title(f'Frame {i}')
+            else:
+                ax[i].imshow(image)
+                ax[i].invert_yaxis()
+                ax[i].set_title(f'Frame {i}')
         #plt.show()
     
     def show_survived_cell_percentage(self, animals=None, pipeline_stats=None):
@@ -2054,7 +2060,6 @@ class Merger:
         backup_s2p_files(data_path, note="backup")
         update_s2p_files(data_path, shifted_unit_stat)
 
-
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], generate=False, regenerate=False, unit_ids="single", delete=False):
     """
     Loads animal data from the specified root directory for the given animal IDs.
@@ -2126,5 +2131,3 @@ def run_compute_correlations(c, parallel=True, min_number_bursts=0):
     c.subselect_quiescent_only = False
     c.make_correlation_dirs()
     c.compute_correlations(min_number_bursts=min_number_bursts)
-
-    
