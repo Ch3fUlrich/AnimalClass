@@ -815,7 +815,7 @@ class Session:
                 unit.usefull = False
         return {unit_id:unit for unit_id, unit in self.units.items() if unit.usefull}
     
-    def calc_unit_yx_shifts(self, best_unit, units):
+    def calc_unit_yx_shifts(self, best_unit, units, num_align_frames=1000):
         """
         S2P Registration (Footprint position shift determination)
         """
@@ -829,7 +829,7 @@ class Session:
                 continue   
             #unit.yx_shift = calc_yx_shift(refAndMasks, unit, unit.ops, num_align_frames)
             if unit.usefull:
-                unit.calc_yx_shift(refAndMasks, num_align_frames=1000)
+                unit.calc_yx_shift(refAndMasks, num_align_frames=num_align_frames)
 
     def merge_units(self, generate=True, regenerate=False, delete_used_subsessions=False, image_x_size=512, image_y_size=512):
         """
@@ -1380,11 +1380,12 @@ class Vizualizer:
         for contours, col in zip(multi_contours, colors):
             self.contours(contours, color=col, plot_center=plot_center)
 
-    def multi_unit_contours(self, units, combination=None, plot_center=False, shift=False):
+    def multi_unit_contours(self, units, combination=None, plot_center=False, shift=False, figsize=(20,20)):
         """
         units : dict
         combination : list of dict keys
         """
+        plt.figure(figsize=figsize)
         handles = []
         plot_contours = []
         plot_colors = []

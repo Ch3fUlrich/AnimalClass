@@ -62,7 +62,7 @@ def gif_to_mp4(path):
     """
     import moviepy.editor as mp
     clip = mp.VideoFileClip(path)
-    save_path = path.split(".")[0]+".mp4"
+    save_path = path.replace('.gif', '.mp4')
     clip.write_videofile(save_path)
 
 def show_mesc_units(path):

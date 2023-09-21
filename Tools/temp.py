@@ -20,6 +20,25 @@ from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
 
 #helper
+
+
+def gif_to_mp4(path):
+    """
+    Converts a GIF file to an MP4 file.
+
+    This function takes the path of a GIF file as input, converts it to an MP4 file, and saves the resulting MP4 file in the same directory as the input GIF file. The name of the output MP4 file is the same as the input GIF file, with the file extension changed from `.gif` to `.mp4`.
+
+    Args:
+        path (str): The path of the input GIF file.
+
+    Returns:
+        None
+    """
+    import moviepy.editor as mp
+    clip = mp.VideoFileClip(path)
+    save_path = path.replace('.gif', '.mp4')
+    clip.write_videofile(save_path)
+
 def search_file(directory, filename):
     """
     This function searches for a file with a given filename within a specified directory and its subdirectories.
@@ -48,7 +67,8 @@ def get_directories(directory):
     """
     # Get a list of directories in the specified folder
     # Filter the list to include only directories (excluding the "figures" directory)
-    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and name!="figures"]
+    ignore_folders = ["figures", "merged"]
+    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and name not in ignore_folders]
     return directories
 
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], print_loading=True):
@@ -138,6 +158,7 @@ class Animal:
         self.session_dates = None 
         self.session_names = None 
         self.sex = None 
+        self.session_shifts = None
         self.load_data(yaml_file_path)
         self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
         if print_loading:
@@ -155,32 +176,36 @@ class Animal:
         session_name_list = animal_metadata_dict["session_names"]
         self.session_names = [str(session_name) if type(session_name)!=str else session_name for session_name in session_name_list]
         self.sex = animal_metadata_dict["sex"]
+        self.session_shifts = animal_metadata_dict["shifts"]
     
     def get_session_data(self, session_id, print_loading=True):
         yaml_file_index = self.session_names.index(session_id)
         session_date = None if len(self.session_dates) != len(self.session_names) else self.session_dates[yaml_file_index]
         pday = None if len(self.pdays) != len(self.session_names) else self.pdays[yaml_file_index]
         session = Session(self.animal_id, session_id, pday=pday, 
-                        session_date=session_date, print_loading=print_loading)
+                        session_date=session_date, 
+                        human_shift=self.session_shifts[yaml_file_index],
+                        print_loading=print_loading)
         self.sessions[session_id] = session
 
 class Session:
     corr_fname = "allcell_clean_corr_pval_zscore.npy"
 
-    def __init__(self, animal_id, session_id, pday, session_date, image_x_size=512, image_y_size=512, print_loading=True):
+    def __init__(self, animal_id, session_id, pday, session_date, 
+                 human_shift, image_x_size=512, image_y_size=512, print_loading=True):
         if print_loading:
             print(f"Loading session: {animal_id} {session_id}")
         self.animal_id = animal_id
         self.session_id = session_id
         self.session_date = session_date
-        self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id)
+        self.human_shift = human_shift
         self.pday = pday
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id)
         self.suite2p_path = os.path.join(self.session_dir, "plane0")
         self.ops = self.set_ops()
         self.image_x_size, self.image_y_size = image_x_size, image_y_size
         self.refImg = None
-        self.yx_shift = [0, 0] if animal_id == "pday0" else None
+        self.yx_shift = [0, 0] if session_id == "day0" else None
         self.c, self.contours, self.footprints = self.get_c_contours_footprints()
 
     def set_ops(self, ops=None):
@@ -222,13 +247,13 @@ class Session:
         Returns:
         list: The computed or provided yx_shift.
         """
-        if yx_shift:
+        if yx_shift and not self.yx_shift:
             self.yx_shift = yx_shift
         if not self.yx_shift:
             b_loader = Binary_loader()
             frames = b_loader.load_binary(self.session_dir, n_frames_to_be_acquired=num_align_frames, image_x_size=self.image_x_size, image_y_size=self.image_y_size)
             frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
-        self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
+            self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
         return self.yx_shift
 
     def get_c_contours_footprints(self):
@@ -289,36 +314,44 @@ class Vizualizer:
                 plt.plot(xy_mean[1], xy_mean[0], ".", color = color)
         plt.title(f"{len(contours)} Contours{comment}")
 
-    def multi_contours(self, multi_contours, plot_center=False, colors=["red", "green", "blue", "yellow", "purple", "orange", "cyan"]):
+    def multi_contours(self, multi_contours, plot_center=False, colors=["white", "red", "green", "blue", "yellow", "purple", "orange", "cyan", "pink"]):
         for contours, col in zip(multi_contours, colors):
             self.contours(contours, color=col, plot_center=plot_center)
 
-    def multi_session_contours(self, sessions, combination=None, plot_center=False, shift=False):
+    def multi_session_contours(self, sessions, combination=None, plot_center=False, shift=False, figsize=(20, 20), comment=""):
         """
         sessions : dict
         combination : list of dict keys
         """
+        plt.figure(figsize=figsize)
+        if shift != False:
+            shift_type = shift
+            shift = True
         handles = []
         plot_contours = []
         plot_colors = []
         combination = list(sessions.keys()) if combination==None else combination
-        colors = ["red", "green", "blue", "yellow", "purple", "orange", "cyan"]
+        colors = ["white", "red", "green", "blue", "yellow", "purple", "orange", "cyan", "pink"]
         for (session_id, session), col in zip(sessions.items(), colors):
             if session_id not in combination:
                 continue
-            good_cell_contours = np.array(session.contours)[session.cell_geldrying==False] if len(session.cell_geldrying)==len(session.contours) else np.array(session.contours)
             #shift contours
-            good_cell_contours = [good_cell_contour - session.yx_shift for good_cell_contour in good_cell_contours] if shift else good_cell_contours
             plot_colors.append(col)
-            plot_contours.append(good_cell_contours)
-            shift_label = f" y: {session.yx_shift[0]}  x: {session.yx_shift[1]}" if shift else ""
+            if shift:
+                shift_amount = session.yx_shift if shift_type=="algo" else session.human_shift
+            else:
+                shift_amount = [0, 0]
+            contours = [contour - shift_amount for contour in session.contours] if shift else session.contours
+            plot_contours.append(contours)
+            shift_label = f" y: {shift_amount[0]}  x: {shift_amount[1]}" if shift else ""
             handles.append(Line2D([0], [0], color=col, linewidth=2, linestyle='-', label=f"Msession: {session_id}{shift_label}"))
         self.multi_contours(plot_contours, colors=plot_colors, plot_center=plot_center)
-        plt.title(f"Contours for Msessions: {combination}")
+        plt.title(f"Contours for : {combination} {comment}")
         plt.legend(handles=handles, fontsize=20)
         shift_label = f"_shifted" if shift else ""
-        plt.savefig(os.path.join(self.save_dir, f"Contours_Msessions_{combination}{shift_label}.png"), dpi=300)
+        plt.savefig(os.path.join(self.save_dir, f"Contours_{combination}{shift_label}{comment}.png"), dpi=300)
         #plt.show()
+        plt.close()
 
     def multi_session_refImg(self, sessions, num_images_x=2):
         num_sessions = len(sessions)
@@ -375,8 +408,43 @@ class Binary_loader:
         binary_frames = copy.deepcopy(binary)
         return binary_frames
     
+    def binary_frames_to_animation(self, frames, frame_range=[0, -1], save_dir="animation", comment=""):
+        """
+        Converts a sequence of binary frames into an animated GIF.
+
+        This method takes a sequence of binary frames as input, along with the range of frames to include in the animation and the directory in which to save the resulting GIF. It converts the specified frames into an animated GIF and saves it to the specified directory.
+
+        Args:
+            frames (np.ndarray): A NumPy array containing the sequence of binary frames.
+            frame_range (List[int]): A list specifying the range of frames to include in the animation. Defaults to [0, -1], which includes all frames.
+            save_dir (str): The directory in which to save the resulting GIF. Defaults to "animation".
+
+        Returns:
+            animation.ArtistAnimation: An instance of `animation.ArtistAnimation` representing the created animation.
+        """
+        import matplotlib.animation as animation
+
+        range_start, range_end = frame_range
+        if comment != "":
+            comment += "_"
+        gif_save_path = os.path.join(save_dir, f"{comment}{range_start}-{range_end}.gif")
+
+        images = []
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        for i, frame in enumerate(frames):
+            if i%1000 == 0:
+                print(i)
+            p1 = ax.text(512/2-50, 0, f"Frame {i}", animated=True)
+            p2 = ax.imshow(frame, animated=True)
+            images.append([p1, p2])
+        ani = animation.ArtistAnimation(fig, images, interval=50, blit=True,
+                                        repeat_delay=1000)
+        ani.save(gif_save_path)
+        return ani
+    
 class Merger:
-    def set_yx_shifts(self, reference_session: Session, sessions: dict, n_frames_to_be_acquired=1000):
+    def set_yx_shifts(self, reference_session: Session, sessions: dict, n_frames_to_be_acquired=1000, num_align_frames=1000):
         """
         This function calculates the yx_shifts for all sessions relative to a reference session. 
         It first gets the reference image from the reference session and computes the reference masks. 
@@ -390,9 +458,10 @@ class Merger:
         Returns:
         None
         """
-        refImg = reference_session.get_reference_image()
+        refImg = reference_session.get_reference_image(n_frames_to_be_acquired = n_frames_to_be_acquired)
         refAndMasks = register.compute_reference_masks(refImg, reference_session.ops)
         for session_id, session in sessions.items():
             if session_id == reference_session.session_id:
                 continue   
-            session.set_yx_shift(refAndMasks, num_align_frames=1000)
+            session.set_yx_shift(refAndMasks, num_align_frames=num_align_frames)
+        return sessions
