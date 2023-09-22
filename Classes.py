@@ -283,8 +283,10 @@ class Analyzer:
         return get_all_sliding_cell_stat
 
 class Session:
-    def __init__(self, animal_id, session_id, generate=False, regenerate=False, unit_ids="all", delete=False, age=None, session_date=None) -> None:
-        print(f"Loading session: {animal_id} {session_id}")
+    def __init__(self, animal_id, session_id, generate=False, regenerate=False, 
+                 unit_ids="all", delete=False, age=None, session_date=None, print_loading=True) -> None:
+        if print_loading:
+            print(f"Loading session: {animal_id} {session_id}")
         self.animal_id = animal_id
         self.session_id = session_id
         self.session_date = session_date
@@ -755,10 +757,10 @@ class Session:
                     if single_unit:
                         break
             data_path = os.path.join(s2p_folder_path, "plane0")
-            backup_s2p_files(data_path, restore=True)
-            backup_s2p_files(data_path, restore=False)
+            backup_path_files(data_path, restore=True)
+            backup_path_files(data_path, restore=False)
             unit = Unit(s2p_folder_path, session=self, unit_id=unit_id)
-            backup_s2p_files(data_path, restore=False)
+            backup_path_files(data_path, restore=False)
             num_good_cells = unit.print_s2p_iscell()
             if num_good_cells < 100: #If less than 100 good cells
                 #Print amount of cells vs good cells
@@ -782,7 +784,7 @@ class Session:
             if s2p_folder_path.split("suite2p")[-1] == "" :
                 data_path = s2p_folder_path
         if data_path:
-            backup_s2p_files(data_path, restore=True)
+            backup_path_files(data_path, restore=True)
             unit_all = Unit(data_path, session=self, unit_id="all")
         else:
             print("No s2p folder found for full session")
@@ -885,7 +887,6 @@ class Session:
                 merged_unit_id += str(unit_id)+"_"
             # concatenate S2P results
             ops = default_ops()
-            #FIXME: remove removed cells
             merged_F, _, _, _ = merger.merge_s2p_files(updated_units, merged_stat, ops) #best_unit.c.ops)
             #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
@@ -984,11 +985,12 @@ class Animal:
     dir_ = r'002P-F'
     cabincorr_file_name = "binarized_traces.npz"
     
-    def __init__(self, yaml_file_path) -> None:
+    def __init__(self, yaml_file_path, print_loading=True) -> None:
         self.sessions = {}
         self.year, self.day_of_birth, self.animal_id, self.pdays, self.session_dates, self.session_names, self.sex = self.load_data(yaml_file_path)
         self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
-        print(f"Loading animal: {self.animal_id}")
+        if print_loading:
+            print(f"Added animal: {self.animal_id}")
 
     def load_data(self, yaml_path):
         #TODO: integrate variable loading of properties
@@ -2052,16 +2054,17 @@ class Merger:
         cleaned_merged_footprints = merged_footprints[clean_cell_ids]
         return clean_cell_ids, cleaned_merged_footprints
     
-    def shift_update_unit_s2p_files(self, unit, new_stat, image_x_size=512, image_y_size=512, deduplicate = False):
+    def shift_update_unit_s2p_files(self, unit, new_stat, image_x_size=512, image_y_size=512):
         data_path = os.path.join(unit.suite2p_folder_path, "plane0")
         # shift merged mask
         shift_to_unit = np.array([-1]) * unit.yx_shift
         shifted_unit_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_unit, image_x_size=image_x_size, image_y_size=image_y_size)
 
-        backup_s2p_files(data_path, note="backup")
+        backup_path_files(data_path)
         update_s2p_files(data_path, shifted_unit_stat)
 
-def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], generate=False, regenerate=False, unit_ids="single", delete=False):
+def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], 
+             generate=False, regenerate=False, unit_ids="single", delete=False, print_loading=True):
     """
     Loads animal data from the specified root directory for the given animal IDs.
 
@@ -2085,12 +2088,13 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], ge
             sessions_path = os.path.join(root_dir, animal_id)
             present_sessions = get_directories(sessions_path)
             yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
-            animal = Animal(yaml_file_name)
+            animal = Animal(yaml_file_name, print_loading=print_loading)
             Animal.root_dir = root_dir
             # Search for 2P Sessions
             for session in present_sessions:
                 if session in wanted_session_ids or "all" in wanted_session_ids:
-                    animal.get_session_data(session, generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
+                    animal.get_session_data(session, generate=generate, regenerate=regenerate, 
+                                            unit_ids=unit_ids, delete=delete, print_loading=print_loading)
             animals_dict[animal_id] = animal
     return animals_dict
 
@@ -2111,9 +2115,7 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id, parallel=True):
     c.data_type = "2p"
     #
     c.load_suite2p()
-
     c.load_binarization()
-
     # getting contours and footprints
     c.load_footprints()
     return c
@@ -2132,3 +2134,70 @@ def run_compute_correlations(c, parallel=True, min_number_bursts=0):
     c.subselect_quiescent_only = False
     c.make_correlation_dirs()
     c.compute_correlations(min_number_bursts=min_number_bursts)
+
+def delete_bin_tiff_s2p_intermediate(session):
+    #Delete binaries
+    del_tiff = True
+    for s2p_folder in session.s2p_folder_paths:
+        s2p_folder_ending = s2p_folder.split("suite2p")[-1]
+        iscell_path = os.path.join(s2p_folder, "plane0", "iscell.npy")
+        iscell_count = -1
+        if os.path.exists(iscell_path):
+            iscell = np.load(iscell_path)[:,0]
+            iscell_count = sum(iscell)
+        
+        notgel_path = os.path.join(s2p_folder, "plane0", "cell_drying.npy")
+        notgel_count = -1
+        if os.path.exists(notgel_path):
+            notgel = np.load(notgel_path)==0
+            notgel_count = sum(notgel)
+        if s2p_folder_ending == "":
+            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
+            if os.path.exists(binary_path):
+                os.remove(binary_path)
+        elif iscell_count != -1 and notgel_count !=-1:
+            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
+            if os.path.exists(binary_path):
+                os.remove(binary_path)
+        else:
+            del_tiff = False
+
+    #Delete Tiffs
+    if del_tiff:
+        for tiff_path in session.tiff_data_paths:
+            if os.path.exists(tiff_path):
+                print(f" removing {tiff_path}")
+                os.remove(tiff_path) 
+
+    #delete not needed suite2p MUnits
+    if del_tiff:
+        keep_endings = ["", "_merged"]
+        for s2p_path in session.s2p_folder_paths:
+            s2p_path_ending = s2p_path.split("suite2p")[-1]
+            if s2p_path_ending not in keep_endings :
+                if os.path.exists(s2p_path):
+                    print(s2p_path)
+                    shutil.rmtree(s2p_path)
+
+def create_rodrigo_folder(wanted_animal_ids, root_dir, animals=None):
+    #create folders for rodrigo
+    if not animals:
+        animals = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, generate=False, print_loading=False) # Load all animals
+    corr_fname = "allcell_clean_corr_pval_zscore.npy"
+    rodrigo_corr_path = os.path.join(root_dir, "rodrigo")
+    dir_exist_create(rodrigo_corr_path)
+    for animal_id, animal in animals.items():
+        for session_id, session in animal.sessions.items():
+            # search for allcell_clean_corr_pval_zscore
+            corr_path = None
+            for s2p_path in session.s2p_folder_paths:
+                if "merged" in s2p_path:
+                    corr_path = search_file(s2p_path, corr_fname)
+            if corr_path:
+                # create directories
+                animal_path = os.path.join(rodrigo_corr_path, animal_id)
+                session_path = os.path.join(animal_path, session_id)
+                dir_exist_create(animal_path)
+                dir_exist_create(session_path)
+                #copy allcell_clean_corr_pval_zscore to created dir
+                shutil.copyfile(corr_path, os.path.join(session_path, corr_fname))

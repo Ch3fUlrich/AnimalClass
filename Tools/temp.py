@@ -20,8 +20,6 @@ from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
 
 #helper
-
-
 def gif_to_mp4(path):
     """
     Converts a GIF file to an MP4 file.
@@ -100,7 +98,8 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], pr
             # Search for 2P Sessions
             for session in present_sessions:
                 if session in wanted_session_ids or "all" in wanted_session_ids:
-                    animal.get_session_data(session, print_loading=print_loading)
+                    animal.get_session_data(session, image_x_size=512, 
+                                            image_y_size=512, print_loading=print_loading)
             animals_dict[animal_id] = animal
     return animals_dict
 
@@ -127,7 +126,86 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id, parallel=True):
     # getting contours and footprints
     c.load_footprints()
     return c
+
+def backup_path_files(data_path, backup_folder_name="backup", 
+                      redo_backup=False, restore=False):
+    data_path = os.path.join(data_path)
+    backup_path = os.path.join(data_path, backup_folder_name)
+    if restore:
+        shutil.copytree(backup_path, data_path, dirs_exist_ok=True)
+    else:
+        if not os.path.exists(backup_path):
+            shutil.copytree(data_path, backup_path)
+        else:
+            if redo_backup:
+                if os.path.exists(backup_path):
+                    shutil.rmtree(backup_path)
+                shutil.copytree(data_path, backup_path)
+            else:
+                print("Backup path already exists. Skipping")
+
+
+
+def update_s2p_files(data_path, stat):
+    # Read in existing data from a suite2p run. We will use the "ops" and registered binary.
+    suite2_data_path = os.path.join(data_path, "plane0")
+    binary_file_path = os.path.join(data_path, "data.bin")
+    binary_file_path = binary_file_path if os.path.exists(binary_file_path) else os.path.join(data_path, "Image_001_001.raw")
     
+    ops = np.load(os.path.join(suite2_data_path, "ops.npy"), allow_pickle=True).item()
+    Lx = ops['Lx']
+    Ly = ops['Ly']
+    f_reg = suite2p.io.BinaryFile(Ly, Lx, binary_file_path)
+
+    """# Using these inputs, we will first mimic the stat array made by suite2p
+    masks = cellpose_masks['masks']
+    stat = []
+    for u_ix, u in enumerate(np.unique(masks)[1:]):
+        ypix,xpix = np.nonzero(masks==u)
+        npix = len(ypix)
+        stat.append({'ypix': ypix, 'xpix': xpix, 'npix': npix, 'lam': np.ones(npix, np.float32), 'med': [np.mean(ypix), np.mean(xpix)]})
+    stat = np.array(stat)
+    stat = roi_stats(stat, Ly, Lx)  # This function fills in remaining roi properties to make it compatible with the rest of the suite2p pipeline/GUI
+    """
+    # Feed these values into the wrapper functions
+    stat_after_extraction, F, Fneu, F_chan2, Fneu_chan2 = suite2p.extraction_wrapper(stat, f_reg, f_reg_chan2 = None, ops=ops)
+    # Do cell classification
+    classfile = suite2p.classification.builtin_classfile
+    iscell = suite2p.classify(stat=stat_after_extraction, classfile=classfile)
+    # Apply preprocessing step for deconvolution
+    dF = F.copy() - ops['neucoeff']*Fneu
+    dF = suite2p.extraction.preprocess(
+            F=dF,
+            baseline=ops['baseline'],
+            win_baseline=ops['win_baseline'],
+            sig_baseline=ops['sig_baseline'],
+            fs=ops['fs'],
+            prctile_baseline=ops['prctile_baseline']
+        )
+    # Identify spikes
+    spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
+
+    # Overwrite files in wd folder (consider backing up this folder first)
+    backup_path_files(suite2_data_path) 
+
+    np.save(os.path.join(suite2_data_path, 'F.npy'), F)
+    np.save(os.path.join(suite2_data_path, 'Fneu.npy'), Fneu)
+    np.save(os.path.join(suite2_data_path, 'iscell.npy'), iscell)
+    np.save(os.path.join(suite2_data_path, 'ops.npy'), ops)
+    np.save(os.path.join(suite2_data_path, 'spks.npy'), spks)
+    np.save(os.path.join(suite2_data_path, 'stat.npy'), stat)
+
+    old_files = ["binarized_traces.mat", "binarized_traces.npz", "Fall.mat"]
+    old_folders = ["correlations", "figures"]
+    for old_folder in old_folders:
+        fpath = os.path.join(suite2_data_path, old_folder)
+        if os.path.exists(fpath):
+            shutil.rmtree(fpath)
+    for old_file in old_files:
+        fpath = os.path.join(suite2_data_path, old_file)
+        if os.path.exists(fpath):
+            os.remove(fpath)
+
 #classes
 class Animal:
     """
@@ -178,13 +256,14 @@ class Animal:
         self.sex = animal_metadata_dict["sex"]
         self.session_shifts = animal_metadata_dict["shifts"]
     
-    def get_session_data(self, session_id, print_loading=True):
+    def get_session_data(self, session_id, image_x_size=512, image_y_size=512, print_loading=True):
         yaml_file_index = self.session_names.index(session_id)
         session_date = None if len(self.session_dates) != len(self.session_names) else self.session_dates[yaml_file_index]
         pday = None if len(self.pdays) != len(self.session_names) else self.pdays[yaml_file_index]
         session = Session(self.animal_id, session_id, pday=pday, 
                         session_date=session_date, 
                         human_shift=self.session_shifts[yaml_file_index],
+                        image_x_size=image_x_size, image_y_size=image_y_size,
                         print_loading=print_loading)
         self.sessions[session_id] = session
 
@@ -444,7 +523,9 @@ class Binary_loader:
         return ani
     
 class Merger:
-    def set_yx_shifts(self, reference_session: Session, sessions: dict, n_frames_to_be_acquired=1000, num_align_frames=1000):
+
+    def set_yx_shifts(self, reference_session: Session, sessions: dict, 
+                      n_frames_to_be_acquired=1000, num_align_frames=1000):
         """
         This function calculates the yx_shifts for all sessions relative to a reference session. 
         It first gets the reference image from the reference session and computes the reference masks. 
@@ -465,3 +546,350 @@ class Merger:
                 continue   
             session.set_yx_shift(refAndMasks, num_align_frames=num_align_frames)
         return sessions
+    
+    def shift_stat_cells(self, stat: list, yx_shift: list, image_x_size=512, image_y_size=512):
+        """
+        Shifts the cells in the stat array based on the given yx_shift.
+
+        Parameters:
+        stat (list): List of cell statistics.
+        yx_shift (list): List containing y and x shifts.
+        image_x_size (int): Size of the image in x direction. Default is 512.
+        image_y_size (int): Size of the image in y direction. Default is 512.
+
+        Returns:
+        new_stat (list): List of shifted cell statistics.
+        """
+        # stat files first value ist y-value second is x-value
+        new_stat = copy.deepcopy(stat)
+
+        for num, cell_stat in enumerate(new_stat):
+            y_shifted = []
+            for y in cell_stat["ypix"]:
+                y_shifted.append(y-yx_shift[0])
+            cell_stat["ypix"] = np.array(y_shifted)
+            
+            x_shifted = []
+            for x in cell_stat["xpix"]:
+                x_shifted.append(x-yx_shift[1])
+            cell_stat["xpix"] = np.array(x_shifted)
+
+            #center of cell_stat
+            med = cell_stat["med"]
+            med_shifted = [med[0]-yx_shift[0], med[1]-yx_shift[1]]
+            cell_stat["med"] = med_shifted
+        return new_stat
+
+    def remove_abroad_cells(self, stat: list, sessions: dict[Session], image_x_size=512, image_y_size=512):
+        """
+        Removes cells that are out of bounds.
+
+        Parameters:
+        stat (list): List of cell statistics.
+        sessions (dict): A dictionary of sessions keyed by session_id.
+        image_x_size (int): Size of the image in x direction. Default is 512.
+        image_y_size (int): Size of the image in y direction. Default is 512.
+
+        Returns:
+        stat (list): List of cell statistics after removing out of bound cells.
+        """
+        # removing out of bound cells 
+        remove_cells = []
+        for cell_num, cell in enumerate(stat):
+            abroad = False
+            #check for every shift 
+            for session_id, session in sessions.items():
+                if abroad:
+                    break
+                yx_shift = session.yx_shift
+                for axis in ["ypix", "xpix"]:
+                    shift = yx_shift[0] if axis=="ypix" else yx_shift[1]
+                    shifted = cell[axis]+shift
+
+                    # check if cell is out of bound
+                    max_location = image_y_size if axis=="ypix" else image_x_size
+                    if sum(shifted>=max_location)>0 or sum(shifted<0)>0:
+                        abroad = True
+                        break    
+            if abroad:
+                remove_cells.append(cell_num)
+                
+        for abroad_cell in remove_cells[::-1]:
+            stat = np.delete(stat, abroad_cell)
+            print(f"removed cell {abroad_cell}")
+        return stat
+
+    def stat_to_footprints(self, stat: list, dims=[512, 512]):
+        """
+        Converts cell statistics to footprints.
+
+        Parameters:
+        stat (list): List of cell statistics.
+        dims (list): List containing dimensions of the footprints. Default is [512, 512].
+
+        Returns:
+        footprints (numpy array): Array of footprints.
+        """
+        imgs = []
+        for k in range(len(stat)):
+            x = stat[k]['xpix']
+            y = stat[k]['ypix']
+
+            # save footprint
+            img_temp = np.zeros((dims[0], dims[1]))
+            img_temp[x, y] = stat[k]['lam']
+
+            img_temp_norm = (img_temp - np.min(img_temp)) / (np.max(img_temp) - np.min(img_temp))
+            imgs.append(img_temp_norm)
+
+        imgs = np.array(imgs)
+
+        footprints = imgs
+        return footprints
+
+    def merge_stat(self, sessions: dict[Session], reference_session: Session, parallel=True):
+        """
+        Shifts and merges stat files with reference_session as reference position. 
+        It also deduplicates the stat files.
+
+        Parameters:
+        sessions (dict): A dictionary of sessions keyed by session_id.
+        reference_session (Session): The session to be used as reference.
+        parallel (bool): If True, use parallel processing. Default is True.
+
+        Returns:
+        merged_stat (numpy array): Array of merged and deduplicated stat files.
+        """
+        image_x_size = reference_session.image_x_size
+        image_y_size = reference_session.image_y_size
+        num_batches = get_num_batches_based_on_available_ram()
+        
+        shifted_session_stat_no_abroad = self.remove_abroad_cells(reference_session.c.stat, sessions, image_x_size=image_x_size, image_y_size=image_y_size)
+        merged_footprints = self.stat_to_footprints(shifted_session_stat_no_abroad)
+        merged_stat = shifted_session_stat_no_abroad
+        for session_id, session in sessions.items():
+            if session_id == reference_session.session_id:
+                continue    
+            shifted_session_stat = self.shift_stat_cells(session.c.stat, yx_shift=session.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
+            shifted_session_stat_no_abroad = self.remove_abroad_cells(shifted_session_stat, sessions, image_x_size=image_x_size, image_y_size=image_y_size)
+            shifted_footprints = self.stat_to_footprints(shifted_session_stat_no_abroad)
+            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints, parallel=parallel, num_batches=num_batches)
+            merged_stat = np.concatenate([merged_stat, shifted_session_stat_no_abroad])[clean_cell_ids]
+        return merged_stat
+
+    def find_overlaps1(self, ids, footprints):
+        """
+        Finds overlaps between footprints.
+
+        Parameters:
+        ids : Array of IDs.
+        footprints : Array of footprints.
+
+        Returns:
+        intersections (list): List of intersections between footprints.
+        """
+        intersections = []
+        for k in ids:
+            temp1 = footprints[k]
+            idx1 = np.vstack(np.where(temp1 > 0)).T
+
+            #
+            for p in range(k + 1, footprints.shape[0], 1):
+                temp2 = footprints[p]
+                idx2 = np.vstack(np.where(temp2 > 0)).T
+                res = array_row_intersection(idx1, idx2)
+
+                #
+                if len(res) > 0:
+                    percent1 = res.shape[0] / idx1.shape[0]
+                    percent2 = res.shape[0] / idx2.shape[0]
+                    intersections.append([k, p, res.shape[0], percent1, percent2])
+        #
+        return intersections
+
+    def generate_batch_cell_overlaps(self, footprints, parallel=True, recompute_overlap=False, 
+                                     n_cores=16, num_batches=3):
+        # this computes spatial overlaps between cells; doesn't take into account temporal correlations
+        """
+        Computes spatial overlaps between cells. It doesn't take into account temporal correlations.
+
+        Parameters:
+        footprints : Array of footprints.
+        parallel (bool): If True, use parallel processing. Default is True.
+        recompute_overlap (bool): If True, recompute overlap. Default is False.
+        n_cores (int): Number of cores to use for parallel processing. Default is 16.
+        num_batches (int): Number of batches for parallel processing. Default is 3.
+
+        Returns:
+        df (DataFrame): DataFrame containing overlap information.
+    """
+        print ("... computing cell overlaps ...")
+        
+        num_footprints = footprints.shape[0]
+        num_min_cells_per_process = 10
+        num_parallel_processes = 30 if num_footprints/30>num_min_cells_per_process else int(num_footprints/num_min_cells_per_process)
+        ids = np.array_split(np.arange(num_footprints, dtype="int64"), num_parallel_processes)
+
+        if num_batches > num_parallel_processes:
+            num_batches = num_parallel_processes
+
+        #TODO: will results in an error, if np.array_split is used on inhomogeneouse data like ids on Scicore
+        batches = np.array_split(ids, num_batches) if num_batches!=1 else [ids]
+        results = np.array([])
+        num_cells = 0
+        for batch in batches:
+            res = parmap.map(find_overlaps1,
+                            batch,
+                            footprints,
+                            #c.footprints_bin,
+                            pm_processes=16,
+                            pm_pbar=True,
+                            pm_parallel=parallel)
+            for cell_batch in res:
+                num_cells += len(cell_batch)
+                for cell in cell_batch:
+                    results = np.append(results, cell)
+        results = results.reshape(num_cells, 5)
+        res = [results]
+        df = make_overlap_database(res)
+        return df
+
+    def find_candidate_neurons_overlaps(self, df_overlaps: pd.DataFrame, 
+                                        corr_array=None, deduplication_use_correlations=False, 
+                                        corr_max_percent_overlap=0.25, corr_threshold=0.3):
+        """
+        This function finds candidate neurons based on overlaps and correlations.
+        
+        Parameters:
+        df_overlaps (DataFrame): DataFrame containing overlap information.
+        corr_array (numpy array): Array containing correlation information. Default is None.
+        deduplication_use_correlations (bool): If True, use correlations for deduplication. Default is False.
+        corr_max_percent_overlap (float): Maximum percent overlap for correlation. Default is 0.25.
+        corr_threshold (float): Threshold for correlation. Default is 0.3.
+
+        Returns:
+        candidate_neurons (numpy array): Array of candidate neurons based on overlaps and correlations.
+        """
+        dist_corr_matrix = []
+        for index, row in df_overlaps.iterrows():
+            cell1 = int(row['cell1'])
+            cell2 = int(row['cell2'])
+            percent1 = row['percent_cell1']
+            percent2 = row['percent_cell2']
+
+            if deduplication_use_correlations:
+
+                if cell1 < cell2:
+                    corr = corr_array[cell1, cell2, 0]
+                else:
+                    corr = corr_array[cell2, cell1, 0]
+            else:
+                corr = 0
+            dist_corr_matrix.append([cell1, cell2, corr, max(percent1, percent2)])
+        dist_corr_matrix = np.vstack(dist_corr_matrix)
+        #####################################################
+        # check max overlap
+        idx1 = np.where(dist_corr_matrix[:, 3] >= corr_max_percent_overlap)[0]
+        
+        # skipping correlations is not a good idea
+        #   but is a requirement for computing deduplications when correlations data cannot be computed first
+        if deduplication_use_correlations:
+            idx2 = np.where(dist_corr_matrix[idx1, 2] >= corr_threshold)[0]   # note these are zscore thresholds for zscore method
+            idx3 = idx1[idx2]
+        else:
+            idx3 = idx1
+        #
+        candidate_neurons = dist_corr_matrix[idx3][:, :2]
+        return candidate_neurons
+
+    def make_correlated_neuron_graph(self, num_cells: int, candidate_neurons: np.ndarray):
+        """
+        This function creates a graph of correlated neurons.
+
+        Parameters:
+        num_cells (int): Number of cells.
+        candidate_neurons (numpy array): Array of candidate neurons.
+
+        Returns:
+        G (networkx.Graph): Graph of correlated neurons.
+        """
+        adjacency = np.zeros((num_cells, num_cells))
+        for i in candidate_neurons:
+            adjacency[int(i[0]), int(i[1])] = 1
+
+        G = nx.Graph(adjacency)
+        G.remove_nodes_from(list(nx.isolates(G)))
+        return G
+
+    def delete_duplicate_cells(self, num_cells: int, G, corr_delete_method='highest_connected_no_corr'):
+        """
+        This function deletes duplicate cells from the graph.
+
+        Parameters:
+        num_cells (int): Number of cells.
+        G (networkx.Graph): Graph of correlated neurons.
+        corr_delete_method (str): Method to delete duplicate cells. Default is 'highest_connected_no_corr'.
+
+        Returns:
+        clean_cell_ids (numpy array): Array of clean cell IDs after deleting duplicates.
+        """
+        # delete multi node networks
+        #
+        if corr_delete_method=='highest_connected_no_corr':
+            connected_cells, removed_cells = del_highest_connected_nodes_without_corr(G)
+        # 
+        print ("Removed cells: ", len(removed_cells))
+        clean_cells = np.delete(np.arange(num_cells),
+                                removed_cells)
+
+        #
+        clean_cell_ids = clean_cells
+        removed_cell_ids = removed_cells
+        connected_cell_ids = connected_cells
+        return clean_cell_ids
+
+    def merge_deduplicate_footprints(self, footprints1: np.ndarray, footprints2: np.ndarray,
+                                      parallel=True, num_batches=4):
+        """
+        This function merges and deduplicates footprints.
+
+        Parameters:
+        footprints1, footprints2 (numpy arrays): Arrays of footprints to be merged and deduplicated.
+        parallel (bool): If True, use parallel processing. Default is True.
+        num_batches (int): Number of batches for parallel processing. Default is 4.
+
+        Returns:
+        clean_cell_ids (numpy array): Array of clean cell IDs after merging and deduplicating footprints.
+        cleaned_merged_footprints (numpy array): Array of cleaned merged footprints.
+        """
+        merged_footprints = np.concatenate([footprints1, footprints2])
+        num_cells = len(merged_footprints)
+
+        df_overlaps = self.generate_batch_cell_overlaps(merged_footprints, recompute_overlap=True, parallel=parallel, num_batches=num_batches)
+        candidate_neurons = self.find_candidate_neurons_overlaps(df_overlaps, corr_array=None, deduplication_use_correlations=False, corr_max_percent_overlap=0.25, corr_threshold=0.3)
+        G = self.make_correlated_neuron_graph(num_cells, candidate_neurons)
+        clean_cell_ids = self.delete_duplicate_cells(num_cells, G)
+        cleaned_merged_footprints = merged_footprints[clean_cell_ids]
+        return clean_cell_ids, cleaned_merged_footprints
+
+    def shift_update_session_s2p_files(self, session: Session, new_stat: np.ndarray):
+        """
+        This function shifts and updates session files.
+
+        Parameters:
+        session (object): Session object containing session information.
+        new_stat (numpy array): Array containing new statistics.
+
+        Returns:
+        None
+        """
+        image_x_size = session.image_x_size
+        image_y_size = session.image_y_size
+        data_path = os.path.join(session.session_dir)
+        suite2p_data_path = session.suite2p_path
+        # shift merged mask
+        shift_to_session = np.array([-1]) * session.yx_shift
+        shifted_session_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_session, image_x_size=image_x_size, image_y_size=image_y_size)
+
+        backup_path_files(suite2p_data_path)
+        update_s2p_files(data_path, shifted_session_stat)

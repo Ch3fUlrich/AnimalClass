@@ -131,7 +131,7 @@ def update_s2p_files(data_path, stat):
     spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
 
     # Overwrite files in wd folder (consider backing up this folder first)
-    backup_s2p_files(data_path) 
+    backup_path_files(data_path) 
 
     np.save(os.path.join(data_path, 'F.npy'), F)
     np.save(os.path.join(data_path, 'Fneu.npy'), Fneu)
@@ -440,19 +440,22 @@ def reset_s2p_files(data_path):
     file_exist_rename(data_path, "spks.npy", 'spks_old.npy', reset=True)
     file_exist_rename(data_path, "stat.npy", 'stat_old.npy', reset=True)
 
-def backup_s2p_files(data_path, note="backup", restore=False):
+def backup_path_files(data_path, backup_folder_name="backup", 
+                      redo_backup=False, restore=False):
     data_path = os.path.join(data_path)
-    backup_path = os.path.join(data_path, "backup")
-    dir_exist_create(backup_path)
-    for fname in ["F.npy", "Fneu.npy", "iscell.npy", "ops.npy", "spks.npy", "stat.npy", "cell_drying.npy", "binarized_traces.npz"]:
-        fpath = os.path.join(data_path, fname)
-        fpath_backup = os.path.join(backup_path, note+"_"+fname)
-        if restore:
-            fpath, fpath_backup = fpath_backup, fpath
-            if os.path.exists(fpath_backup) and os.path.exists(fpath):
-                os.remove(fpath_backup)
-        if not os.path.exists(fpath_backup) and os.path.exists(fpath):
-            shutil.copyfile(fpath, fpath_backup)
+    backup_path = os.path.join(data_path, backup_folder_name)
+    if restore:
+        shutil.copytree(backup_path, data_path, dirs_exist_ok=True)
+    else:
+        if not os.path.exists(backup_path):
+            shutil.copytree(data_path, backup_path)
+        else:
+            if redo_backup:
+                if os.path.exists(backup_path):
+                    shutil.rmtree(backup_path)
+                shutil.copytree(data_path, backup_path)
+            else:
+                print("Backup path already exists. Skipping")
 
 def del_present_file(directory):
     """
