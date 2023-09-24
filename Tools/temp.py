@@ -144,13 +144,18 @@ def backup_path_files(data_path, backup_folder_name="backup",
             else:
                 print("Backup path already exists. Skipping")
 
-
-
 def update_s2p_files(data_path, stat):
     # Read in existing data from a suite2p run. We will use the "ops" and registered binary.
     suite2_data_path = os.path.join(data_path, "plane0")
     binary_file_path = os.path.join(data_path, "data.bin")
-    binary_file_path = binary_file_path if os.path.exists(binary_file_path) else os.path.join(data_path, "Image_001_001.raw")
+    binary_file_path = search_file(data_path, "Image_001_001.raw")
+    if not binary_file_path:
+        binary_file_path = search_file(data_path, "data.bin")
+    if not binary_file_path:
+        print("No binary file found. Canceling Suite2P file update.")
+        return None
+
+    binary_file_path if os.path.exists(binary_file_path) else os.path.join(data_path, "Image_001_001.raw")
     
     ops = np.load(os.path.join(suite2_data_path, "ops.npy"), allow_pickle=True).item()
     Lx = ops['Lx']
@@ -256,16 +261,37 @@ class Animal:
         self.sex = animal_metadata_dict["sex"]
         self.session_shifts = animal_metadata_dict["shifts"]
     
-    def get_session_data(self, session_id, image_x_size=512, image_y_size=512, print_loading=True):
-        yaml_file_index = self.session_names.index(session_id)
-        session_date = None if len(self.session_dates) != len(self.session_names) else self.session_dates[yaml_file_index]
-        pday = None if len(self.pdays) != len(self.session_names) else self.pdays[yaml_file_index]
-        session = Session(self.animal_id, session_id, pday=pday, 
-                        session_date=session_date, 
-                        human_shift=self.session_shifts[yaml_file_index],
-                        image_x_size=image_x_size, image_y_size=image_y_size,
-                        print_loading=print_loading)
+    def get_session_data(self, session_id, 
+                         image_x_size=512, image_y_size=512,
+                         print_loading=True):
+        if session_id != "merged":
+            yaml_file_index = self.session_names.index(session_id)
+            session_date = None if len(self.session_dates) != len(self.session_names) else self.session_dates[yaml_file_index]
+            pday = None if len(self.pdays) != len(self.session_names) else self.pdays[yaml_file_index]
+            session = Session(self.animal_id, session_id, pday=pday, 
+                            session_date=session_date, 
+                            human_shift=self.session_shifts[yaml_file_index],
+                            image_x_size=image_x_size, image_y_size=image_y_size,
+                            print_loading=print_loading)
+        else:
+            reference_image_x_size = self.sessions["day0"].image_x_size
+            reference_image_y_size = self.sessions["day0"].image_y_size
+            session = Session(animal_id=self.animal_id, session_id=session_id,
+                      pday=None, session_date=None, human_shift=None,
+                      image_x_size=reference_image_x_size, 
+                      image_y_size=reference_image_y_size,
+                      print_loading=True)
         self.sessions[session_id] = session
+
+    def merge_sessions(self):
+        #TODO:
+        merged_s2p_path = merger.merge_s2p_files(updated_sessions, merged_stat)
+
+        reference_image_x_size = self.sessions["day0"].image_x_size
+        reference_image_y_size = self.sessions["day0"].image_y_size
+        self.get_session_data(session_id="merged", image_x_size=reference_image_x_size,
+                            image_y_size=reference_image_y_size, print_loading=True)
+        return self.sessions["merged"]
 
 class Session:
     corr_fname = "allcell_clean_corr_pval_zscore.npy"
@@ -893,3 +919,7 @@ class Merger:
 
         backup_path_files(suite2p_data_path)
         update_s2p_files(data_path, shifted_session_stat)
+
+    def merge_s2p_files(self, sessions, stat, first_session="day0"):
+        #TODO:
+        pass
