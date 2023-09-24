@@ -103,10 +103,10 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], pr
             animals_dict[animal_id] = animal
     return animals_dict
 
-def run_cabin_corr(root_dir, data_dir, animal_id, session_id, parallel=True):
+def run_cabin_corr(root_dir, data_dir, animal_id, session_name, parallel=True):
     #Init
     print(f"Loading cabincorr data from {data_dir}")
-    c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
+    c = calcium.Calcium(root_dir, animal_id, session_name=session_name, data_dir=data_dir)
 
     #c.parallel_flag = parallel
     c.animal_id = animal_id 
@@ -262,7 +262,7 @@ class Animal:
         self.session_shifts = animal_metadata_dict["shifts"]
     
     def get_session_data(self, session_id, 
-                         image_x_size=512, image_y_size=512,
+                         image_x_size=512, image_y_size=512, reference_session_id="day0",
                          print_loading=True):
         if session_id != "merged":
             yaml_file_index = self.session_names.index(session_id)
@@ -274,8 +274,8 @@ class Animal:
                             image_x_size=image_x_size, image_y_size=image_y_size,
                             print_loading=print_loading)
         else:
-            reference_image_x_size = self.sessions["day0"].image_x_size
-            reference_image_y_size = self.sessions["day0"].image_y_size
+            reference_image_x_size = self.sessions[reference_session_id].image_x_size
+            reference_image_y_size = self.sessions[reference_session_id].image_y_size
             session = Session(animal_id=self.animal_id, session_id=session_id,
                       pday=None, session_date=None, human_shift=None,
                       image_x_size=reference_image_x_size, 
@@ -283,18 +283,51 @@ class Animal:
                       print_loading=True)
         self.sessions[session_id] = session
 
-    def merge_sessions(self):
-        #TODO:
-        merged_s2p_path = merger.merge_s2p_files(updated_sessions, merged_stat)
+    def merge_sessions(self, reference_session_id="day0", regenerate=False):
+        reference_session = self.sessions[reference_session_id]
+        sessions = self.sessions
 
-        reference_image_x_size = self.sessions["day0"].image_x_size
-        reference_image_y_size = self.sessions["day0"].image_y_size
+        # check if already all, merged, suite2p files are present
+        suite2p_files_list = []
+        merged_s2p_path = os.path.join(self.animal_dir, "merged", "plane0")
+        for s2p_file in suite2p_files_list:
+            s2p_file_path = search_file(merged_s2p_path, s2p_file)
+            if not s2p_file_path:
+                merged_s2p_path = None
+                break 
+
+        # merge masks, updated sessions based on merged masks
+        if regenerate or not os.path.exists(merged_s2p_path):
+            # create a master mask by
+            # merging masks of every session, remove abroad cells and deduplicate
+            merger = Merger()
+            merged_stat = merger.merge_stat(sessions, reference_session, parallel = True)
+            print(f"Number of cells after merging: {merged_stat.shape[0]}")
+
+            # Update all sessions based on merged mask
+            updated_sessions = {} 
+            for session_id, session in sessions.items():
+                # shift merged mask and redo Suite2P analysis
+                print(f"Updating session {session_id}")
+                merger.shift_update_session_s2p_files(session, merged_stat)
+                updated_sessions[session_id] = Session(session.animal_id, session.session_id+"_updated", 
+                                                    session.pday, session.image_x_size,
+                                                    session.image_y_size,
+                                                    print_loading=True)
+            self.sessions = updated_sessions
+            merger.merge_s2p_files(updated_sessions, merged_stat)
+
+        # create Session entrie in dictionary
+        reference_image_x_size = reference_session.image_x_size
+        reference_image_y_size = reference_session.image_y_size
         self.get_session_data(session_id="merged", image_x_size=reference_image_x_size,
                             image_y_size=reference_image_y_size, print_loading=True)
+        #get_geldrying_cells()
         return self.sessions["merged"]
 
 class Session:
     corr_fname = "allcell_clean_corr_pval_zscore.npy"
+    cabincorr_fname = "binarized_traces.npz"
 
     def __init__(self, animal_id, session_id, pday, session_date, 
                  human_shift, image_x_size=512, image_y_size=512, print_loading=True):
@@ -310,8 +343,9 @@ class Session:
         self.ops = self.set_ops()
         self.image_x_size, self.image_y_size = image_x_size, image_y_size
         self.refImg = None
-        self.yx_shift = [0, 0] if session_id == "day0" else None
+        self.yx_shift = [0, 0] if "day0" in session_id else None
         self.c, self.contours, self.footprints = self.get_c_contours_footprints()
+        self.bin_traces_zip = None
 
     def set_ops(self, ops=None):
         if not ops:
@@ -363,11 +397,21 @@ class Session:
 
     def get_c_contours_footprints(self):
         #Merging cell footprints
+        session_name = self.session_id.split("_merged")[0] if "merged" in self.session_id else self.session_id
         c = run_cabin_corr(Animal.root_dir, data_dir=os.path.join(self.suite2p_path),
-                            animal_id=self.animal_id, session_id=self.session_id)
+                            animal_id=self.animal_id, session_name=session_name)
         contours = c.contours
         footprints = c.footprints
         return c, contours, footprints
+    
+    def load_cabincorr_data(self):
+        if type(self.bin_traces_zip) != np.ndarray: 
+            path = os.path.join(self.suite2p_path, Session.cabincorr_fname)
+            if os.path.exists(path):
+                self.bin_traces_zip = np.load(path, allow_pickle=True)
+            else:
+                print("No CaBincorrPath found")
+        return self.bin_traces_zip
     
 class Vizualizer:
     def __init__(self, animals={}, save_dir=Animal.root_dir):
@@ -477,6 +521,68 @@ class Vizualizer:
         fig.suptitle(title, fontsize=20)
         plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")+".png"), dpi=300)
         plt.show()
+
+    def bursts(self, animal_id, session_id, fluorescence_type="F_raw", num_cells="all", dpi=300, fps="30"):
+
+        #TODO: insert possibility to filter for good cells?
+        #is_cells_ids = np.where(calcium_object.iscell==1)[0]
+        #is_not_cells_ids = np.where(calcium_object.iscell==0)[0]
+        #num_is_cells = is_cells_ids.shape[0] #get is cells
+        #calcium_object.plot_traces(calcium_object.F_filtered, np.arange(num_is_cells))
+
+        session = self.animals[animal_id].sessions[session_id]
+        bin_traces_zip = session.load_cabincorr_data()
+        fluorescence = None
+        if bin_traces_zip:
+            if fluorescence_type in list(bin_traces_zip.keys()):
+                fluorescence = bin_traces_zip[fluorescence_type]
+            else:
+                print(f"{animal_id} {session_id} No fluorescence data of type {fluorescence_type} in binarized_traces.npz")
+        else:
+            print(f"{animal_id} {session_id} no binarized_traces.npz found")
+        
+        if type(fluorescence)==np.ndarray:
+            self.traces(fluorescence, animal_id, session_id, num_cells, fluorescence_type=fluorescence_type, dpi=dpi)
+        return fluorescence
+
+    def traces(self, fluorescence, animal_id, session_id, num_cells="all", fluorescence_type="", low_pass_filter=True, dpi=300):
+        # plot fluorescence
+        if low_pass_filter:
+            fluorescence = butter_lowpass_filter(fluorescence, cutoff=0.5, fs=30, order=2)
+        
+        fluorescence = np.array(fluorescence)
+        fluorescence = np.transpose(fluorescence) if len(fluorescence.shape)==2 else fluorescence
+        plt.figure()
+        plt.figure(figsize=(12, 7))
+        if num_cells != "all":
+            plt.plot(fluorescence[:, :int(num_cells)])
+        else:
+            plt.plot(fluorescence)
+
+        file_name = f"{animal_id} {session_id}"
+        seconds = 5
+        fps=30
+        num_frames = fps*seconds
+        num_x_ticks = 50
+        written_label_steps = 2
+
+        x_time = [int(frame/num_frames)*seconds for frame in range(len(fluorescence)) if frame%num_frames==0] 
+        steps = round(len(x_time)/(2*num_x_ticks))
+        x_time_shortened = x_time[::steps]
+        x_pos = np.arange(0, len(fluorescence), num_frames)[::steps] 
+        
+        title = f"Bursts from {file_name} {fluorescence_type}"
+        xlabel=f"seconds"
+        ylabel='fluorescence based on Ca in Cell'
+        x_labels = [time if num%written_label_steps==0 else "" for num, time in enumerate(x_time_shortened)]
+        plt.xticks(x_pos, x_labels, rotation=40, fontsize=8)
+        plt.title(title)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+
+        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")+".png"), dpi=dpi)
+        plt.show()
+        plt.close()
 
 class Binary_loader:
     """
@@ -606,7 +712,7 @@ class Merger:
             cell_stat["med"] = med_shifted
         return new_stat
 
-    def remove_abroad_cells(self, stat: list, sessions: dict[Session], image_x_size=512, image_y_size=512):
+    def remove_abroad_cells(self, stat: list, sessions: dict, image_x_size=512, image_y_size=512):
         """
         Removes cells that are out of bounds.
 
@@ -673,7 +779,7 @@ class Merger:
         footprints = imgs
         return footprints
 
-    def merge_stat(self, sessions: dict[Session], reference_session: Session, parallel=True):
+    def merge_stat(self, sessions: dict, reference_session: Session, parallel=True):
         """
         Shifts and merges stat files with reference_session as reference position. 
         It also deduplicates the stat files.
@@ -921,5 +1027,42 @@ class Merger:
         update_s2p_files(data_path, shifted_session_stat)
 
     def merge_s2p_files(self, sessions, stat, first_session="day0"):
-        #TODO:
-        pass
+        """
+        Merges F, Fneu, spks, iscell from individual sessions
+        Does not merge the individual corrected stat files
+        Does not merge ops
+        """
+        first_session_object = sessions[first_session]
+        ops = first_session_object.ops
+        path = first_session_object.suite2p_path
+        merged_F = np.load(os.path.join(path, "F.npy"))
+        merged_Fneu = np.load(os.path.join(path,   "Fneu.npy"))
+        merged_spks = np.load(os.path.join(path,   "spks.npy"))
+        merged_iscell = np.load(os.path.join(path, "iscell.npy"))
+        for session_id, session in sessions.items():
+            if session_id == first_session_object:
+                continue
+            path = session.suite2p_path
+            F =  np.load(os.path.join(path, "F.npy"))
+            merged_F = np.concatenate([merged_F, F], axis=1)
+            Fneu =  np.load(os.path.join(path, "Fneu.npy"))
+            merged_Fneu = np.concatenate([merged_Fneu, Fneu], axis=1)
+            spks =  np.load(os.path.join(path, "spks.npy"))
+            merged_spks = np.concatenate([merged_spks, spks], axis=1)
+            is_cell = np.load(os.path.join(path, "iscell.npy"))
+            merged_iscell *= is_cell
+        
+        animal_folder = os.path.join(Animal.root_dir, session.animal_id)
+        merged_s2p_path = os.path.join(animal_folder, "merged")
+        dir_exist_create(merged_s2p_path)
+        merged_s2p_path = os.path.join(animal_folder, "merged", "plane0")
+        dir_exist_create(merged_s2p_path)
+
+        np.save(os.path.join(merged_s2p_path, "F.npy"), merged_F)
+        np.save(os.path.join(merged_s2p_path, "Fneu.npy"), merged_Fneu)
+        np.save(os.path.join(merged_s2p_path, "spks.npy"), merged_spks)
+        np.save(os.path.join(merged_s2p_path, "iscell.npy"), merged_iscell)
+
+        np.save(os.path.join(merged_s2p_path, "stat.npy"), stat)
+        np.save(os.path.join(merged_s2p_path, "ops.npy"), ops)
+        return merged_s2p_path
