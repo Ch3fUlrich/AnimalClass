@@ -69,7 +69,7 @@ def get_directories(directory):
     directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and name not in ignore_folders]
     return directories
 
-def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], print_loading=True):
+def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], restore=False, print_loading=True):
     """
     Loads animal data from the specified root directory for the given animal IDs.
 
@@ -99,14 +99,20 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], pr
             for session in present_sessions:
                 if session in wanted_session_ids or "all" in wanted_session_ids:
                     animal.get_session_data(session, image_x_size=512, 
-                                            image_y_size=512, print_loading=print_loading)
+                                            image_y_size=512, 
+                                            restore=restore,
+                                            print_loading=print_loading)
             animals_dict[animal_id] = animal
     return animals_dict
 
-def run_cabin_corr(root_dir, data_dir, animal_id, session_name, parallel=True):
+def run_cabin_corr(root_dir, data_dir, animal_id, session_id, regenerate_cabincorr=False, parallel=True):
     #Init
-    print(f"Loading cabincorr data from {data_dir}")
-    c = calcium.Calcium(root_dir, animal_id, session_name=session_name, data_dir=data_dir)
+    print(f"Getting cabincorr data from {data_dir}")
+    cabincorr_path = os.path.join(data_dir, "binarized_traces.npz")
+    if regenerate_cabincorr:
+        if os.path.exists(cabincorr_path):
+            os.remove(cabincorr_path)
+    c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
 
     #c.parallel_flag = parallel
     c.animal_id = animal_id 
@@ -132,7 +138,11 @@ def backup_path_files(data_path, backup_folder_name="backup",
     data_path = os.path.join(data_path)
     backup_path = os.path.join(data_path, backup_folder_name)
     if restore:
-        shutil.copytree(backup_path, data_path, dirs_exist_ok=True)
+        if os.path.exists(backup_path):
+            shutil.copytree(backup_path, data_path, dirs_exist_ok=True)
+            print(f"Restored original suite2p files")
+        else:
+            print(f"No backup found at {backup_path}")
     else:
         if not os.path.exists(backup_path):
             shutil.copytree(data_path, backup_path)
@@ -190,15 +200,8 @@ def update_s2p_files(data_path, stat):
     # Identify spikes
     spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
 
-    # Overwrite files in wd folder (consider backing up this folder first)
+    # backing up original suite2p files first
     backup_path_files(suite2_data_path) 
-
-    np.save(os.path.join(suite2_data_path, 'F.npy'), F)
-    np.save(os.path.join(suite2_data_path, 'Fneu.npy'), Fneu)
-    np.save(os.path.join(suite2_data_path, 'iscell.npy'), iscell)
-    np.save(os.path.join(suite2_data_path, 'ops.npy'), ops)
-    np.save(os.path.join(suite2_data_path, 'spks.npy'), spks)
-    np.save(os.path.join(suite2_data_path, 'stat.npy'), stat)
 
     old_files = ["binarized_traces.mat", "binarized_traces.npz", "Fall.mat"]
     old_folders = ["correlations", "figures"]
@@ -210,6 +213,14 @@ def update_s2p_files(data_path, stat):
         fpath = os.path.join(suite2_data_path, old_file)
         if os.path.exists(fpath):
             os.remove(fpath)
+
+    np.save(os.path.join(suite2_data_path, 'F.npy'), F)
+    np.save(os.path.join(suite2_data_path, 'Fneu.npy'), Fneu)
+    np.save(os.path.join(suite2_data_path, 'iscell.npy'), iscell)
+    np.save(os.path.join(suite2_data_path, 'ops.npy'), ops)
+    np.save(os.path.join(suite2_data_path, 'spks.npy'), spks)
+    np.save(os.path.join(suite2_data_path, 'stat.npy'), stat)
+
 
 #classes
 class Animal:
@@ -262,7 +273,9 @@ class Animal:
         self.session_shifts = animal_metadata_dict["shifts"]
     
     def get_session_data(self, session_id, 
-                         image_x_size=512, image_y_size=512, reference_session_id="day0",
+                         image_x_size=512, image_y_size=512, 
+                         reference_session_id="day0",
+                         restore=False,
                          print_loading=True):
         if session_id != "merged":
             yaml_file_index = self.session_names.index(session_id)
@@ -272,6 +285,7 @@ class Animal:
                             session_date=session_date, 
                             human_shift=self.session_shifts[yaml_file_index],
                             image_x_size=image_x_size, image_y_size=image_y_size,
+                            restore=restore,
                             print_loading=print_loading)
         else:
             reference_image_x_size = self.sessions[reference_session_id].image_x_size
@@ -283,7 +297,7 @@ class Animal:
                       print_loading=True)
         self.sessions[session_id] = session
 
-    def merge_sessions(self, reference_session_id="day0", regenerate=False):
+    def merge_sessions(self, reference_session_id="day0", regenerate=False, n_frames_to_be_acquired=1000, num_align_frames=1000):
         reference_session = self.sessions[reference_session_id]
         sessions = self.sessions
 
@@ -296,11 +310,20 @@ class Animal:
                 merged_s2p_path = None
                 break 
 
+        merger = Merger()
+        print(f"Generating yx-shifts based on reference session {reference_session_id}")
+        merger.set_yx_shifts(reference_session, sessions, n_frames_to_be_acquired, num_align_frames)
+
         # merge masks, updated sessions based on merged masks
         if regenerate or not os.path.exists(merged_s2p_path):
+            # reload original session files
+            for session_id, session in sessions.items():
+                backup_path_files(session.suite2p_path, restore=True) 
+                backup_path_files(session.suite2p_path, restore=False)
+                session.c, session.contours, session.footprints = session.get_c_contours_footprints()
             # create a master mask by
             # merging masks of every session, remove abroad cells and deduplicate
-            merger = Merger()
+            print("Creating master mask...")
             merged_stat = merger.merge_stat(sessions, reference_session, parallel = True)
             print(f"Number of cells after merging: {merged_stat.shape[0]}")
 
@@ -310,9 +333,9 @@ class Animal:
                 # shift merged mask and redo Suite2P analysis
                 print(f"Updating session {session_id}")
                 merger.shift_update_session_s2p_files(session, merged_stat)
-                updated_sessions[session_id] = Session(session.animal_id, session.session_id+"_updated", 
+                updated_sessions[session_id] = Session(session.animal_id, session.session_id, 
                                                     session.pday, session.image_x_size,
-                                                    session.image_y_size,
+                                                    session.image_y_size, regenerate_cabincorr=True,
                                                     print_loading=True)
             self.sessions = updated_sessions
             merger.merge_s2p_files(updated_sessions, merged_stat)
@@ -330,27 +353,39 @@ class Session:
     cabincorr_fname = "binarized_traces.npz"
 
     def __init__(self, animal_id, session_id, pday, session_date, 
-                 human_shift, image_x_size=512, image_y_size=512, print_loading=True):
+                 human_shift, image_x_size=512, image_y_size=512, 
+                 restore=False,
+                 regenerate_cabincorr=False, print_loading=True):
         if print_loading:
             print(f"Loading session: {animal_id} {session_id}")
         self.animal_id = animal_id
-        self.session_id = session_id
+        self.session_id = session_id # = session_name
         self.session_date = session_date
         self.human_shift = human_shift
         self.pday = pday
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id)
         self.suite2p_path = os.path.join(self.session_dir, "plane0")
+        if restore:
+            backup_path_files(self.suite2p_path, restore=restore)
         self.ops = self.set_ops()
         self.image_x_size, self.image_y_size = image_x_size, image_y_size
         self.refImg = None
         self.yx_shift = [0, 0] if "day0" in session_id else None
-        self.c, self.contours, self.footprints = self.get_c_contours_footprints()
+        self.c, self.contours, self.footprints = self.get_c_contours_footprints(regenerate_cabincorr=regenerate_cabincorr)
         self.bin_traces_zip = None
 
     def set_ops(self, ops=None):
         if not ops:
-            ops = register.default_ops()
-            ops["nonrigid"] = False
+            ops_path = os.path.join(self.suite2p_path, "ops.npy")
+            if os.path.exists(ops_path):
+                ops = np.load(ops_path, allow_pickle=True)
+            else:
+                ops = register.default_ops()
+            try:
+                ops["nonrigid"] = False
+            except:
+                ops = np.load(ops_path, allow_pickle=True).item()
+                ops["nonrigid"] = False
         else:
             self.ops = ops
         return ops
@@ -395,11 +430,11 @@ class Session:
             self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
         return self.yx_shift
 
-    def get_c_contours_footprints(self):
+    def get_c_contours_footprints(self, regenerate_cabincorr=False):
         #Merging cell footprints
-        session_name = self.session_id.split("_merged")[0] if "merged" in self.session_id else self.session_id
-        c = run_cabin_corr(Animal.root_dir, data_dir=os.path.join(self.suite2p_path),
-                            animal_id=self.animal_id, session_name=session_name)
+        c = run_cabin_corr(Animal.root_dir, data_dir=self.suite2p_path,
+                            animal_id=self.animal_id, session_id=self.session_id, 
+                            regenerate_cabincorr=regenerate_cabincorr)
         contours = c.contours
         footprints = c.footprints
         return c, contours, footprints
@@ -588,7 +623,8 @@ class Binary_loader:
     """
     A class for loading binary data and converting it into an animation.
 
-    This class provides methods for loading binary data from a file and converting a sequence of binary frames into an animated GIF. The `load_binary` method loads binary data from a specified file and returns it as a NumPy array. The `binary_frames_to_animation` method takes a sequence of binary frames and converts them into an animated GIF, which is saved to the specified directory.
+    This class provides methods for loading binary data from a file and converting a sequence of binary frames into an animated GIF. The `load_binary` 
+    method loads binary data from a specified file and returns it as a NumPy array. The `binary_frames_to_gif` method takes a sequence of binary frames and converts them into an animated GIF, which is saved to the specified directory.
 
     Attributes:
         None
@@ -619,7 +655,7 @@ class Binary_loader:
         binary_frames = copy.deepcopy(binary)
         return binary_frames
     
-    def binary_frames_to_animation(self, frames, frame_range=[0, -1], save_dir="animation", comment=""):
+    def binary_frames_to_gif(self, frames, frame_range=[0, -1], fps=30, save_dir="animation", comment=""):
         """
         Converts a sequence of binary frames into an animated GIF.
 
@@ -636,10 +672,11 @@ class Binary_loader:
         import matplotlib.animation as animation
 
         range_start, range_end = frame_range
-        if comment != "":
-            comment += "_"
+        comment = comment+"_" if comment != "" else comment
+        save_dir = os.path.join(save_dir, "animation")
         gif_save_path = os.path.join(save_dir, f"{comment}{range_start}-{range_end}.gif")
 
+        delay_between_frames = int(1000/fps)# ms
         images = []
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -649,7 +686,7 @@ class Binary_loader:
             p1 = ax.text(512/2-50, 0, f"Frame {i}", animated=True)
             p2 = ax.imshow(frame, animated=True)
             images.append([p1, p2])
-        ani = animation.ArtistAnimation(fig, images, interval=50, blit=True,
+        ani = animation.ArtistAnimation(fig, images, interval=delay_between_frames, blit=True,
                                         repeat_delay=1000)
         ani.save(gif_save_path)
         return ani
@@ -748,7 +785,8 @@ class Merger:
                 
         for abroad_cell in remove_cells[::-1]:
             stat = np.delete(stat, abroad_cell)
-            print(f"removed cell {abroad_cell}")
+        if len(remove_cells)>0:
+            print(f"removed abroad cells: {remove_cells}")
         return stat
 
     def stat_to_footprints(self, stat: list, dims=[512, 512]):
@@ -970,7 +1008,7 @@ class Merger:
         if corr_delete_method=='highest_connected_no_corr':
             connected_cells, removed_cells = del_highest_connected_nodes_without_corr(G)
         # 
-        print ("Removed cells: ", len(removed_cells))
+        print ("Removed duplicated cells: ", len(removed_cells))
         clean_cells = np.delete(np.arange(num_cells),
                                 removed_cells)
 
@@ -1040,7 +1078,7 @@ class Merger:
         merged_spks = np.load(os.path.join(path,   "spks.npy"))
         merged_iscell = np.load(os.path.join(path, "iscell.npy"))
         for session_id, session in sessions.items():
-            if session_id == first_session_object:
+            if session_id == first_session_object.session_id:
                 continue
             path = session.suite2p_path
             F =  np.load(os.path.join(path, "F.npy"))
@@ -1049,9 +1087,14 @@ class Merger:
             merged_Fneu = np.concatenate([merged_Fneu, Fneu], axis=1)
             spks =  np.load(os.path.join(path, "spks.npy"))
             merged_spks = np.concatenate([merged_spks, spks], axis=1)
+            # sum iscells
             is_cell = np.load(os.path.join(path, "iscell.npy"))
-            merged_iscell *= is_cell
+            merged_iscell += is_cell
         
+        #let cells life if one of the cells is detected as cell. Average probabilities for ifcell
+        merged_iscell /= len(list(sessions.keys()))
+        merged_iscell[:, 0] = np.ceil(merged_iscell[:, 0])
+
         animal_folder = os.path.join(Animal.root_dir, session.animal_id)
         merged_s2p_path = os.path.join(animal_folder, "merged")
         dir_exist_create(merged_s2p_path)
@@ -1062,7 +1105,6 @@ class Merger:
         np.save(os.path.join(merged_s2p_path, "Fneu.npy"), merged_Fneu)
         np.save(os.path.join(merged_s2p_path, "spks.npy"), merged_spks)
         np.save(os.path.join(merged_s2p_path, "iscell.npy"), merged_iscell)
-
         np.save(os.path.join(merged_s2p_path, "stat.npy"), stat)
         np.save(os.path.join(merged_s2p_path, "ops.npy"), ops)
         return merged_s2p_path

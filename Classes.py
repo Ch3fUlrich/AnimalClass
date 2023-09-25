@@ -1730,7 +1730,7 @@ class Binary_loader:
     """
     A class for loading binary data and converting it into an animation.
 
-    This class provides methods for loading binary data from a file and converting a sequence of binary frames into an animated GIF. The `load_binary` method loads binary data from a specified file and returns it as a NumPy array. The `binary_frames_to_animation` method takes a sequence of binary frames and converts them into an animated GIF, which is saved to the specified directory.
+    This class provides methods for loading binary data from a file and converting a sequence of binary frames into an animated GIF. The `load_binary` method loads binary data from a specified file and returns it as a NumPy array. The `binary_frames_to_gif` method takes a sequence of binary frames and converts them into an animated GIF, which is saved to the specified directory.
 
     Attributes:
         None
@@ -1761,7 +1761,7 @@ class Binary_loader:
         binary_frames = copy.deepcopy(binary)
         return binary_frames
     
-    def binary_frames_to_animation(frames, frame_range=[0, -1], save_dir="animation"):
+    def binary_frames_to_gif(self, frames, frame_range=[0, -1], fps=30, save_dir="animation", comment=""):
         """
         Converts a sequence of binary frames into an animated GIF.
 
@@ -1778,18 +1778,21 @@ class Binary_loader:
         import matplotlib.animation as animation
 
         range_start, range_end = frame_range
-        gif_save_path = os.path.join(save_dir, f"{range_start}-{range_end}.gif")
+        comment = comment+"_" if comment != "" else comment
+        save_dir = os.path.join(save_dir, "animation")
+        gif_save_path = os.path.join(save_dir, f"{comment}{range_start}-{range_end}.gif")
 
+        delay_between_frames = int(1000/fps)# ms
         images = []
         fig = plt.figure()
         ax = fig.add_subplot(111)
         for i, frame in enumerate(frames):
-            if i%100 == 0:
+            if i%1000 == 0:
                 print(i)
             p1 = ax.text(512/2-50, 0, f"Frame {i}", animated=True)
             p2 = ax.imshow(frame, animated=True)
             images.append([p1, p2])
-        ani = animation.ArtistAnimation(fig, images, interval=50, blit=True,
+        ani = animation.ArtistAnimation(fig, images, interval=delay_between_frames, blit=True,
                                         repeat_delay=1000)
         ani.save(gif_save_path)
         return ani
@@ -1888,8 +1891,13 @@ class Merger:
             merged_Fneu = np.concatenate([merged_Fneu, Fneu], axis=1)
             spks =  np.load(os.path.join(path, "spks.npy"))
             merged_spks = np.concatenate([merged_spks, spks], axis=1)
+            # sum iscells
             is_cell = np.load(os.path.join(path, "iscell.npy"))
-            merged_iscell *= is_cell
+            merged_iscell += is_cell
+        
+        #let cells life if one of the cells is detected as cell. Average probabilities for ifcell
+        merged_iscell /= len(list(units.keys()))
+        merged_iscell[:, 0] = np.ceil(merged_iscell[:, 0])
         
         root = path.split("suite2p")[0]
         merged_s2p_path = os.path.join(root, "suite2p_merged")
@@ -1901,7 +1909,6 @@ class Merger:
         np.save(os.path.join(merged_s2p_path, "Fneu.npy"), merged_Fneu)
         np.save(os.path.join(merged_s2p_path, "spks.npy"), merged_spks)
         np.save(os.path.join(merged_s2p_path, "iscell.npy"), merged_iscell)
-
         np.save(os.path.join(merged_s2p_path, "stat.npy"), stat)
         np.save(os.path.join(merged_s2p_path, "ops.npy"), ops)
         return merged_F, merged_Fneu, merged_spks, merged_iscell
