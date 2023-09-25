@@ -302,7 +302,7 @@ class Animal:
         sessions = self.sessions
 
         # check if already all, merged, suite2p files are present
-        suite2p_files_list = []
+        suite2p_files_list = ["F.npy", "Fneu.npy", "iscell.npy", "ops.npy", "spks.npy", "stat.npy"]
         merged_s2p_path = os.path.join(self.animal_dir, "merged", "plane0")
         for s2p_file in suite2p_files_list:
             s2p_file_path = search_file(merged_s2p_path, s2p_file)
@@ -315,7 +315,7 @@ class Animal:
         merger.set_yx_shifts(reference_session, sessions, n_frames_to_be_acquired, num_align_frames)
 
         # merge masks, updated sessions based on merged masks
-        if regenerate or not os.path.exists(merged_s2p_path):
+        if regenerate or not merged_s2p_path:
             # reload original session files
             for session_id, session in sessions.items():
                 backup_path_files(session.suite2p_path, restore=True) 
