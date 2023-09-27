@@ -2160,31 +2160,25 @@ def delete_bin_tiff_s2p_intermediate(session):
             notgel_count = sum(notgel)
         if s2p_folder_ending == "":
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            if os.path.exists(binary_path):
-                os.remove(binary_path)
+            del_present_file(binary_path)
         elif iscell_count != -1 and notgel_count !=-1:
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            if os.path.exists(binary_path):
-                os.remove(binary_path)
+            del_present_file(binary_path)
         else:
             del_tiff = False
 
     #Delete Tiffs
     if del_tiff:
         for tiff_path in session.tiff_data_paths:
-            if os.path.exists(tiff_path):
-                print(f" removing {tiff_path}")
-                os.remove(tiff_path) 
+            del_present_file(tiff_path)
 
     #delete not needed suite2p MUnits
     if del_tiff:
         keep_endings = ["", "_merged"]
         for s2p_path in session.s2p_folder_paths:
             s2p_path_ending = s2p_path.split("suite2p")[-1]
-            if s2p_path_ending not in keep_endings :
-                if os.path.exists(s2p_path):
-                    print(s2p_path)
-                    shutil.rmtree(s2p_path)
+            if s2p_path_ending not in keep_endings:
+                del_present_file(s2p_path)
 
 def create_rodrigo_folder(wanted_animal_ids, root_dir, animals=None):
     #create folders for rodrigo

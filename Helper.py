@@ -417,8 +417,7 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
         print(f"{fname} not exists")
     if reset:
         if os.path.exists(fpath_new):
-            if os.path.exists(fpath):
-                os.remove(fpath)
+            del_present_file(fpath)
             shutil.copyfile(fpath_new, fpath)
         else:
             print(f"{fname_new} not exists")
@@ -427,8 +426,7 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
             if os.path.exists(fpath):
                 os.rename(fpath, fpath_new)
         else:
-            if os.path.exists(fpath):
-                os.remove(fpath)
+            del_present_file(fpath)
 
 #reset files S2P files to original ones
 def reset_s2p_files(data_path):
@@ -457,20 +455,21 @@ def backup_path_files(data_path, backup_folder_name="backup",
             else:
                 print("Backup path already exists. Skipping")
 
-def del_present_file(directory):
+def del_present_file(fpath):
     """
     Deletes a file if it exists.
 
     Parameters:
-    file_location (str): Path of the file to delete.
+    fpath (str): Path of the file to delete.
 
     Returns:
     None
     """
     # check if the file exists
-    if os.path.exists(directory):
+    if os.path.exists(fpath):
         # delete the file
-        os.remove(directory)
+        print(f"removing {fpath}")
+        os.remove(fpath)
 
 def get_directories(directory):
     """

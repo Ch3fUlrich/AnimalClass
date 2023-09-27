@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=cleaning            #This is the name of your job
+#SBATCH --job-name=clean_highRAM            #This is the name of your job
 #SBATCH --cpus-per-task=32                  #This is the number of cores reserved
 #SBATCH --mem-per-cpu=6G              #This is the memory reserved per core.
 
@@ -30,4 +30,4 @@ conda activate animal_sergej
 
 # Run the corresponding commands from the file commands.cmd one by one
 # File should be filled with python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py animal_id session_id
-$(head -$SLURM_ARRAY_TASK_ID commands_128gb.cmd | tail -1) 
+$(head -$SLURM_ARRAY_TASK_ID commands_RAM.cmd | tail -1) 
