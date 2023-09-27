@@ -2,4 +2,5 @@ manifolds/
 Scicore/outputs*
 Scicore/data*
 Scicore/core*
+**/.pyc
 __pycache__/
