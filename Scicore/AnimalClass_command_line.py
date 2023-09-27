@@ -234,7 +234,7 @@ def do_cabincoor(session, unit=""):
                 c.make_correlation_dirs()
                 c.compute_correlations()
 
-def delete_bin_tiff(session):
+def delete_bin_tiff_s2p_intermediate(session):
     #Delete binaries
     del_tiff = True
     for s2p_folder in session.s2p_folder_paths:
@@ -256,7 +256,6 @@ def delete_bin_tiff(session):
                 os.remove(binary_path)
         elif iscell_count != -1 and notgel_count !=-1:
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            print(binary_path)
             if os.path.exists(binary_path):
                 os.remove(binary_path)
         else:
@@ -266,7 +265,18 @@ def delete_bin_tiff(session):
     if del_tiff:
         for tiff_path in session.tiff_data_paths:
             if os.path.exists(tiff_path):
+                print(f" removing {tiff_path}")
                 os.remove(tiff_path) 
+
+    #delete not needed suite2p MUnits
+    if del_tiff:
+        keep_endings = ["", "_merged"]
+        for s2p_path in session.s2p_folder_paths:
+            s2p_path_ending = s2p_path.split("suite2p")[-1]
+            if s2p_path_ending not in keep_endings :
+                if os.path.exists(s2p_path):
+                    print(s2p_path)
+                    shutil.rmtree(s2p_path)
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]

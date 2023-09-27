@@ -63,6 +63,7 @@ Animal.root_dir = root_dir
 mice_dict = {"mice21": ["DON-002865", "DON-003165", "DON-003343", "DON-006084", "DON-006085", "DON-006087"],
              "mice22": ["DON-008497", "DON-008498", "DON-008499", "DON-009191", "DON-009192", "DON-010473", "DON-010477"],
              "mice23": ["DON-014837", "DON-014838", "DON-014840", "DON-014847", "DON-014849", "DON-015078", "DON-015079"]}
+
 def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], skip_animal=[], skip_session=[]):
     #TODO: skipping option is not integrated
     with open("commands.cmd", 'w') as f:
@@ -77,6 +78,7 @@ if __name__ == "__main__":
     print("Command line usage: <animal_id> <session_id>, multiple parameters can be used seperated by spaces")
     print("Animal_id must start with ´DON´")
     print("If an argument is not specified the corresponding argument is set to 'all'")
+
     arguments = sys.argv[1:]
     wanted_animal_ids = []
     wanted_session_ids = []
@@ -89,8 +91,8 @@ if __name__ == "__main__":
                 wanted_animal_ids += mice_dict[argument]
             else:
                 wanted_session_ids.append(argument)
+
     wanted_animal_ids = wanted_animal_ids if len(wanted_animal_ids) > 0 else ["all"]
-    print(wanted_animal_ids)
     wanted_animal_ids = np.unique(wanted_animal_ids)
     print(wanted_animal_ids)
     wanted_session_ids = wanted_session_ids if len(wanted_session_ids) > 0 else ["all"]

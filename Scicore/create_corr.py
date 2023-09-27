@@ -72,19 +72,22 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"]):
 
 def create_corr(animals):
     bad_files = ["allcell_correlation_array.npy", "allcell_corr_pval_zscore.npy"]
+    delete_bad_files = False
+
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
-            do_cabincoor(session, unit="")
-            do_cabincoor(session, unit="merged")   
-            for s2p_path in session.s2p_folder_paths:
-                if "merged" in s2p_path:
-                    for bad_file in bad_files:
-                        delete_path = search_file(s2p_path, bad_file)
-                        if delete_path:
-                            os.remove(delete_path)
-            session.load_corr_matrix(generate_corr=True, unit_id="all")
+            #do_cabincoor(session, unit="")
+            do_cabincoor(session, unit="merged")
+            if delete_bad_files:
+                for s2p_path in session.s2p_folder_paths:
+                    if "merged" in s2p_path:
+                        for bad_file in bad_files:
+                            delete_path = search_file(s2p_path, bad_file)
+                            if delete_path:
+                                os.remove(delete_path)
+            #session.load_corr_matrix(generate_corr=True, unit_id="all")
             session.load_corr_matrix(generate_corr=True, unit_id="merged")
-            delete_bin_tiff_s2p_intermediate(session)
+            #delete_bin_tiff_s2p_intermediate(session)
             
 
 def do_cabincoor(session, unit=""):
