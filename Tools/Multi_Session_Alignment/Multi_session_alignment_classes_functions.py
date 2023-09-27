@@ -105,16 +105,17 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], re
             animals_dict[animal_id] = animal
     return animals_dict
 
-def run_cabin_corr(root_dir, data_dir, animal_id, session_id, regenerate_cabincorr=False, parallel=True):
+def run_cabin_corr(root_dir, data_dir, animal_id, session_id, 
+                regenerate=False, parallel=True):
     #Init
     print(f"Getting cabincorr data from {data_dir}")
     cabincorr_path = os.path.join(data_dir, "binarized_traces.npz")
-    if regenerate_cabincorr:
+    if regenerate:
         if os.path.exists(cabincorr_path):
             os.remove(cabincorr_path)
     c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
 
-    #c.parallel_flag = parallel
+    c.parallel_flag = parallel
     c.animal_id = animal_id 
     c.detrend_model_order = 1
     c.recompute_binarization = False
@@ -276,6 +277,7 @@ class Animal:
                          image_x_size=512, image_y_size=512, 
                          reference_session_id="day0",
                          restore=False,
+                         regenerate=False,
                          print_loading=True):
         if session_id != "merged":
             yaml_file_index = self.session_names.index(session_id)
@@ -294,10 +296,12 @@ class Animal:
                       pday=None, session_date=None, human_shift=None,
                       image_x_size=reference_image_x_size, 
                       image_y_size=reference_image_y_size,
+                      regenerate=regenerate,
                       print_loading=True)
         self.sessions[session_id] = session
 
-    def merge_sessions(self, reference_session_id="day0", regenerate=False, n_frames_to_be_acquired=1000, num_align_frames=1000):
+    def merge_sessions(self, reference_session_id="day0", restore=False, 
+                       regenerate=False, n_frames_to_be_acquired=1000, num_align_frames=1000):
         reference_session = self.sessions[reference_session_id]
         sessions = self.sessions
 
@@ -316,11 +320,14 @@ class Animal:
 
         # merge masks, updated sessions based on merged masks
         if regenerate or not merged_s2p_path:
+            if merged_s2p_path:
+                print(f"removing old merged suite2p files from {merged_s2p_path}")
+                shutil.rmtree(merged_s2p_path)
             # reload original session files
             for session_id, session in sessions.items():
-                backup_path_files(session.suite2p_path, restore=True) 
-                backup_path_files(session.suite2p_path, restore=False)
-                session.c, session.contours, session.footprints = session.get_c_contours_footprints()
+                if restore:
+                    backup_path_files(session.suite2p_path, restore=True) 
+                    session.c, session.contours, session.footprints = session.get_c_contours_footprints()
             # create a master mask by
             # merging masks of every session, remove abroad cells and deduplicate
             print("Creating master mask...")
@@ -335,7 +342,7 @@ class Animal:
                 merger.shift_update_session_s2p_files(session, merged_stat)
                 updated_sessions[session_id] = Session(session.animal_id, session.session_id, 
                                                     session.pday, session.image_x_size,
-                                                    session.image_y_size, regenerate_cabincorr=True,
+                                                    session.image_y_size,
                                                     print_loading=True)
             self.sessions = updated_sessions
             merger.merge_s2p_files(updated_sessions, merged_stat)
@@ -344,7 +351,7 @@ class Animal:
         reference_image_x_size = reference_session.image_x_size
         reference_image_y_size = reference_session.image_y_size
         self.get_session_data(session_id="merged", image_x_size=reference_image_x_size,
-                            image_y_size=reference_image_y_size, print_loading=True)
+                            image_y_size=reference_image_y_size, regenerate=regenerate, print_loading=True)
         #get_geldrying_cells()
         return self.sessions["merged"]
 
@@ -354,8 +361,8 @@ class Session:
 
     def __init__(self, animal_id, session_id, pday, session_date, 
                  human_shift, image_x_size=512, image_y_size=512, 
-                 restore=False,
-                 regenerate_cabincorr=False, print_loading=True):
+                 restore=False, 
+                 regenerate=False, print_loading=True):
         if print_loading:
             print(f"Loading session: {animal_id} {session_id}")
         self.animal_id = animal_id
@@ -371,7 +378,7 @@ class Session:
         self.image_x_size, self.image_y_size = image_x_size, image_y_size
         self.refImg = None
         self.yx_shift = [0, 0] if "day0" in session_id else None
-        self.c, self.contours, self.footprints = self.get_c_contours_footprints(regenerate_cabincorr=regenerate_cabincorr)
+        self.c, self.contours, self.footprints = self.get_c_contours_footprints(regenerate=regenerate)
         self.bin_traces_zip = None
 
     def set_ops(self, ops=None):
@@ -430,11 +437,11 @@ class Session:
             self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
         return self.yx_shift
 
-    def get_c_contours_footprints(self, regenerate_cabincorr=False):
+    def get_c_contours_footprints(self, regenerate=False):
         #Merging cell footprints
         c = run_cabin_corr(Animal.root_dir, data_dir=self.suite2p_path,
                             animal_id=self.animal_id, session_id=self.session_id, 
-                            regenerate_cabincorr=regenerate_cabincorr)
+                            regenerate=regenerate)
         contours = c.contours
         footprints = c.footprints
         return c, contours, footprints
