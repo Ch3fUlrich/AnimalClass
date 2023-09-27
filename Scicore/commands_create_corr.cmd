@@ -13,4 +13,6 @@ python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/create_corr.py D
 python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/create_corr.py DON-009192 20220319
 python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/create_corr.py DON-014847 20230204
 python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/create_corr.py DON-014847 20230221
-python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/create_corr.py DON-014847 20230301
+
+3629563
+2,4,7,9,13 - 3890580

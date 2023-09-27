@@ -116,7 +116,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             #merged_unit = session.merge_units(generate=True, regenerate=False, delete_used_subsessions=True)
             merged_unit.get_geldrying_cells()
             
-            delete_bin_tiff(session)
+            delete_bin_tiff_s2p_intermediate(session)
 
             do_cabincoor(session, unit="")
             do_cabincoor(session, unit="merged")
@@ -233,40 +233,6 @@ def do_cabincoor(session, unit=""):
                 c.subselect_quiescent_only = False
                 c.make_correlation_dirs()
                 c.compute_correlations()
-
-def delete_bin_tiff(session):
-    #Delete binaries
-    del_tiff = True
-    for s2p_folder in session.s2p_folder_paths:
-        s2p_folder_ending = s2p_folder.split("suite2p")[-1]
-        iscell_path = os.path.join(s2p_folder, "plane0", "iscell.npy")
-        iscell_count = -1
-        if os.path.exists(iscell_path):
-            iscell = np.load(iscell_path)[:,0]
-            iscell_count = sum(iscell)
-        
-        notgel_path = os.path.join(s2p_folder, "plane0", "cell_drying.npy")
-        notgel_count = -1
-        if os.path.exists(notgel_path):
-            notgel = np.load(notgel_path)==0
-            notgel_count = sum(notgel)
-        if s2p_folder_ending == "":
-            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            if os.path.exists(binary_path):
-                os.remove(binary_path)
-        elif iscell_count != -1 and notgel_count !=-1:
-            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            print(binary_path)
-            if os.path.exists(binary_path):
-                os.remove(binary_path)
-        else:
-            del_tiff = False
-
-    #Delete Tiffs
-    if del_tiff:
-        for tiff_path in session.tiff_data_paths:
-            if os.path.exists(tiff_path):
-                os.remove(tiff_path) 
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]

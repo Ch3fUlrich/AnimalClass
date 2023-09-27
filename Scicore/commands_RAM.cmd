@@ -22,6 +22,7 @@ python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_comm
 3632456
 .
 1,6,8,9 - 3890636
+1,6,8,9 - 7898700
 
 python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py DON-014837 20230131
 python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py DON-014840 20230222

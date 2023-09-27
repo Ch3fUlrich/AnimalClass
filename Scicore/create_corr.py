@@ -72,19 +72,22 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"]):
 
 def create_corr(animals):
     bad_files = ["allcell_correlation_array.npy", "allcell_corr_pval_zscore.npy"]
+    delete_bad_files = False
+
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
-            do_cabincoor(session, unit="")
-            do_cabincoor(session, unit="merged")   
-            for s2p_path in session.s2p_folder_paths:
-                if "merged" in s2p_path:
-                    for bad_file in bad_files:
-                        delete_path = search_file(s2p_path, bad_file)
-                        if delete_path:
-                            os.remove(delete_path)
-            session.load_corr_matrix(generate_corr=True, unit_id="all")
+            #do_cabincoor(session, unit="")
+            do_cabincoor(session, unit="merged")
+            if delete_bad_files:
+                for s2p_path in session.s2p_folder_paths:
+                    if "merged" in s2p_path:
+                        for bad_file in bad_files:
+                            delete_path = search_file(s2p_path, bad_file)
+                            if delete_path:
+                                os.remove(delete_path)
+            #session.load_corr_matrix(generate_corr=True, unit_id="all")
             session.load_corr_matrix(generate_corr=True, unit_id="merged")
-            delete_bin_tiff_s2p_intermediate(session)
+            #delete_bin_tiff_s2p_intermediate(session)
             
 
 def do_cabincoor(session, unit=""):
@@ -105,50 +108,6 @@ def do_cabincoor(session, unit=""):
                 c.subselect_quiescent_only = False
                 c.make_correlation_dirs()
                 c.compute_correlations()
-
-def delete_bin_tiff_s2p_intermediate(session):
-    #Delete binaries
-    del_tiff = True
-    for s2p_folder in session.s2p_folder_paths:
-        s2p_folder_ending = s2p_folder.split("suite2p")[-1]
-        iscell_path = os.path.join(s2p_folder, "plane0", "iscell.npy")
-        iscell_count = -1
-        if os.path.exists(iscell_path):
-            iscell = np.load(iscell_path)[:,0]
-            iscell_count = sum(iscell)
-        
-        notgel_path = os.path.join(s2p_folder, "plane0", "cell_drying.npy")
-        notgel_count = -1
-        if os.path.exists(notgel_path):
-            notgel = np.load(notgel_path)==0
-            notgel_count = sum(notgel)
-        if s2p_folder_ending == "":
-            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            if os.path.exists(binary_path):
-                os.remove(binary_path)
-        elif iscell_count != -1 and notgel_count !=-1:
-            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            if os.path.exists(binary_path):
-                os.remove(binary_path)
-        else:
-            del_tiff = False
-
-    #Delete Tiffs
-    if del_tiff:
-        for tiff_path in session.tiff_data_paths:
-            if os.path.exists(tiff_path):
-                print(f" removing {tiff_path}")
-                os.remove(tiff_path) 
-
-    #delete not needed suite2p MUnits
-    if del_tiff:
-        keep_endings = ["", "_merged"]
-        for s2p_path in session.s2p_folder_paths:
-            s2p_path_ending = s2p_path.split("suite2p")[-1]
-            if s2p_path_ending not in keep_endings :
-                if os.path.exists(s2p_path):
-                    print(s2p_path)
-                    shutil.rmtree(s2p_path)
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
