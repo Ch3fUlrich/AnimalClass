@@ -283,8 +283,10 @@ class Analyzer:
         return get_all_sliding_cell_stat
 
 class Session:
-    def __init__(self, animal_id, session_id, generate=False, regenerate=False, unit_ids="all", delete=False, age=None, session_date=None) -> None:
-        print(f"Loading session: {animal_id} {session_id}")
+    def __init__(self, animal_id, session_id, generate=False, regenerate=False, 
+                 unit_ids="all", delete=False, age=None, session_date=None, print_loading=True) -> None:
+        if print_loading:
+            print(f"Loading session: {animal_id} {session_id}")
         self.animal_id = animal_id
         self.session_id = session_id
         self.session_date = session_date
@@ -755,10 +757,10 @@ class Session:
                     if single_unit:
                         break
             data_path = os.path.join(s2p_folder_path, "plane0")
-            backup_s2p_files(data_path, restore=True)
-            backup_s2p_files(data_path, restore=False)
+            backup_path_files(data_path, restore=True)
+            backup_path_files(data_path, restore=False)
             unit = Unit(s2p_folder_path, session=self, unit_id=unit_id)
-            backup_s2p_files(data_path, restore=False)
+            backup_path_files(data_path, restore=False)
             num_good_cells = unit.print_s2p_iscell()
             if num_good_cells < 100: #If less than 100 good cells
                 #Print amount of cells vs good cells
@@ -782,7 +784,7 @@ class Session:
             if s2p_folder_path.split("suite2p")[-1] == "" :
                 data_path = s2p_folder_path
         if data_path:
-            backup_s2p_files(data_path, restore=True)
+            backup_path_files(data_path, restore=True)
             unit_all = Unit(data_path, session=self, unit_id="all")
         else:
             print("No s2p folder found for full session")
@@ -792,7 +794,7 @@ class Session:
         most_good_cells = 0
         for unit_id, unit in self.units.items():
             num_good_cells = unit.num_not_geldrying()
-            if num_good_cells > most_good_cells:
+            if num_good_cells >= most_good_cells:
                 most_good_cells = num_good_cells 
                 best_unit = unit
         print(f"Best Mask has {most_good_cells} cells and is from {best_unit.unit_id}")
@@ -815,7 +817,7 @@ class Session:
                 unit.usefull = False
         return {unit_id:unit for unit_id, unit in self.units.items() if unit.usefull}
     
-    def calc_unit_yx_shifts(self, best_unit, units):
+    def calc_unit_yx_shifts(self, best_unit, units, num_align_frames=1000):
         """
         S2P Registration (Footprint position shift determination)
         """
@@ -829,7 +831,7 @@ class Session:
                 continue   
             #unit.yx_shift = calc_yx_shift(refAndMasks, unit, unit.ops, num_align_frames)
             if unit.usefull:
-                unit.calc_yx_shift(refAndMasks, num_align_frames=1000)
+                unit.calc_yx_shift(refAndMasks, num_align_frames=num_align_frames)
 
     def merge_units(self, generate=True, regenerate=False, delete_used_subsessions=False, image_x_size=512, image_y_size=512):
         """
@@ -885,7 +887,6 @@ class Session:
                 merged_unit_id += str(unit_id)+"_"
             # concatenate S2P results
             ops = default_ops()
-            #FIXME: remove removed cells
             merged_F, _, _, _ = merger.merge_s2p_files(updated_units, merged_stat, ops) #best_unit.c.ops)
             #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
@@ -984,11 +985,12 @@ class Animal:
     dir_ = r'002P-F'
     cabincorr_file_name = "binarized_traces.npz"
     
-    def __init__(self, yaml_file_path) -> None:
+    def __init__(self, yaml_file_path, print_loading=True) -> None:
         self.sessions = {}
         self.year, self.day_of_birth, self.animal_id, self.pdays, self.session_dates, self.session_names, self.sex = self.load_data(yaml_file_path)
         self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
-        print(f"Loading animal: {self.animal_id}")
+        if print_loading:
+            print(f"Added animal: {self.animal_id}")
 
     def load_data(self, yaml_path):
         #TODO: integrate variable loading of properties
@@ -1352,12 +1354,12 @@ class Vizualizer:
             plt.imshow(footprint, cmap=cmap)
         plt.gca().invert_yaxis()
 
-    def unit_contours(self, unit):
+    def unit_contours(self, unit, figsize=(10,10), color=None, plot_center=False, comment=""):
         # Plot Contours
         plt.figure(figsize=(10,10))
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
         contours = unit.contours
-        self.contours(contours)
+        self.contours(contours, color, plot_center, comment)
         plt.title(f"{len(contours)} contours {title}")
         plt.savefig(os.path.join(self.save_dir, f"Contours_{title}.png"), dpi=300)
 
@@ -1380,11 +1382,12 @@ class Vizualizer:
         for contours, col in zip(multi_contours, colors):
             self.contours(contours, color=col, plot_center=plot_center)
 
-    def multi_unit_contours(self, units, combination=None, plot_center=False, shift=False):
+    def multi_unit_contours(self, units, combination=None, plot_center=False, shift=False, figsize=(20,20)):
         """
         units : dict
         combination : list of dict keys
         """
+        plt.figure(figsize=figsize)
         handles = []
         plot_contours = []
         plot_colors = []
@@ -1478,8 +1481,14 @@ class Vizualizer:
         for i, image in enumerate(frames):
             x = int(i/num_images_x)
             y = i%num_images_x
-            ax[x, y].imshow(image)
-            ax[x, y].invert_yaxis()
+            if len(ax.shape) == 2:
+                ax[x, y].imshow(image)
+                ax[x, y].invert_yaxis()
+                ax[x, y].set_title(f'Frame {i}')
+            else:
+                ax[i].imshow(image)
+                ax[i].invert_yaxis()
+                ax[i].set_title(f'Frame {i}')
         #plt.show()
     
     def show_survived_cell_percentage(self, animals=None, pipeline_stats=None):
@@ -1721,7 +1730,7 @@ class Binary_loader:
     """
     A class for loading binary data and converting it into an animation.
 
-    This class provides methods for loading binary data from a file and converting a sequence of binary frames into an animated GIF. The `load_binary` method loads binary data from a specified file and returns it as a NumPy array. The `binary_frames_to_animation` method takes a sequence of binary frames and converts them into an animated GIF, which is saved to the specified directory.
+    This class provides methods for loading binary data from a file and converting a sequence of binary frames into an animated GIF. The `load_binary` method loads binary data from a specified file and returns it as a NumPy array. The `binary_frames_to_gif` method takes a sequence of binary frames and converts them into an animated GIF, which is saved to the specified directory.
 
     Attributes:
         None
@@ -1752,7 +1761,7 @@ class Binary_loader:
         binary_frames = copy.deepcopy(binary)
         return binary_frames
     
-    def binary_frames_to_animation(frames, frame_range=[0, -1], save_dir="animation"):
+    def binary_frames_to_gif(self, frames, frame_range=[0, -1], fps=30, save_dir="animation", comment=""):
         """
         Converts a sequence of binary frames into an animated GIF.
 
@@ -1769,18 +1778,21 @@ class Binary_loader:
         import matplotlib.animation as animation
 
         range_start, range_end = frame_range
-        gif_save_path = os.path.join(save_dir, f"{range_start}-{range_end}.gif")
+        comment = comment+"_" if comment != "" else comment
+        save_dir = os.path.join(save_dir, "animation")
+        gif_save_path = os.path.join(save_dir, f"{comment}{range_start}-{range_end}.gif")
 
+        delay_between_frames = int(1000/fps)# ms
         images = []
         fig = plt.figure()
         ax = fig.add_subplot(111)
         for i, frame in enumerate(frames):
-            if i%100 == 0:
+            if i%1000 == 0:
                 print(i)
             p1 = ax.text(512/2-50, 0, f"Frame {i}", animated=True)
             p2 = ax.imshow(frame, animated=True)
             images.append([p1, p2])
-        ani = animation.ArtistAnimation(fig, images, interval=50, blit=True,
+        ani = animation.ArtistAnimation(fig, images, interval=delay_between_frames, blit=True,
                                         repeat_delay=1000)
         ani.save(gif_save_path)
         return ani
@@ -1879,8 +1891,13 @@ class Merger:
             merged_Fneu = np.concatenate([merged_Fneu, Fneu], axis=1)
             spks =  np.load(os.path.join(path, "spks.npy"))
             merged_spks = np.concatenate([merged_spks, spks], axis=1)
+            # sum iscells
             is_cell = np.load(os.path.join(path, "iscell.npy"))
-            merged_iscell *= is_cell
+            merged_iscell += is_cell
+        
+        #let cells life if one of the cells is detected as cell. Average probabilities for ifcell
+        merged_iscell /= len(list(units.keys()))
+        merged_iscell[:, 0] = np.ceil(merged_iscell[:, 0])
         
         root = path.split("suite2p")[0]
         merged_s2p_path = os.path.join(root, "suite2p_merged")
@@ -1892,7 +1909,6 @@ class Merger:
         np.save(os.path.join(merged_s2p_path, "Fneu.npy"), merged_Fneu)
         np.save(os.path.join(merged_s2p_path, "spks.npy"), merged_spks)
         np.save(os.path.join(merged_s2p_path, "iscell.npy"), merged_iscell)
-
         np.save(os.path.join(merged_s2p_path, "stat.npy"), stat)
         np.save(os.path.join(merged_s2p_path, "ops.npy"), ops)
         return merged_F, merged_Fneu, merged_spks, merged_iscell
@@ -2045,17 +2061,17 @@ class Merger:
         cleaned_merged_footprints = merged_footprints[clean_cell_ids]
         return clean_cell_ids, cleaned_merged_footprints
     
-    def shift_update_unit_s2p_files(self, unit, new_stat, image_x_size=512, image_y_size=512, deduplicate = False):
+    def shift_update_unit_s2p_files(self, unit, new_stat, image_x_size=512, image_y_size=512):
         data_path = os.path.join(unit.suite2p_folder_path, "plane0")
         # shift merged mask
         shift_to_unit = np.array([-1]) * unit.yx_shift
         shifted_unit_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_unit, image_x_size=image_x_size, image_y_size=image_y_size)
 
-        backup_s2p_files(data_path, note="backup")
+        backup_path_files(data_path)
         update_s2p_files(data_path, shifted_unit_stat)
 
-
-def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], generate=False, regenerate=False, unit_ids="single", delete=False):
+def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], 
+             generate=False, regenerate=False, unit_ids="single", delete=False, print_loading=True):
     """
     Loads animal data from the specified root directory for the given animal IDs.
 
@@ -2079,12 +2095,13 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], ge
             sessions_path = os.path.join(root_dir, animal_id)
             present_sessions = get_directories(sessions_path)
             yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
-            animal = Animal(yaml_file_name)
+            animal = Animal(yaml_file_name, print_loading=print_loading)
             Animal.root_dir = root_dir
             # Search for 2P Sessions
             for session in present_sessions:
                 if session in wanted_session_ids or "all" in wanted_session_ids:
-                    animal.get_session_data(session, generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
+                    animal.get_session_data(session, generate=generate, regenerate=regenerate, 
+                                            unit_ids=unit_ids, delete=delete, print_loading=print_loading)
             animals_dict[animal_id] = animal
     return animals_dict
 
@@ -2105,9 +2122,7 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id, parallel=True):
     c.data_type = "2p"
     #
     c.load_suite2p()
-
     c.load_binarization()
-
     # getting contours and footprints
     c.load_footprints()
     return c
@@ -2127,4 +2142,69 @@ def run_compute_correlations(c, parallel=True, min_number_bursts=0):
     c.make_correlation_dirs()
     c.compute_correlations(min_number_bursts=min_number_bursts)
 
-    
+def delete_bin_tiff_s2p_intermediate(session):
+    #Delete binaries
+    del_tiff = True
+    for s2p_folder in session.s2p_folder_paths:
+        s2p_folder_ending = s2p_folder.split("suite2p")[-1]
+        iscell_path = os.path.join(s2p_folder, "plane0", "iscell.npy")
+        iscell_count = -1
+        if os.path.exists(iscell_path):
+            iscell = np.load(iscell_path)[:,0]
+            iscell_count = sum(iscell)
+        
+        notgel_path = os.path.join(s2p_folder, "plane0", "cell_drying.npy")
+        notgel_count = -1
+        if os.path.exists(notgel_path):
+            notgel = np.load(notgel_path)==0
+            notgel_count = sum(notgel)
+        if s2p_folder_ending == "":
+            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
+            if os.path.exists(binary_path):
+                os.remove(binary_path)
+        elif iscell_count != -1 and notgel_count !=-1:
+            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
+            if os.path.exists(binary_path):
+                os.remove(binary_path)
+        else:
+            del_tiff = False
+
+    #Delete Tiffs
+    if del_tiff:
+        for tiff_path in session.tiff_data_paths:
+            if os.path.exists(tiff_path):
+                print(f" removing {tiff_path}")
+                os.remove(tiff_path) 
+
+    #delete not needed suite2p MUnits
+    if del_tiff:
+        keep_endings = ["", "_merged"]
+        for s2p_path in session.s2p_folder_paths:
+            s2p_path_ending = s2p_path.split("suite2p")[-1]
+            if s2p_path_ending not in keep_endings :
+                if os.path.exists(s2p_path):
+                    print(s2p_path)
+                    shutil.rmtree(s2p_path)
+
+def create_rodrigo_folder(wanted_animal_ids, root_dir, animals=None):
+    #create folders for rodrigo
+    if not animals:
+        animals = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, generate=False, print_loading=False) # Load all animals
+    corr_fname = "allcell_clean_corr_pval_zscore.npy"
+    rodrigo_corr_path = os.path.join(root_dir, "rodrigo")
+    dir_exist_create(rodrigo_corr_path)
+    for animal_id, animal in animals.items():
+        for session_id, session in animal.sessions.items():
+            # search for allcell_clean_corr_pval_zscore
+            corr_path = None
+            for s2p_path in session.s2p_folder_paths:
+                if "merged" in s2p_path:
+                    corr_path = search_file(s2p_path, corr_fname)
+            if corr_path:
+                # create directories
+                animal_path = os.path.join(rodrigo_corr_path, animal_id)
+                session_path = os.path.join(animal_path, session_id)
+                dir_exist_create(animal_path)
+                dir_exist_create(session_path)
+                #copy allcell_clean_corr_pval_zscore to created dir
+                shutil.copyfile(corr_path, os.path.join(session_path, corr_fname))
