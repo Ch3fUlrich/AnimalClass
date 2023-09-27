@@ -296,7 +296,7 @@ class Session:
         self.age = age
         
         # load session information
-        self.mesc_data_path = self.get_mesc_data_path()
+        self.mesc_data_path = self.get_mesc_data_path()        #FIXME: change to multiple mesc files!!!!
         self.session_parts = self.get_session_parts()
         self.tiff_data_paths = self.get_tiff_data_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
         self.s2p_folder_paths = self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
@@ -313,10 +313,10 @@ class Session:
 
     def get_mesc_data_path(self):
         # Search for MESC file names needed for TIFF creation
+        #FIXME: change to multiple mesc files!!!!
         files_list = get_files(self.session_dir, ending="mesc")
         for file_name in files_list:
-            #TODO: Pipeline to get mesc_data_path not perfect
-            if re.search("S1", file_name) == None and re.search("S2", file_name) == None and re.search("S3", file_name) == None and re.search("S4", file_name) == None:
+            if len(re.findall("S[0-9]", file_name)):
                 continue
             else:
                 self.mesc_data_path = os.path.join(self.session_dir, file_name)
@@ -324,8 +324,9 @@ class Session:
         return None
 
     def get_list_of_session_parts(self, file_name):
-        session_parts = file_name.split("\\")[-1].split(".")[0].split("_")[-1].split("-")
-        return [session for session in session_parts if session[0]=="S" ]
+        last_fname_part = file_name.split("\\")[-1].split("_")[-1].split(".")[0]
+        session_parts = re.findall("S[0-9]", last_fname_part)
+        return session_parts
     
     def get_session_parts(self, file_name = None):
         session_parts = []
@@ -350,7 +351,7 @@ class Session:
         return self.session_parts
 
     def get_tiff_data_paths(self, generate=False, regenerate=False, unit_ids="all", delete=False):
-        delete = False #FIXME: Mesc is probably always usefull.
+        delete = False #TODO: Mesc is probably always usefull.
         tiff_data_paths = []
         self.tiff_data_paths = []
         if regenerate:
@@ -929,7 +930,7 @@ class Session:
         merged_unit.get_geldrying_cells()
         return merged_unit
 
-class Cell:#(Session):
+class Cell:
     def __init__(self, animal_id, session_id, cell_id, s2p_path):
         #super().__init__(animal_id, session_id, unit_ids=unit_ids)
         self.animal_id = animal_id
@@ -2086,7 +2087,7 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"],
     Returns:
     - animals_dict (dict): A dictionary containing animal IDs as keys and corresponding Animal objects as values.
     """
-    present_animal_ids = get_directories(root_dir)
+    present_animal_ids = get_animal_folder_names(root_dir)
     animals_dict = {}
 
     # Search for animal_ids

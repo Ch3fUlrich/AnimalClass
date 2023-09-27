@@ -483,9 +483,13 @@ def get_directories(directory):
     """
     # Get a list of directories in the specified folder
     # Filter the list to include only directories (excluding the "figures" directory)
-    other_folders = ["figures", "rodrigo"]
-    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and name not in other_folders]
+    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))]
     return directories
+
+def get_animal_folder_names(directory):
+    directories = get_directories(directory)
+    animal_folder_names = [folder for folder in directories if folder[:3]=="DON"]
+    return animal_folder_names
 
 def get_files(directory, ending="all"):
     """
