@@ -121,7 +121,7 @@ class Analyzer:
         for pos, mean_std in enumerate(mean_stds[1:]):
             mean = mean_std[0]
             mean_diff = mean-old_mean
-            mean_diff -=  min_std/(1/(abs(mean_diff/mean)))
+            mean_diff -=  min_std * abs(mean_diff/mean)
             old_mean = mean
             if math.isnan(mean):
                 bad = True
@@ -1005,11 +1005,11 @@ class Animal:
         sex = animal_metadata_dict["sex"]
         return cohort_year, dob, animal_id, pdays, session_dates, session_names, sex
 
-    def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", delete=False):
+    def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", print_loading=True, delete=False):
         yaml_file_index = self.session_names.index(session_id)
         session = Session(self.animal_id, session_id, generate=generate, regenerate=regenerate, 
                         unit_ids=unit_ids, delete=delete, age=self.pdays[yaml_file_index], 
-                        session_date=self.session_dates[yaml_file_index])
+                        session_date=self.session_dates[yaml_file_index], print_loading=print_loading)
         self.sessions[session_id] = session
         return session
            
@@ -2110,7 +2110,7 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id, parallel=True):
     c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
     print(c.data_dir) #TODO: remove when finished
 
-    #c.parallel_flag = parallel
+    c.parallel_flag = parallel
     c.animal_id = animal_id 
     c.detrend_model_order = 1
     c.recompute_binarization = False

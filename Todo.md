@@ -1,28 +1,22 @@
 # <ins>**Todos ordered by importants**</ins>
-- [x] Create cleaned vs old Dataset
-  - [ ] all pictures as bevore
-  - [ ] Show # good cells/session/mouse for every session
-    - [ ] Min # of bursts
-    - [ ] run at Scicore
-      - [ ] 2021
-      - [ ] 2022
-      - [ ] 2023
-    - [ ] Plot
-      - [ ] red line at min # of cells = 100 
-- [ ] Create Picture HTML for explanation of classes, methods, plots
-- [ ] Intrinsic Imaging Pipeline
-    - [ ] Cell
-  - [ ] Code Algo Autodetection for Errors in Data 
-    - [ ] Look into Training of a Transformer
-    - [ ] Error types
-      - [x] autodetect error if pearson correlation histogram is not normally distr around 0. (max diff 0.3)
-       - [ ] **Offset at Start**
-      - [ ] **Offset changes**
-      - [ ] **Sudden bubble** ask Steffen for more information
-  - [ ] **replicate problem**
-    - [ ] Density Graphs
+- [ ] run at Scicore
+  - [ ] 2023
 
-- [ ] Write Paper
+- recreate the yaml file creation
+
+- run pipeline with 128gb ram
+	- eleven (DON2865), five (DON3165), and eight (DON3343)
+		.\Users\unprocessed_intrinsic_CA3\ instrinc_imaging.yaml
+	
+	- Check error ouptut of 3890636_1, 6, 8, 9
+  	- not enough memory!!!
+
+
+Help
+- [ ] Anja
+  - [ ] [Uncovering 2-D toroidal representations in
+grid cell ensemble activity during 1-D
+behavior](https://www.biorxiv.org/content/10.1101/2022.11.25.517966v1.full.pdf)
 
 - [ ] Get to know
   - [ ] Paper from Catalin
@@ -36,8 +30,75 @@
 ##  Own Questsions
   - [ ] Connectomex --> Neurons + connections (do they have usefull data forstatistics)
 
+# **Todos**
+## <ins>**Intrisic Imaging Pipeline**</ins>
+- [ ] **Code Algo Autodetection** for Errors in Data + Solutions
+    - [ ] create yaml file for session data
+
+### **Data**
+- [x] Connect to Drives
+  - [x] [Biozentrum](smb://unibasel.ads.unibas.ch/bz/)
+  - [x] [Scicore Biozentrum](smb://toucan-all.scicore.unibas.ch/donafl00-calcium$/) for <ins>Rodrigos data</ins>
+  - [x] [Biopz Jumbo](smb://biopz-jumbo.storage.p.unibas.ch/RG-FD02$/_Members/mauser00/Desktop)
+    - Middle connection, because Biozentrum is not safe?
+    - Data from Steffen &rarr; Catalin/Me process &rarr; Rodrigo for Network Analysis (eg. Density)
+
+- [ ] Important Data: Replicate, Detect, Clean
+  - [x] Focus on Clean Datasets from pubs from 2021, than adults and 2022
+    - [x] 2021
+      - [x] Pups 00608X, 4, 5, 7
+      - [x] Adults ,002865 ,003165 ,003343
+    - [x] 2022
+      - [x] Pubs ,9191, 9192, 10473, 10477
+      - [x] Adults ,8497 ,8498 ,8499
+    - [ ] 2023
+      - [ ] DON-014837 DON-014838 DON-014840 DON-014847 DON-014849 DON-015078 DON-015079
+
+### **Code base**
+- Own
+  - Animal Class
+  - Session Class
+  - Vizualizer Class
+  - Analyzer Class
+- Others code
+  - [Notebook for visualize some of the problems]
+  - [Mesc to Tiff] 
+
+## <ins>**Manifolds for individual comparisson**</ins>
+comment: 
+- didn't work immiedately out-of-the-box on Steffen's treadmill data
+  - so that's mostly why I was digging into the algorithm and trying to figure out the limitations..
+
+- usefull Variables :
+  - [ ] Behaviour
+    - [ ] Pupils
+    - [ ] Movement
+  - [ ] Time
+
+- [ ] Projects (Datasets):
+  - [ ] Active Avoidance paradigm (Nathalie)
+  - [ ] Sensory Treadmil (Steffen)
+    - Treadmil+VR &rarr; pillar counting
+    - 3 Different belts 
+      - A
+      - A'
+      - B(lank)
+
+- Methods
+  - [ ] Look at Manifolds
+    - [ ] [Cebra](https://cebra.ai/)
+    - [ ] [MIND](https://www.biorxiv.org/content/10.1101/418939v2.full)
+      - Tank Lab (Prinston)
+      - [MIND algorithm](https://github.com/catubc/gzenke_mind)
+        - Based on IsoMap + Metrics
+        - Evidence Akkumulation + Manifold extraction
+    - [ ] [pi-VAE](https://arxiv.org/abs/2011.04798)
+  - [ ] Decoder
+    - [x] Baeysian-Decoder (Done by Catalin)
+    - [x] PCA+KNN (Done by Catalin)
+
+
 ## <ins>**Package CaBinCorr Paper (until end of summer)**</ins>
-### **Todos**
 - [ ] Ask Lukas how to programm the best way or big programm
   - [x] Which API to provide? Should be easy
   - [ ] Unit tests for every funciton
@@ -51,25 +112,6 @@
     - [x] KISS (KEEP IT SIMPLE STUPID)
     - [x] YAGNI (You aren't gonna need it) &rarr; do not write code which is not needed until now
 
-- [ ] Create clean Git Repo
-  - [ ] Create Parameter filed
-  - [ ] Output:
-    - [ ] Figures
-    - [ ] Optional wheel movement data
-    - [ ] Data
-      - [ ] BinTraces.npz
-      - [ ] correlations
-      - [ ] Duplicates
-  - [ ] calcium object wrapper for suite2p
-  - [ ] binarization
-  - [ ] correlation --> deduplication
-- [ ] freeze packages
-  - [ ] put wrapper around
-  - [ ] create pypi (organization which created pip) (edited) 
-- [ ] Write Paper
-
-## <ins>**Detailed Information for Intrisic Imaging Pipeline**</ins>
-### **Todos**
 - [ ] Create Class 
   - [x] Visualizer
     - [x] Traces
@@ -90,187 +132,42 @@
             - [ ] Burstrate, 
             - [ ] df/F, 
             - [ ] Contour
-  - [ ] Rodrigo should be able to use it for Graph visualization
-  
-- [ ] **Code Algo Autodetection** for Errors in Data + Solutions
-  - [x] Show Flavio amount of errors
-    - [x] autodetect error if pearson correlation histogram is not normally distr around 0. (max diff 0.3)
-      - [x] **Create plot** for every mouse/year
-        - [x] mean/std on y-axis and 
-          - [ ] which mean, std? 
-        - [x] the day of recording for mouse on x-axis.
-        - [x] include steffens colors
-        - [x] Validate detection by comparing with 2021
-        - [x] Create KDE
-  - [ ] 1. **Preparation**
-    - [x] Take Bad Session (9191 20220227, 9192 20220221, 20220319)
-    - [x] break up in parts
-    - [x] run suite2p on every part  of a session (should solve baselineshift)
-      - [x] Use Box filter (low pass: 0.5Hz cutoff, 30Hz sample rate, 2 degree) instead of traces 
-      - [x] Look in s2p gui: look okay?<span style="color:green">Unit 1, 3, 4 not</span> many bad cells?<span style="color:green">prob. at unit 4</span> gel artifact?<span style="color:green">yes</span>
-      - [ ] Create Metrics for Units
-        - [x] rasters plots
-        - [x] human good/bad evaluation (bad: unit 1, 3, 4 good: unit 2)
-        - [x] Autodetection Geldrying
-          - [x] MultiUnitActivityHistogram (MUAH)
-            - [x] Bin Raster plots in 1sec. or 1Frame, Sum all spikes
-            - [x] can we detect really bad sessions on Rasterplots? --> NO
-              - [x] Linear regression for slope detection --> BAD 
-              - [x] Detect for every cell if cell is good or bad
-                - [x] sliding mean 
-                - [x] output saved in unit.cell_drying and cell_drying.npy
-        - [ ] create yaml file for session data
-    - [ ] Datastructures to work with
 
-      - [x] S2P cell footprints/contours
-        - [x] merge
-          - [x] c.load_footprints() ..........................................................
-            - [x] self.contours = contours  #outline of the cells
-            - [x] self.footprints = imgs    #boolean mask for the cells
-            - [x] use footprint and make boolean footbrints --> multiply with image 
-
-        - [x] deduplicate &rarr; unique mask
-          - [x] remove bad cells by running [deduplication notebook](https://github.com/donatolab/manifolds/blob/main/donlabtools/correlation/Deduplicate_neurons.ipynb)
-            - [x] on parts of sessions for testing
-            - [x] on concatenated data
-            - [x] look at deleted cells in deduplication.png 
-          - [x] Create Visualization and figure to show all cell contours
-            - [x] keep track of deleted cells and contours
-            - [ ] move to figure directory
-      - [x] Create movement corrected data with s2p using a flag!!!!!!
-      - [x] RAW ca data
-        - [x] access hopefully motion corrected raw data (S2P has a settable flag)
-        - [x] generate Traces
-          - [x] motion corrected data could have shifts between each unit
-            - [x] possible to align with s2p? <span style="color:green">yes</span>
-        - [x] Run data and own mask in S2P if possible 
-            - [x] S2P cell traces (trace = sum of area)
-            - [x] load and binaryze at the end
-              - [x] np.memmap() #memory map instant data load 
-      
-
-  - [ ] Network **density** way to high
-    - [ ] **Offset at Start** &rarr; Pearson correlation > **0.7** 
-      - [ ] <span style="color:green">Normalize with Common Average Referencing (CAR)</span>
-    - [ ] Is it really an error?
-  - [ ] High amount of **increasing bursts at the end**
-    - [x] Are these even neurons? Gel dries out ?? &rarr; <span style="color:green">Cut at the end</span>
-  - [ ] **Baseline changes** in burst analysis
-    - [ ] Detect by sliding window mode of distribution
-      - [ ] https://centre-borelli.github.io/ruptures-docs/
-      - [ ] Hartigan Dip Test
-    - [ ] Because interrupts and new starts &rarr; new initiaion ????
-      - [x] <span style="color:green">Run Suite2P on parts of Session &rarr; multiple masks</span>
-      - [ ] <span style="color:green">merge masks analyse whole Session &rarr; combine mescs &rarr; Unique Neuron activity</span>
-  - [x] **Sudden bubble**Strange behaviour of activity (not sure if only at the end)
-  - [x] **Correlations match** with steffens spreadsheet NO
-  - [ ] Compare Detections with Excel Sheet with detailed info about occured problems of Steffen (ask where located)
-    - [x] Add additonal row to excel sheet for autodetected errors 
-
-- [ ] Do Rodrigos Job
-  - [ ] Graph Analysis on good Data after Bad Data was filtered out 
-    - [ ] Bad Sessions really bad or realistic?
-- [ ] Be able to create own versions of Binarization and Person correlated data
-  - [ ] Decide which is better for our goal (Build networks based on activity)
-
-### Done
-- [x] Initial tests
-  - [x] _.mesc_ (1,2,3) to .tiff with [Mesc to Tiff] 
-  - [x] run [Suit2p] on the raw .tiff file with sampling rate to 30 fps --> 1.5h 
-- [x] create beautiful code to proof flavio wrong in bad mice data deletions
-    - [x] overlapp KDE
-    - [x] overlapp line plots
-- [ ] Data Errors
+- [ ] Create clean Git Repo
+  - [ ] Create Parameter filed
+  - [ ] Output:
+    - [ ] Figures
+    - [ ] Optional wheel movement data
+    - [ ] Data
+      - [ ] BinTraces.npz
+      - [ ] correlations
+      - [ ] Duplicates
+  - [ ] calcium object wrapper for suite2p
+  - [ ] binarization
+  - [ ] correlation --> deduplication
+- [ ] freeze packages
+  - [ ] put wrapper around
+  - [ ] create pypi (organization which created pip) (edited) 
+- [ ] Write Paper
 
 
-
-### **Data**
-- [x] Connect to Drives
-  - [x] [Biozentrum](smb://unibasel.ads.unibas.ch/bz/)
-  - [x] [Scicore Biozentrum](smb://toucan-all.scicore.unibas.ch/donafl00-calcium$/) for <ins>Rodrigos data</ins>
-  - [x] [Biopz Jumbo](smb://biopz-jumbo.storage.p.unibas.ch/RG-FD02$/_Members/mauser00/Desktop)
-    - Middle connection, because Biozentrum is not safe?
-    - Data from Steffen &rarr; Catalin/Me process &rarr; Rodrigo for Network Analysis (eg. Density)
-
-
-- [ ] Important Data: Replicate, Detect, Clean
-  - [x] Focus on Clean Datasets from pubs from 2021, than adults and 2022
-    - [x] 2021
-      - [x] Pups 00608X, 4, 5, 7
-      - [x] Adults ,002865 ,003165 ,003343
-    - [x] 2022
-      - [x] Pubs ,9191, 9192, 10473, 10477
-      - [x] Adults ,8497 ,8498 ,8499
-    - [ ] 2023
-      - [ ] DON-014837 DON-014838 DON-014840 DON-014847 DON-014849 DON-015078 DON-015079
-
-- [x] replicate problem
-  - [x] Mouse 9192 (most Experiments and most often abd)
-    - [x] <span style="color:red">bad</span> Session [20220319] _U:\RG Donato\Microscopy\Steffen\Experiments\DON-009192\20220319_
-      - [x] run TOTAL RUNTIME 5205.42s
-      - [x] visualized [Notebook for visualize some of the problems] 
-    - [x] <span style="color:green">good</span> Session [20220306] (at least somewhat better) _U:\RG Donato\Microscopy\Steffen\Experiments\DON-009192\20220319_
-      - [x] run TOTAL RUNTIME 2851.29 sec
-      - [x] visualized activity bursts + raster [Notebook for visualize some of the problems]
-    - [x] why is my data that bad? &rarr; baseline shifts
-      - Because Suite2P used tif Folder with pictures in it (steffen used the pictures for other stuff)
-
-
-### **Code base**
-- Animal Class
-- Session Class
-- Vizualizer Class
-#### OLD
-- Own
-  - [x] run_function_on_every_dataset(animal_ids_dict, function, catch_errors=True)
-    - [x] merge_to_tiff
-    - [x] run_suite2p
-    - [x] Calcium_binarization_plotsaving
-      - [x] Bursts, Rasters
-      - [x] Traces
-      - [x] Pearson Corr and corresponding coefficient Histogram 
-  - [x] Code Steffens Spreadsheet Splitting
-
-- Others
-  - [Notebook for visualize some of the problems]
-  - [Mesc to Tiff] 
-
-## <ins>**Manifolds for individual comparisson**</ins>
-- [ ] Projects to try:
-  - [ ] Active Avoidance paradigm
-  - [ ] Sensory Treadmil 
-    -  Steffen
-    - Treadmil+VR &rarr; pillar counting
-
-
-- Methods
-  - [ ] Look at Manifolds
-    - [ ] [Cebra](https://cebra.ai/)
-    - [ ] [MIND](https://www.biorxiv.org/content/10.1101/418939v2.full)
-      - Based on IsoMap + Metrics
-      - Code has Catalin
-    - [ ] [pi-VAE](https://arxiv.org/abs/2011.04798)
-  - [ ] Decoder
-    - [x] Baeysian-Decoder (Done by Catalin)
-    - [x] PCA+KNN (Done by Catalin)
-
-## <ins>**Active Avoidance paradigm**</ins>
-
-## <ins>**Nathalie Muouse in a Bo**</ins>
-## <ins>**Nathalie Volition/Imagination**</ins>
-
-## <ins>**Detailed Information for BMI**</ins>
+## <ins>**BMI**</ins>
 - [ ] BMI GUI
   - [ ] Matplotlib slow &rarr; PyQT? PyQT-Graph? what is faster
 - [ ] Analysis needs to be standardized
-- [ ] Many utility functions
-- [ ] 10 Notebooks
-## <ins>**Detailed Information for Graph Stuff**</ins>
+- [ ] If I have enough time:
+  - [ ] motions correction by
+    - [ ] Separate Contours for BMI into multiple blocks 
+    - [ ]  motion correct individual block (because brain moves differently, because different pressure on Brain)
+
+## <ins>**Active Avoidance paradigm**</ins>
+## <ins>**Nathalie Mouse in a Box**</ins>
+## <ins>**Nathalie Volition/Imagination**</ins>
 
 
 
 
-
+## Sources
 [Mesc to Tiff]: https://github.com/donatolab/manifolds/tree/maindonlabtools/renan_tiff_process
 [Suit2p]: https://github.com/MouseLand/suite2p
 [20220319]:smb://unibasel.ads.unibas.ch/bz/RG%20Donato/Microscopy/Steffen/Experiments/DON-009192/20220319
