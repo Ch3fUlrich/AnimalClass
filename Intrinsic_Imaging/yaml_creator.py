@@ -7,6 +7,8 @@ import re
 import numpy as np
 import h5py
 
+root_animal_yaml_name = "animal_summary.yaml"
+
 def get_directories(directory):
     """
     Returns a list of directories in the specified folder path.
@@ -108,24 +110,54 @@ def create_animal_dict(animal_id_records, dob_records, sex_records):
         animals[animal_id] = init_animal_dict(animal_id, cohort_year, dob, sex)
     return animals
 
-def add_session_animal_folders(animals, directory=None):
+def return_loaded_yaml_if_newer(used_path, may_newer_info_path):
+    yaml_dict = None
+    root_yaml_modification_date = os.path.getmtime(used_path) if os.path.exists(used_path) else 0
+    if os.path.exists(may_newer_info_path):
+        yaml_modification_date = os.path.getmtime(may_newer_info_path)
+        if yaml_modification_date > root_yaml_modification_date:
+            with open(may_newer_info_path, "r") as yaml_file:
+                yaml_dict = yaml.safe_load(yaml_file)
+    return yaml_dict
+
+def get_animals_from_yaml(directory):
+    root_dir = directory if directory else ""
+    root_yaml_path = os.path.join(root_dir, root_animal_yaml_name)
+    if os.path.exists(root_yaml_path):
+        
+        with open(root_yaml_path, "r") as yaml_file:
+            animals = yaml.safe_load(yaml_file)
+    else:
+        animals = {}
+
+    for animal_id in get_animal_folder_names(root_dir):
+        animal_path = os.path.join(root_dir, animal_id)
+
+        # update animals if a file has newer information changed
+        animal_yaml_path = os.path.join(animal_path, animal_id+".yaml")
+        animal = return_loaded_yaml_if_newer(root_yaml_path, animal_yaml_path)
+        animals[animal_id] = animal if animal else animals[animal_id]
+    return animals
+
+def add_session_animal_folders(animals, animals_spreadsheet, directory=None):
     root_dir = directory if directory else ""
     for animal_id in get_animal_folder_names(root_dir):
         if animal_id not in animals:
-            animals[animal_id] = init_animal_dict(animal_id)
-            print(f"added animal: {animal_id}")
+            animals[animal_id] = animals_spreadsheet[animal_id]
+            print(f"added animal from spreadsheet: {animal_id}")
         animal_path = os.path.join(root_dir, animal_id)
         
         for session_id in get_directories(animal_path):
             session_path = os.path.join(animal_path, session_id, "002P-F")
 
             mesc_fnames = get_files(session_path, ending=".mesc")
-            mesc_munit_pairs = []
+            mesc_munit_pairs = animals[animal_id]["UseMUnits"] if "UseMUnits" in animals[animal_id].keys() else []
             for fname in mesc_fnames:
                 splitted_fname = fname.split("_")
                 if animal_id != splitted_fname[0]:
                     continue
 
+                # add session data based on file
                 session_date = splitted_fname[1]
                 if session_id not in animals[animal_id]["session_names"] and session_date not in animals[animal_id]["session_dates"]:
                     animals[animal_id]["session_names"].append(session_id)
@@ -135,16 +167,23 @@ def add_session_animal_folders(animals, directory=None):
                     pday = (session_date-dob_date).days
                     animals[animal_id]["pdays"].append(pday)
                     
+                # get available MUnits
                 last_fname_part = splitted_fname[-1].split(".")[0]
                 session_parts = [int(part_number[-1])-1 for part_number in re.findall("S[0-9]", last_fname_part)]
                 fpath = os.path.join(session_path, fname)
                 munits_list = get_recording_munits(fpath, session_parts)
-
-                # print not matching Munits
-                if munits_list != session_parts and len(munits_list) != len(session_parts):
-                    mesc_munits_string = ",".join([str(number) for number in munits_list] )
-                    mesc_munit_pair = [fname, mesc_munits_string]
-                    mesc_munit_pairs.append(mesc_munit_pair)
+                if len(munits_list) <= len(session_parts):
+                    usefull_munits = munits_list
+                    file_naming = session_parts[:len(usefull_munits)]
+                else:
+                    add_mesc_munit_pair = True
+                    if len(mesc_munit_pairs) > 0:
+                        for mesc_munit_pair in mesc_munit_pairs:
+                            if fname in mesc_munit_pair:
+                                add_mesc_munit_pair = False
+                    if add_mesc_munit_pair:
+                        mesc_munit_pair = [fname, munits_list]
+                        mesc_munit_pairs.append(mesc_munit_pair)
 
             if len(mesc_munit_pairs) > 0:
                 animals[animal_id]["UseMUnits"] = mesc_munit_pairs
@@ -160,22 +199,7 @@ def get_recording_munits(mesc_fpath, session_parts, fps = 30, at_least_minutes_o
             if unit["Channel_0"].shape[0] > fps*60*at_least_minutes_of_recording: 
                 unit_number = name.split("_")[-1]
                 recording_munits.append(int(unit_number))
-    # Get number_shift, if a bad fluorescence file was manually deleted
-    # CAUTION: if deletion is done in the middle the correction will break
-    biggest_session_number = max(session_parts)
-    biggest_possible_session_number = max(recording_munits)
-    number_shift = biggest_session_number-biggest_possible_session_number
-    
-    if len(recording_munits) <= len(session_parts):
-        usefull_munits = recording_munits
-        munits_list = session_parts[:len(usefull_munits)]
-    else:
-        usefull_munits = np.array(session_parts)-number_shift
-        munits_list = []
-        for unit in usefull_munits:
-            munits_list.append(recording_munits[unit])
-            .....................aöldjsfölknawfoöipaufois
-    return munits_list
+    return recording_munits
 
 def move_mesc_to_session_folder(directory=None):
     directory = None if directory == "" else directory
@@ -211,7 +235,7 @@ def create_folder(animal_id, session_id, directory=None):
     for folder_name in folder_names:
         folder_dir = os.path.join(folder_dir, folder_name)
         dir_exist_create(folder_dir)
-    return path
+    return folder_dir
 
 def add_yaml_to_folders(animals, directory=None):
     directory = directory if directory else ""
@@ -228,11 +252,14 @@ def main(directory = None):
     fpath = os.path.join(root_dir, fname)
     # load spreadsheet information
     animals_spreadsheed = get_animal_dict_from_spreadsheet(fpath)
+    # move mesc in root directory to correct folder location
     move_mesc_to_session_folder(directory=root_dir)
+    # load animal yaml files
+    animals_yaml = get_animals_from_yaml(root_dir)
     # get animals based on folder structure
-    animals = add_session_animal_folders(animals_spreadsheed, directory=root_dir)
+    animals = add_session_animal_folders(animals_yaml, animals_spreadsheed, directory=root_dir)
     add_yaml_to_folders(animals, directory=root_dir)
-    with open(os.path.join(root_dir, 'intrinsic_imaging.yaml'), 'w') as file:
+    with open(os.path.join(root_dir, root_animal_yaml_name), 'w') as file:
         yaml.dump(animals, file)
 
 if __name__ == "__main__":
