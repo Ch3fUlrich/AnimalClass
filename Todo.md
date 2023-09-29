@@ -4,13 +4,13 @@
 
 - recreate the yaml file creation
 
-- run pipeline with 128gb ram
-	- eleven (DON2865), five (DON3165), and eight (DON3343)
-		.\Users\unprocessed_intrinsic_CA3\ instrinc_imaging.yaml
-	
-	- Check error ouptut of 3890636_1, 6, 8, 9
-  	- not enough memory!!!
-
+- run pipeline 
+  - [x] with 128gb ram Check error ouptut of 3890636_1, 6, 8, 9
+    - [ ] check
+  - [ ] eleven (DON2865), five (DON3165), and eight (DON3343)
+		    .\Users\unprocessed_intrinsic_CA3\ instrinc_imaging.yaml
+  	
+- [] Analysis manifolds CEBRA
 
 Help
 - [ ] Anja

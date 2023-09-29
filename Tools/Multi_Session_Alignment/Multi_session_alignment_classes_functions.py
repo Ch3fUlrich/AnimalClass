@@ -65,8 +65,7 @@ def get_directories(directory):
     """
     # Get a list of directories in the specified folder
     # Filter the list to include only directories (excluding the "figures" directory)
-    ignore_folders = ["figures", "merged"]
-    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and name not in ignore_folders]
+    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))]
     return directories
 
 def del_file_dir(fpath):
@@ -90,6 +89,10 @@ def del_file_dir(fpath):
             os.remove(fpath)
         else:
             shutil.rmtree(fpath)
+def get_animal_folder_names(directory):
+    directories = get_directories(directory)
+    animal_folder_names = [folder for folder in directories if folder[:3]=="DON"]
+    return animal_folder_names
 
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], restore=False, print_loading=True):
     """
@@ -106,7 +109,7 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], re
     Returns:
     - animals_dict (dict): A dictionary containing animal IDs as keys and corresponding Animal objects as values.
     """
-    present_animal_ids = get_directories(root_dir)
+    present_animal_ids = get_animal_folder_names(root_dir)
     animals_dict = {}
 
     # Search for animal_ids
