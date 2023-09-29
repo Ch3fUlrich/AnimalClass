@@ -283,7 +283,7 @@ class Analyzer:
         return get_all_sliding_cell_stat
 
 class Session:
-    def __init__(self, animal_id, session_id, generate=False, regenerate=False, 
+    def __init__(self, animal_id, session_id, generate=False, regenerate=False, munits=None,
                  unit_ids="all", delete=False, age=None, session_date=None, print_loading=True) -> None:
         if print_loading:
             print(f"Loading session: {animal_id} {session_id}")
@@ -292,7 +292,7 @@ class Session:
         self.session_date = session_date
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id, Animal.dir_)
         self.calcium_object = None
-
+        self.munits = None #FIXME: use this for tif creation
         self.age = age
         
         # load session information
@@ -635,6 +635,9 @@ class Session:
         return bin_traces_zip
     
     def get_cells(self, merged=True):
+        if self.cells:
+            return self.cells
+        
         found = False
         s2p_path = None
         if merged:
@@ -665,12 +668,38 @@ class Session:
             for cell_fname in get_files(corr_path):
                 cell_id = int(cell_fname.split(".npz")[0])
                 cells[cell_id] = Cell(self.animal_id, self.session_id, cell_id, s2p_path)
-            self.cells = cells
+            # sort dictionary
+            cells_sorted = {cell_id: cell for cell_id, cell in sorted(cells.items())}
+            self.cells = cells_sorted
         else:
             print(f"{cell_fname} not found. Assuming no correlation data is present.")
         return self.cells
 
-    def load_corr_matrix(self, unit_id="merged", generate_corr=False, remove_geldrying=True):
+    def create_corr_matrix(self, corr_matrix_path, merged=True):
+        print("Loading correlation data from individual cell.npz files...")
+        corr_matrix, pval_matrix, z_score_matrix = None, None, None
+        cells = self.get_cells(merged)
+        if type(cells) == dict:
+            pearson_corrs = [] 
+            pvalue_pearson_corrs = []
+            z_scores = []
+            num_cells = len(cells)
+            for cell_id, cell in cells.items():
+                cell_pearson_corr, cell_pvalue, cell_z_scores = cell.get_corr_pval_zscore()
+                cell_pearson_corr, cell_pvalue, cell_z_scores = cell_pearson_corr[:num_cells], cell_pvalue[:num_cells], cell_z_scores[:num_cells]
+                pearson_corrs = np.concatenate([pearson_corrs, cell_pearson_corr])
+                pvalue_pearson_corrs = np.concatenate([pvalue_pearson_corrs, cell_pvalue])
+                z_scores = np.concatenate([z_scores, cell_z_scores])
+
+            corr_matrix = pearson_corrs.reshape([num_cells, num_cells])
+            pval_matrix = pvalue_pearson_corrs.reshape([num_cells, num_cells])
+            z_score_matrix = z_scores.reshape([num_cells, num_cells])
+
+            print("Saving correlation matrix")
+            np.save(corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
+        return corr_matrix, pval_matrix, z_score_matrix
+
+    def load_corr_matrix(self, unit_id="merged", generate_corr=False, regenerate=False, remove_geldrying=True):
         """
         Loads the correlation matrix for the specified unit ID.
 
@@ -681,7 +710,7 @@ class Session:
         :return: A tuple containing the correlation matrix and p-value matrix.
         :rtype: tuple
         """
-        corr_matrix, pval_matrix = None, None
+        corr_matrix, pval_matrix, z_score_matrix = None, None, None
         merged = True if unit_id == "merged" else False
         s2p_folder_ending = "merged" if merged else unit_id
         s2p_folder_ending = "" if s2p_folder_ending == "all" else s2p_folder_ending
@@ -690,33 +719,19 @@ class Session:
                 break
         corr_matrix_path = os.path.join(path, "plane0", f"allcell_corr_pval_zscore.npy")
         cleaned_corr_matrix_path = os.path.join(path, "plane0", f"allcell_clean_corr_pval_zscore.npy")
+        del_present_file(corr_matrix_path)#FIXME: remove this line
 
         if not os.path.exists(corr_matrix_path):
             if generate_corr:
-                print("Loading correlation data from individual cell.npz files...")
-                corr_matrix, pval_matrix, z_score_matrix = None, None, None
-                cells = self.get_cells(merged)
-                if type(cells) == dict:
-                    pearson_corrs = [] 
-                    pvalue_pearson_corrs = []
-                    z_scores = []
-                    num_cells = len(cells)
-                    for cell_id, cell in cells.items():
-                        cell_pearson_corr, cell_pvalue, cell_z_scores = cell.get_corr_pval_zscore()
-                        pearson_corrs = np.concatenate([pearson_corrs, cell_pearson_corr])
-                        pvalue_pearson_corrs = np.concatenate([pvalue_pearson_corrs, cell_pvalue])
-                        z_scores = np.concatenate([z_scores, cell_z_scores])
-                    corr_matrix = pearson_corrs.reshape([num_cells, num_cells])
-                    pval_matrix = pvalue_pearson_corrs.reshape([num_cells, num_cells])
-                    z_score_matrix = z_scores.reshape([num_cells, num_cells])
-                    
-                    print("Saving correlation matrix")
-                    np.save(corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
+                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(corr_matrix_path, merged)
             else:
                 print("No correlation data. Returning None, None")
         else:
-            print(f"Loading {corr_matrix_path}")
-            corr_matrix, pval_matrix, z_score_matrix = np.load(corr_matrix_path)
+            if regenerate:
+                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(self, corr_matrix_path, merged)
+            else:
+                print(f"Loading {corr_matrix_path}")
+                corr_matrix, pval_matrix, z_score_matrix = np.load(corr_matrix_path)
 
         if remove_geldrying and unit_id == "merged" and type(corr_matrix)==np.ndarray:
             # removes geldrying cells in matrix with shape (#cell x #cells)
@@ -943,7 +958,6 @@ class Cell:
         self.fluorescence = None
         self.num_bursts = None
 
-        
     def get_correlation_properties(self):
         if not self.corr_props:
             self.corr_props = {}
@@ -988,29 +1002,42 @@ class Animal:
     
     def __init__(self, yaml_file_path, print_loading=True) -> None:
         self.sessions = {}
-        self.year, self.day_of_birth, self.animal_id, self.pdays, self.session_dates, self.session_names, self.sex = self.load_data(yaml_file_path)
+        self.cohort_year = None
+        self.dob = None
+        self.animal_id = None 
+        self.pdays = None 
+        self.session_dates = None 
+        self.session_names = None 
+        self.sex = None 
+        self.munits = None
+        self.load_yaml(yaml_file_path)
         self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
         if print_loading:
             print(f"Added animal: {self.animal_id}")
 
-    def load_data(self, yaml_path):
+    def load_yaml(self, yaml_path):
         #TODO: integrate variable loading of properties
         with open(yaml_path, "r") as yaml_file:
-            animal_metadata_dict = yaml.safe_load(yaml_file)
-        cohort_year = int(animal_metadata_dict["cohort_year"])
-        dob = animal_metadata_dict["dob"]
-        animal_id = animal_metadata_dict["name"]
-        pdays = [int(pday) for pday in animal_metadata_dict["pdays"]]
-        session_dates = animal_metadata_dict["session_dates"]
-        session_names = animal_metadata_dict["session_names"]
-        sex = animal_metadata_dict["sex"]
-        return cohort_year, dob, animal_id, pdays, session_dates, session_names, sex
+            animal_metadata_dict = yaml.safe_load(yaml_file)        
+        self.cohort_year = int(animal_metadata_dict["cohort_year"])
+        self.dob = animal_metadata_dict["dob"]
+        self.animal_id = animal_metadata_dict["name"]
+        self.pdays = [int(pday) for pday in animal_metadata_dict["pdays"]]
+        self.session_dates = animal_metadata_dict["session_dates"]
+        self.session_names = animal_metadata_dict["session_names"]
+        self.sex = animal_metadata_dict["sex"]
+        self.munits = animal_metadata_dict["UseMunits"] if "UseMunits" in animal_metadata_dict.keys() else None
+
 
     def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", print_loading=True, delete=False):
         yaml_file_index = self.session_names.index(session_id)
         session = Session(self.animal_id, session_id, generate=generate, regenerate=regenerate, 
-                        unit_ids=unit_ids, delete=delete, age=self.pdays[yaml_file_index], 
-                        session_date=self.session_dates[yaml_file_index], print_loading=print_loading)
+                        unit_ids=unit_ids, 
+                        delete=delete, 
+                        age=self.pdays[yaml_file_index], 
+                        session_date=self.session_dates[yaml_file_index], 
+                        munits=self.munits, 
+                        print_loading=print_loading)
         self.sessions[session_id] = session
         return session
            

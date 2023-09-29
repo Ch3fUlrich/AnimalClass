@@ -10,7 +10,7 @@
   - [ ] eleven (DON2865), five (DON3165), and eight (DON3343)
 		    .\Users\unprocessed_intrinsic_CA3\ instrinc_imaging.yaml
   	
-
+- [] Analysis manifolds CEBRA
 
 Help
 - [ ] Anja
