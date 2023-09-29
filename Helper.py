@@ -417,7 +417,7 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
         print(f"{fname} not exists")
     if reset:
         if os.path.exists(fpath_new):
-            del_present_file(fpath)
+            del_file_dir(fpath)
             shutil.copyfile(fpath_new, fpath)
         else:
             print(f"{fname_new} not exists")
@@ -426,7 +426,7 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
             if os.path.exists(fpath):
                 os.rename(fpath, fpath_new)
         else:
-            del_present_file(fpath)
+            del_file_dir(fpath)
 
 #reset files S2P files to original ones
 def reset_s2p_files(data_path):
@@ -455,21 +455,27 @@ def backup_path_files(data_path, backup_folder_name="backup",
             else:
                 print("Backup path already exists. Skipping")
 
-def del_present_file(fpath):
+def del_file_dir(fpath):
     """
-    Deletes a file if it exists.
+    Deletes a file or directory at the specified path.
+
+    This function checks if the given path exists. If it does, it removes the file or directory at that path.
+    If the path is a file, it uses `os.remove` to delete it.
+    If the path is a directory, it uses `shutil.rmtree` to delete it.
 
     Parameters:
-    fpath (str): Path of the file to delete.
+    fpath (str): The path of the file or directory to be deleted.
 
     Returns:
     None
     """
-    # check if the file exists
+    # check if the file or path exists
     if os.path.exists(fpath):
-        # delete the file
         print(f"removing {fpath}")
-        os.remove(fpath)
+        if os.path.isfile(fpath):
+            os.remove(fpath)
+        else:
+            shutil.rmtree(fpath)
 
 def get_directories(directory):
     """

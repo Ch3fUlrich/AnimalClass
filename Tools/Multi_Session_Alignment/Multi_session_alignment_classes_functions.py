@@ -69,6 +69,28 @@ def get_directories(directory):
     directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and name not in ignore_folders]
     return directories
 
+def del_file_dir(fpath):
+    """
+    Deletes a file or directory at the specified path.
+
+    This function checks if the given path exists. If it does, it removes the file or directory at that path.
+    If the path is a file, it uses `os.remove` to delete it.
+    If the path is a directory, it uses `shutil.rmtree` to delete it.
+
+    Parameters:
+    fpath (str): The path of the file or directory to be deleted.
+
+    Returns:
+    None
+    """
+    # check if the file or path exists
+    if os.path.exists(fpath):
+        print(f"removing {fpath}")
+        if os.path.isfile(fpath):
+            os.remove(fpath)
+        else:
+            shutil.rmtree(fpath)
+
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], restore=False, print_loading=True):
     """
     Loads animal data from the specified root directory for the given animal IDs.
@@ -111,8 +133,7 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id,
     print(f"Getting cabincorr data from {data_dir}")
     cabincorr_path = os.path.join(data_dir, "binarized_traces.npz")
     if regenerate:
-        if os.path.exists(cabincorr_path):
-            os.remove(cabincorr_path)
+        del_file_dir(cabincorr_path)
     c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
 
     c.parallel_flag = parallel
@@ -149,8 +170,7 @@ def backup_path_files(data_path, backup_folder_name="backup",
             shutil.copytree(data_path, backup_path)
         else:
             if redo_backup:
-                if os.path.exists(backup_path):
-                    shutil.rmtree(backup_path)
+                del_file_dir(backup_path)
                 shutil.copytree(data_path, backup_path)
             else:
                 print("Backup path already exists. Skipping")
@@ -208,12 +228,10 @@ def update_s2p_files(data_path, stat):
     old_folders = ["correlations", "figures"]
     for old_folder in old_folders:
         fpath = os.path.join(suite2_data_path, old_folder)
-        if os.path.exists(fpath):
-            shutil.rmtree(fpath)
+        del_file_dir(fpath)
     for old_file in old_files:
         fpath = os.path.join(suite2_data_path, old_file)
-        if os.path.exists(fpath):
-            os.remove(fpath)
+        del_file_dir(fpath)
 
     np.save(os.path.join(suite2_data_path, 'F.npy'), F)
     np.save(os.path.join(suite2_data_path, 'Fneu.npy'), Fneu)

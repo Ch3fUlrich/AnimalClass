@@ -64,6 +64,7 @@ Animal.root_dir = root_dir
 
 def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True, delete=False, skip_animal=[], skip_session=[]):
     #TODO: skipping option is not integrated
+    #generate=False
     animals = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids, generate=generate, delete=delete) # Load all animals
 
     fps = 30
@@ -86,6 +87,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             #    continue
             print(f"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Starting {animal_id} {session_id} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
             print(f"-----------------------------------Generating Initial Suite2P Files-----------------------------------")
+            
             session.run_suite2p(regenerate=False, unit_ids="all")
             session.get_cabincorr_data_paths(generate=True, regenerate=regenerate, unit_ids="all")
 
@@ -106,10 +108,10 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                     if part_to_rerun:
                         print(f"binary file not present in {s2p_path}")
                         session.run_suite2p(regenerate=True, unit_ids=part_to_rerun)
-
             
             print(f"-----------------------------------Loading Units-----------------------------------")
-            units = session.get_units(get_geldrying=True)
+            #TODO: change restore to value needed
+            units = session.get_units(restore=False, get_geldrying=True)
 
             print(f"-----------------------------------Merging Units-----------------------------------")
             merged_unit = session.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)

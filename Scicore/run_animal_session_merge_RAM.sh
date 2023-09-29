@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=clean_highRAM            #This is the name of your job
 #SBATCH --cpus-per-task=32                  #This is the number of cores reserved
-#SBATCH --mem-per-cpu=6G              #This is the memory reserved per core.
+#SBATCH --mem-per-cpu=4G              #This is the memory reserved per core.
 
 
 #SBATCH --time=1-00:00:00         #This is the time that your task will run 01:00:00 or 1-00:00:00

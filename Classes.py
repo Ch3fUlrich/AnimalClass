@@ -741,7 +741,7 @@ class Session:
             print(f"File not found: {fpath}")
         return self.cell_geldrying
 
-    def get_units(self, get_geldrying=False):
+    def get_units(self, get_geldrying=False, restore=False):
         units = {}
         for part in self.session_parts:
             not_session_parts = np.array(self.session_parts)[np.array(self.session_parts)!=part]
@@ -757,7 +757,8 @@ class Session:
                     if single_unit:
                         break
             data_path = os.path.join(s2p_folder_path, "plane0")
-            backup_path_files(data_path, restore=True)
+            if restore:
+                backup_path_files(data_path, restore=True)
             backup_path_files(data_path, restore=False)
             unit = Unit(s2p_folder_path, session=self, unit_id=unit_id)
             backup_path_files(data_path, restore=False)
@@ -856,7 +857,7 @@ class Session:
         merged_s2p_path = os.path.join(self.s2p_folder_paths[0].split("suite2p")[0], "suite2p_merged")
         if os.path.exists(merged_s2p_path):
             if regenerate:
-                shutil.rmtree(merged_s2p_path)
+                del_file_dir(merged_s2p_path)
             else:
                 merged_unit = Unit(merged_s2p_path, self, f"Already_merged")
                 return merged_unit
@@ -892,7 +893,7 @@ class Session:
 
             if delete_used_subsessions:
                 for unit_id, unit in updated_units.items():
-                    shutil.rmtree(unit.suite2p_folder_path)
+                    del_file_dir(unit.suite2p_folder_path)
 
             self.get_cabincorr_data_paths()
             self.get_s2p_folder_paths()
@@ -1147,8 +1148,8 @@ class Vizualizer:
         own_location_name = os.path.join(self.save_dir, f"Rasters_{animal_id}_{session_id}_Unit_{unit_id}.png")
 
         dir_exist_create(os.path.join(calcium_object.data_dir, "figures"))
-        del_present_file(own_location_name)
-        del_present_file(show_rasters_savelocation_name)
+        del_file_dir(own_location_name)
+        del_file_dir(show_rasters_savelocation_name)
 
         calcium_object.show_rasters(save_image=True)
 
@@ -2108,7 +2109,6 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"],
 def run_cabin_corr(root_dir, data_dir, animal_id, session_id, parallel=True):
     #Init
     c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
-    print(c.data_dir) #TODO: remove when finished
 
     c.parallel_flag = parallel
     c.animal_id = animal_id 
@@ -2160,17 +2160,17 @@ def delete_bin_tiff_s2p_intermediate(session):
             notgel_count = sum(notgel)
         if s2p_folder_ending == "":
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            del_present_file(binary_path)
+            del_file_dir(binary_path)
         elif iscell_count != -1 and notgel_count !=-1:
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            del_present_file(binary_path)
+            del_file_dir(binary_path)
         else:
             del_tiff = False
 
     #Delete Tiffs
     if del_tiff:
         for tiff_path in session.tiff_data_paths:
-            del_present_file(tiff_path)
+            del_file_dir(tiff_path)
 
     #delete not needed suite2p MUnits
     if del_tiff:
@@ -2178,7 +2178,7 @@ def delete_bin_tiff_s2p_intermediate(session):
         for s2p_path in session.s2p_folder_paths:
             s2p_path_ending = s2p_path.split("suite2p")[-1]
             if s2p_path_ending not in keep_endings:
-                del_present_file(s2p_path)
+                del_file_dir(s2p_path)
 
 def create_rodrigo_folder(wanted_animal_ids, root_dir, animals=None):
     #create folders for rodrigo
