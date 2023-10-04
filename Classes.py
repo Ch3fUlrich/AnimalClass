@@ -316,7 +316,7 @@ class Session:
         #FIXME: change to multiple mesc files!!!!
         files_list = get_files(self.session_dir, ending="mesc")
         for file_name in files_list:
-            if len(re.findall("S[0-9]", file_name)):
+            if len(re.findall("S[0-9]", file_name)) > 0:
                 continue
             else:
                 self.mesc_data_path = os.path.join(self.session_dir, file_name)
@@ -719,7 +719,7 @@ class Session:
                 break
         corr_matrix_path = os.path.join(path, "plane0", f"allcell_corr_pval_zscore.npy")
         cleaned_corr_matrix_path = os.path.join(path, "plane0", f"allcell_clean_corr_pval_zscore.npy")
-        del_present_file(corr_matrix_path)#FIXME: remove this line
+        del_file_dir(corr_matrix_path)#FIXME: remove this line
 
         if not os.path.exists(corr_matrix_path):
             if generate_corr:
@@ -741,7 +741,7 @@ class Session:
             pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
             z_score_matrix = remove_rows_cols(z_score_matrix, geldrying_indexes, geldrying_indexes)
             print("removed gelddrying cells")
-            if not os.path.exists(cleaned_corr_matrix_path):
+            if not os.path.exists(cleaned_corr_matrix_path) or regenerate:
                 np.save(cleaned_corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
         return corr_matrix, pval_matrix, z_score_matrix
 
@@ -1032,13 +1032,15 @@ class Animal:
 
     def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", print_loading=True, delete=False):
         yaml_file_index = self.session_names.index(session_id)
-        session = Session(self.animal_id, session_id, generate=generate, regenerate=regenerate, 
-                        unit_ids=unit_ids, 
-                        delete=delete, 
-                        age=self.pdays[yaml_file_index], 
-                        session_date=self.session_dates[yaml_file_index], 
-                        munits=self.munits, 
-                        print_loading=print_loading)
+        session = Session(self.animal_id, session_id, 
+                          generate=generate, 
+                          regenerate=regenerate, 
+                          unit_ids=unit_ids, 
+                          delete=delete, 
+                          age=self.pdays[yaml_file_index], 
+                          session_date=self.session_dates[yaml_file_index], 
+                          munits=self.munits, 
+                          print_loading=print_loading)
         self.sessions[session_id] = session
         return session
            

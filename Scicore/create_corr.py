@@ -96,8 +96,8 @@ def do_cabincoor(session, unit=""):
                 c.shuffle_data = False
                 c.subselect_moving_only = False
                 c.subselect_quiescent_only = False
-                c.make_correlation_dirs()
-                c.compute_correlations()
+                #FIXME: c.make_correlation_dirs()
+                #FIXME: c.compute_correlations()
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
