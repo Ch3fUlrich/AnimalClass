@@ -177,16 +177,18 @@ def add_session_animal_folders(animals, animals_spreadsheet, directory=None):
                     file_naming = session_parts[:len(usefull_munits)]
                 else:
                     add_mesc_munit_pair = True
-                    if len(mesc_munit_pairs) > 0:
-                        for mesc_munit_pair in mesc_munit_pairs:
-                            if fname in mesc_munit_pair:
-                                add_mesc_munit_pair = False
-                    if add_mesc_munit_pair:
-                        mesc_munit_pair = [fname, munits_list]
-                        mesc_munit_pairs.append(mesc_munit_pair)
+                    if mesc_munit_pairs:
+                        if len(mesc_munit_pairs) > 0:
+                            for mesc_munit_pair in mesc_munit_pairs:
+                                if fname in mesc_munit_pair:
+                                    add_mesc_munit_pair = False
+                        if add_mesc_munit_pair:
+                            mesc_munit_pair = [fname, munits_list]
+                            mesc_munit_pairs.append(mesc_munit_pair)
 
-            if len(mesc_munit_pairs) > 0:
-                animals[animal_id]["UseMUnits"] = mesc_munit_pairs
+            if mesc_munit_pairs:
+                if len(mesc_munit_pairs) > 0:
+                    animals[animal_id]["UseMUnits"] = mesc_munit_pairs
     return animals 
 
 def get_recording_munits(mesc_fpath, session_parts, fps = 30, at_least_minutes_of_recording=5):

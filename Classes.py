@@ -1046,7 +1046,7 @@ class Animal:
            
     def get_overview(self):
         print("-----------------------------------------------")
-        print(f"{self.animal_id} born: {self.day_of_birth} sex: {self.sex}")
+        print(f"{self.animal_id} born: {self.dob} sex: {self.sex}")
         overview_df = pd.DataFrame(columns = ['session_name', 'date', 'P', 'suite2p_folder_paths'])#, 'duration [min]'])
         for session_id, session in self.sessions.items():
             overview_df.loc[len(overview_df)] = {'session_name': session_id, 'date': session.session_date, 'P':session.age, 'suite2p_folder_paths':session.s2p_folder_paths}
