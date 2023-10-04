@@ -59,250 +59,119 @@ from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
 
 
-class Analyzer:
-    # Pearson and histogram plot and save
-    mean_threshold = 0.1
-    std_threshold = 0.15
-    correct_mean = 0.007428876195354758
 
-    def __init__(self, animals={}):
-        self.animals = animals
-        self.good = self.bad = self.evaluate_datasets_count()
-
-    def good_mean_std(self, mean, std):
-        return True if mean < Analyzer.mean_threshold or std > Analyzer.std_threshold else False
-
-    def evaluate_datasets_count(self, animals=None, generate_corr=False, remove_geldrying=True):
-        good = 0
-        bad = 0
-        if animals == None:
-            animals = self.animals
-        for animal_id, animal in animals.items():
-            try:
-                for session_id, session in animal.sessions.items():
-                    corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(generate_corr=generate_corr, remove_geldrying=remove_geldrying)
-                    mean = np.mean(corr_matrix.flatten())
-                    std = np.std(corr_matrix.flatten())
-                    if self.good_mean_std(mean, std):
-                        good += 1
-                    else:
-                        bad += 1
-            except:
-                print("Error while evaluation datasets")
-        return good, bad
-
-    def lin_reg(self, data):
-        length = np.arange(len(data))
-        lin_reg = scipy.stats.linregress(length, data)
-        return lin_reg
-
-    def get_linreg_slope_intercept(self, data):
-        linreg = self.lin_reg(data)
-        return linreg.slope, linreg.intercept
-
-    def cont_mean_increase(self, mean_stds, num_bad_means = 30*60*1.5, 
-                       num_not_bad_means=30*60*0.5):
-        """
-        Check if the mean of the data increases for 1.5 minutes without a 0.5 minutes break (30fps)
-
-        Args:
-            data (numpy.ndarray): A 2D numpy array containing mean and standard deviation values.
-
-        Returns:
-            bool: True if the mean values are within the threshold, False otherwise.
-        """
-        bad = False
-        reason = ""
-        bad_mean_counter = 0
-        maybe_not_bad_counter = 0
-        old_mean = mean_stds[0][0]
-        min_std = np.min(mean_stds[:, 1])
-
-        for pos, mean_std in enumerate(mean_stds[1:]):
-            mean = mean_std[0]
-            mean_diff = mean-old_mean
-            mean_diff -=  min_std * abs(mean_diff/mean)
-            old_mean = mean
-            if math.isnan(mean):
-                bad = True
-                reason = "nan"
-                break
-            if mean_diff > 0: 
-                bad_mean_counter += 1
-            else:
-                maybe_not_bad_counter += 1
-                if maybe_not_bad_counter > num_not_bad_means:
-                    bad_mean_counter = 0
-                    maybe_not_bad_counter = 0
-
-            if bad_mean_counter >= num_bad_means: # 1 minute wide window mean to high for 1 minute  
-                bad = True
-                reason = "cont. increase"
-                break
-        return bad, reason+" c: "+str(bad_mean_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
-
-    def cont_mode_increase(self, mode_stds, num_bad_modes = 30*60*1, 
-                       num_not_bad_modes=30*60*0.45):
-        """
-        !!!!!!!!!!!!Not usefull takes too long!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        Check if the mode of the data increases for 1.5 minutes without a 0.45 minutes break (30fps)
-
-        Args:
-            data (numpy.ndarray): A 2D numpy array containing mean and standard deviation values.
-
-        Returns:
-            bool: True if the mean values are within the threshold, False otherwise.
-        """
-        print("Warning: this method is not finetuned")
-        bad = False
-        reason = ""
-        bad_mode_counter = 0
-        maybe_not_bad_counter = 0
-        old_mode = mode_stds[0][0]
-        min_std = np.min(mode_stds[:, 1])
-
-        for pos, mode_std in enumerate(mode_stds[1:]):
-            mode = mode_std[0]
-            mode_diff = mode-old_mode
-            mode_diff -=  min_std/(1/(abs(mode_diff/mode)))
-            old_mode = mode
-            if math.isnan(mode):
-                bad = True
-                reason = "nan"
-                break
-            if mode_diff > 0: 
-                bad_mode_counter += 1
-            else:
-                maybe_not_bad_counter += 1
-                if maybe_not_bad_counter > num_not_bad_modes:
-                    bad_mode_counter = 0
-                    maybe_not_bad_counter = 0
-
-            if bad_mode_counter >= num_bad_modes: # 1 minute wide window mode to high for 1 minute  
-                bad = True
-                reason = "num bad"
-                break
-        return bad, reason+" c: "+str(bad_mode_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
-
-    def geldrying(self, m_stds, bad_minutes=1.5, not_bad_minutes=0.5, mode="mean"):
-        """
-        Geldrying detection
-        Args:
-            data (numpy.ndarray): A 2D numpy array containing mean/mode and standard deviation values.
-
-        Returns:
-            bool: True if the standard deviation values are within the threshold, False otherwise.
-        """
-        #TODO: improve good bad detection currently only for geldrying used
-        if mode == "mean":
-            bad, reason = self.cont_mean_increase(m_stds, num_bad_means = 30*60*bad_minutes, num_not_bad_means=30*60*not_bad_minutes) 
-        elif mode == "mode":
-            bad, reason = self.cont_mode_increase(m_stds, num_bad_modes = 30*60*bad_minutes, num_not_bad_modes=30*60*not_bad_minutes) 
-        return bad, reason
+class Animal:
+    root_dir = os.path.join("F:", "Steffen_Experiments")
+    dir_ = r'002P-F'
+    cabincorr_file_name = "binarized_traces.npz"
     
-    def sliding_window(self, arr, window_size, step_size=1):
-        """
-        Generate sliding windows of size window_size over an array.
+    def __init__(self, yaml_file_path, print_loading=True) -> None:
+        self.sessions = {}
+        self.cohort_year = None
+        self.dob = None
+        self.animal_id = None 
+        self.pdays = None 
+        self.session_dates = None 
+        self.session_names = None 
+        self.sex = None 
+        self.mesc_munit_pairs = None
+        self.load_yaml(yaml_file_path)
+        self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
+        if print_loading:
+            print(f"Added animal: {self.animal_id}")
 
-        Args:
-            arr (list): The input array.
-            k (int): The size of the sliding window.
+    def load_yaml(self, yaml_path):
+        with open(yaml_path, "r") as yaml_file:
+            animal_metadata_dict = yaml.safe_load(yaml_file)        
+        self.cohort_year = int(animal_metadata_dict["cohort_year"])
+        self.dob = animal_metadata_dict["dob"]
+        self.animal_id = animal_metadata_dict["name"]
+        self.pdays = [int(pday) for pday in animal_metadata_dict["pdays"]]
+        self.session_dates = animal_metadata_dict["session_dates"]
+        self.session_names = animal_metadata_dict["session_names"]
+        self.sex = animal_metadata_dict["sex"]
+        self.mesc_munit_pairs = animal_metadata_dict["UseMUnits"] if "UseMUnits" in animal_metadata_dict.keys() else None
+        self.funcional_channels = animal_metadata_dict["functional_channels"] if "functional_channels" in animal_metadata_dict.keys() else [1]*len(self.session_dates)
+            
+    def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", print_loading=True, delete=False):
+        yaml_file_index = self.session_names.index(session_id)
 
-        Yields:
-            list: A sliding window of size window_size.
+        session_mesc_munit_pairs = []
+        if self.mesc_munit_pairs:
+            for mesc_munit_pair in self.mesc_munit_pairs:
+                mesc_name = mesc_munit_pair
+                if session_id in mesc_name:
+                    session_mesc_munit_pairs.append(mesc_munit_pair)
+        
+        functional_chan = self.funcional_channels[yaml_file_index] if self.funcional_channels else None
+        session = Session(self.animal_id, session_id, 
+                          generate=generate, 
+                          regenerate=regenerate, 
+                          unit_ids=unit_ids, 
+                          delete=delete, 
+                          age=self.pdays[yaml_file_index], 
+                          session_date=self.session_dates[yaml_file_index], 
+                          mesc_munit_pairs=session_mesc_munit_pairs, 
+                          functional_chan=functional_chan,
+                          print_loading=print_loading)
+        self.sessions[session_id] = session
+        return session
 
-        Returns:
-            None: If the length of the array is less than window_size.
-        """
-        n = len(arr)
-        if n < window_size:
-            return None
-        window = arr[:window_size]
-        yield window
-        for i in range(window_size, n, step_size):
-            window = np.append(window[step_size:], arr[i])
-            yield window
+    def get_overview(self):
+        print("-----------------------------------------------")
+        print(f"{self.animal_id} born: {self.dob} sex: {self.sex}")
+        overview_df = pd.DataFrame(columns = ['session_name', 'date', 'P', 'suite2p_folder_paths'])#, 'duration [min]'])
+        for session_id, session in self.sessions.items():
+            overview_df.loc[len(overview_df)] = {'session_name': session_id, 'date': session.session_date, 'P':session.age, 'suite2p_folder_paths':session.s2p_folder_paths}
+        display(overview_df)
+        print("-----------------------------------------------")
+        return overview_df
 
-    def sliding_mode_std(self, arr, window_size):
-        """
-        Compute the mode for each sliding window of size k over an array.
-
-        Args:
-            arr (list): The input array.
-            k (int): The size of the sliding window.
-
-        Returns:
-            list: A list of mode values for each sliding window.
-        """
-        num_windows = len(arr)-window_size+1
-        mode_stds = np.zeros([num_windows, 2])
-        for num, window in enumerate(self.sliding_window(arr, window_size)):
-            mode_stds[num, 0], count = scipy.stats.mode(window)
-            mode_stds[num, 1] = np.std(window)
-        return mode_stds
-
-    def sliding_mean_std(self, arr, window_size):
-        """
-        Compute the sliding window mean and standard deviation of an array.
-
-        Parameters:
-        arr (array-like): Input array.
-        k (int): Window size.
-
-        Returns:
-        list: A list of tuples containing the mean and standard deviation of each window.
-        """
-        num_windows = len(arr)-window_size+1
-        mean_stds = np.zeros([num_windows, 2])
-        for num, window in enumerate(self.sliding_window(arr, window_size)):
-            mean_stds[num, 0] = np.mean(window)
-            mean_stds[num, 1] = np.std(window)
-        return np.array(mean_stds)
-
-    def get_all_sliding_cell_stat(self, fluorescence, window_size=30*60, parallel=True, processes=16, mode="mean"):
-        """
-        Calculate the mean and standard deviation of sliding window (default: 30*60 = 1 sec.) fluorescence for each cell.
-
-        Args:
-            fluorescence (numpy.ndarray): A 3D numpy array containing fluorescence data for each cell.
-
-        Returns:
-            numpy.ndarray: A (cells, frames, 2) Dimensional numpy array containing the mean [:,:,0] and 
-            standard deviation [:,:,1] of fluorescence for each cell.
-
-        Example:
-            means = np.array(get_all_sliding_cell_stat)[:,:,0]
-            stds = np.array(get_all_sliding_cell_stat)[:,:,1]
-        """
-        if mode=="mean":
-            get_all_sliding_cell_stat = parmap.map(self.sliding_mean_std, fluorescence, window_size, pm_processes=processes, 
-                                    pm_pbar=True, pm_parallel=parallel)
-        elif mode=="mode":
-            get_all_sliding_cell_stat = parmap.map(self.sliding_mode_std, fluorescence, window_size, pm_processes=processes, 
-                                    pm_pbar=True, pm_parallel=parallel)
-        return get_all_sliding_cell_stat
 
 class Session:
-    def __init__(self, animal_id, session_id, generate=False, regenerate=False, munits=None,
-                 unit_ids="all", delete=False, age=None, session_date=None, print_loading=True) -> None:
+    def __init__(self, animal_id, session_id, generate=False, regenerate=False, mesc_munit_pairs=None,
+                 unit_ids="all", delete=False, age=None, session_date=None, functional_chan=None, print_loading=True) -> None:
         if print_loading:
             print(f"Loading session: {animal_id} {session_id}")
         self.animal_id = animal_id
         self.session_id = session_id
-        self.session_date = session_date
+        self.session_date = session_date #TODO: change to real date
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id, Animal.dir_)
         self.calcium_object = None
-        self.munits = None #FIXME: use this for tif creation
+        # gcamp channels change, because suite2p cables were swapped between 
+        self.functional_chan = functional_chan
         self.age = age
-        
         # load session information
         self.mesc_data_path = self.get_mesc_data_path()        #FIXME: change to multiple mesc files!!!!
+        self.mesc_munit_pairs = mesc_munit_pairs #define_mesc_munit_pairs(mesc_munit_pairs) #FIXME: use this for tif creation
+
+        
+        """def define_usefull_munits(self):
+            #FIXME:
+            öljsadköljasdöljfasdlf
+            return 
+
+        def define_mesc_munit_pairs(predefined_pairs=[]):
+            mesc_munit_pairs = []
+            for found_mesc_fname in get_files(self.ession_dir):
+                for mesc_munit_pair in predefined_pairs:
+                    predef_mesc_name = mesc_munit_pair[0]
+                    # skip if mesc file name munits are already defined
+                    if found_mesc_fname in predef_mesc_name: 
+                        continue
+                    # define usefull munit to merge
+                    usefull_munits = self.define_usefull_munits()
+                    mesc_munit_pairs.append([found_mesc_fname, [usefull_munits]])
+            mesc_munit_pairs += predefined_pairs
+            return mesc_munit_pairs"""
+        
         self.session_parts = self.get_session_parts()
         self.tiff_data_paths = self.get_tiff_data_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
         self.s2p_folder_paths = self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
         self.units = None
         self.merged_unit = None
         self.cell_geldrying = None
+        
 
         # load cabincorr data
         self.cabincorr_data_paths = self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
@@ -409,7 +278,7 @@ class Session:
                     fluorescence_recording_session_numbers = []
                     for name, unit in munits.items():
                         # if recording has at least x minutes
-                        if unit["Channel_0"].shape[0] > fps*60*at_least_minutes_of_recording: 
+                        if unit[f'Channel_{self.functional_chan}'].shape[0] > fps*60*at_least_minutes_of_recording: 
                             unit_number = name.split("_")[-1]
                             fluorescence_recording_session_numbers.append(int(unit_number))
 
@@ -431,7 +300,7 @@ class Session:
                     #
                     for sess in sess_list:
                         print ("processing: ", sess)
-                        temp = file['MSession_0'][sess]['Channel_0'][()]
+                        temp = file['MSession_0'][sess][f'Channel_{self.functional_chan}'][()]
                         print ("    data loaded size: ", temp.shape)
                         data.append(temp)
                 data = np.vstack(data)
@@ -550,6 +419,7 @@ class Session:
             'fs': 30,               # sampling rate of recording, determines binning for cell detection
             'look_one_level_down': False, # whether to look in ALL subfolders when searching for tiffs
             'data_path': [self.session_dir], # a list of folders with tiffs 
+            'functional_chan': self.functional_chan,
                                     # (or folder of folders with tiffs if look_one_level_down is True, or subfolders is not empty)
             'save_folder': save_folder,
             #'threshold_scaling': 2.0, # we are increasing the threshold for finding ROIs to limit the number of non-cell ROIs found (sometimes useful in gcamp injections)
@@ -946,6 +816,98 @@ class Session:
         merged_unit.get_geldrying_cells()
         return merged_unit
 
+
+class Unit:
+    def __init__(self, suite2p_folder_path, session, unit_id):
+        self.suite2p_folder_path = suite2p_folder_path
+        self.animal_id = session.animal_id
+        self.session_id = session.session_id
+        self.session_dir = session.session_dir
+        self.unit_id = unit_id
+        self.c, self.contours, self.footprints = self.get_c()
+        self.dedup_cell_ids = None
+        self.get_all_sliding_cell_stat = None
+        self.fluorescence = butter_lowpass_filter(self.c.dff, cutoff=0.5, fs=30, order=2)
+        self.cell_geldrying = None
+        self.load_geldrying()
+        self.cell_geldrying_reasons = None
+        self.ops = self.define_ops()
+        self.refImg = None
+        self.yx_shift = [0, 0]
+        self.usefull = None
+        
+
+    def get_c(self):
+        #Merging cell footprints
+        c = run_cabin_corr(Animal.root_dir, data_dir=os.path.join(self.suite2p_folder_path, "plane0"),
+                            animal_id=self.animal_id, session_id=self.session_id)
+        contours = c.contours
+        footprints = c.footprints
+        return c, contours, footprints
+
+    def get_geldrying_cells(self, bad_minutes = 1.5, not_bad_minutes=0.5, mode="mean"):
+        #detect gel_drying with sliding mean change. Too long increase of mean = bad
+        #returns boolean list of cells, where True is a cell labeled as drying 
+        if type(self.cell_geldrying) is np.ndarray:
+            return self.cell_geldrying
+        if type(self.get_all_sliding_cell_stat) is not np.ndarray:
+            anz = Analyzer()
+            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(fluorescence=self.fluorescence, mode=mode)
+        anz = Analyzer()
+        self.cell_geldrying = np.full([len(self.get_all_sliding_cell_stat)], True)
+        self.cell_geldrying_reasons = [""]*len(self.get_all_sliding_cell_stat)
+        for i, mean_stds in enumerate(self.get_all_sliding_cell_stat):
+            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds, bad_minutes=bad_minutes, not_bad_minutes=not_bad_minutes, mode=mode) 
+        self.geldrying_to_npy()
+        return self.cell_geldrying
+    
+    def geldrying_to_npy(self):
+        fname = "cell_drying.npy"
+        fpath = os.path.join(self.suite2p_folder_path, "plane0", fname)
+        np.save(fpath, self.cell_geldrying)
+
+    def load_geldrying(self):
+        fname = "cell_drying.npy"
+        fpath = os.path.join(self.suite2p_folder_path, "plane0", fname)
+        try:
+            self.cell_geldrying = np.load(fpath)
+        except:
+            self.cell_geldrying = None
+        return self.cell_geldrying
+    
+    def get_reference_image(self, n_frames_to_be_acquired=1000, image_x_size=512, image_y_size=512):
+        if self.refImg is None:
+            b_loader = Binary_loader()
+            frames = b_loader.load_binary(self.suite2p_folder_path, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
+            self.refImg = register.compute_reference(frames, ops=self.ops)
+        return self.refImg
+    
+    def define_ops(self):
+        ops = register.default_ops()
+        ops["nonrigid"] = False
+        return ops
+    
+    def calc_yx_shift(self, refAndMasks, num_align_frames=1000, image_x_size=512, image_y_size=512):
+        if self.yx_shift == [0, 0]:
+            b_loader = Binary_loader()
+            frames = b_loader.load_binary(self.suite2p_folder_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
+            frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
+        self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
+        return self.yx_shift
+
+    def print_s2p_iscell(self):
+        iscell_path = search_file(self.suite2p_folder_path, "iscell.npy")
+        iscell = np.load(iscell_path)
+        num_cells = len(iscell[:, 0])
+        num_good_cells = sum(iscell[:, 0])
+        num_bad_cells = num_cells-num_good_cells
+        print(f"Suite2p: Cells: {num_cells}  Good: {num_good_cells}  Bad: {num_bad_cells}")
+        return num_good_cells
+
+    def num_not_geldrying(self):
+        return len(self.cell_geldrying)-sum(self.cell_geldrying)
+
+
 class Cell:
     def __init__(self, animal_id, session_id, cell_id, s2p_path):
         #super().__init__(animal_id, session_id, unit_ids=unit_ids)
@@ -996,63 +958,228 @@ class Cell:
         num_bursts = None
         return num_bursts
 
-class Animal:
-    root_dir = os.path.join("F:", "Steffen_Experiments")
-    dir_ = r'002P-F'
-    cabincorr_file_name = "binarized_traces.npz"
+class Analyzer:
+    # Pearson and histogram plot and save
+    mean_threshold = 0.1
+    std_threshold = 0.15
+    correct_mean = 0.007428876195354758
+
+    def __init__(self, animals={}):
+        self.animals = animals
+        self.good = self.bad = self.evaluate_datasets_count()
+
+    def good_mean_std(self, mean, std):
+        return True if mean < Analyzer.mean_threshold or std > Analyzer.std_threshold else False
+
+    def evaluate_datasets_count(self, animals=None, generate_corr=False, remove_geldrying=True):
+        good = 0
+        bad = 0
+        if animals == None:
+            animals = self.animals
+        for animal_id, animal in animals.items():
+            try:
+                for session_id, session in animal.sessions.items():
+                    corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(generate_corr=generate_corr, remove_geldrying=remove_geldrying)
+                    mean = np.mean(corr_matrix.flatten())
+                    std = np.std(corr_matrix.flatten())
+                    if self.good_mean_std(mean, std):
+                        good += 1
+                    else:
+                        bad += 1
+            except:
+                print("Error while evaluation datasets")
+        return good, bad
+
+    def lin_reg(self, data):
+        length = np.arange(len(data))
+        lin_reg = scipy.stats.linregress(length, data)
+        return lin_reg
+
+    def get_linreg_slope_intercept(self, data):
+        linreg = self.lin_reg(data)
+        return linreg.slope, linreg.intercept
+
+    def cont_mean_increase(self, mean_stds, num_bad_means = 30*60*1.5, 
+                       num_not_bad_means=30*60*0.5):
+        """
+        Check if the mean of the data increases for 1.5 minutes without a 0.5 minutes break (30fps)
+
+        Args:
+            data (numpy.ndarray): A 2D numpy array containing mean and standard deviation values.
+
+        Returns:
+            bool: True if the mean values are within the threshold, False otherwise.
+        """
+        bad = False
+        reason = ""
+        bad_mean_counter = 0
+        maybe_not_bad_counter = 0
+        old_mean = mean_stds[0][0]
+        min_std = np.min(mean_stds[:, 1])
+
+        for pos, mean_std in enumerate(mean_stds[1:]):
+            mean = mean_std[0]
+            mean_diff = mean-old_mean
+            mean_diff -=  min_std * abs(mean_diff/mean)
+            old_mean = mean
+            if math.isnan(mean):
+                bad = True
+                reason = "nan"
+                break
+            if mean_diff > 0: 
+                bad_mean_counter += 1
+            else:
+                maybe_not_bad_counter += 1
+                if maybe_not_bad_counter > num_not_bad_means:
+                    bad_mean_counter = 0
+                    maybe_not_bad_counter = 0
+
+            if bad_mean_counter >= num_bad_means: # 1 minute wide window mean to high for 1 minute  
+                bad = True
+                reason = "cont. increase"
+                break
+        return bad, reason+" c: "+str(bad_mean_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
+
+    def cont_mode_increase(self, mode_stds, num_bad_modes = 30*60*1, 
+                       num_not_bad_modes=30*60*0.45):
+        """
+        !!!!!!!!!!!!Not usefull takes too long!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        Check if the mode of the data increases for 1.5 minutes without a 0.45 minutes break (30fps)
+
+        Args:
+            data (numpy.ndarray): A 2D numpy array containing mean and standard deviation values.
+
+        Returns:
+            bool: True if the mean values are within the threshold, False otherwise.
+        """
+        print("Warning: this method is not finetuned")
+        bad = False
+        reason = ""
+        bad_mode_counter = 0
+        maybe_not_bad_counter = 0
+        old_mode = mode_stds[0][0]
+        min_std = np.min(mode_stds[:, 1])
+
+        for pos, mode_std in enumerate(mode_stds[1:]):
+            mode = mode_std[0]
+            mode_diff = mode-old_mode
+            mode_diff -=  min_std/(1/(abs(mode_diff/mode)))
+            old_mode = mode
+            if math.isnan(mode):
+                bad = True
+                reason = "nan"
+                break
+            if mode_diff > 0: 
+                bad_mode_counter += 1
+            else:
+                maybe_not_bad_counter += 1
+                if maybe_not_bad_counter > num_not_bad_modes:
+                    bad_mode_counter = 0
+                    maybe_not_bad_counter = 0
+
+            if bad_mode_counter >= num_bad_modes: # 1 minute wide window mode to high for 1 minute  
+                bad = True
+                reason = "num bad"
+                break
+        return bad, reason+" c: "+str(bad_mode_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
+
+    def geldrying(self, m_stds, bad_minutes=1.5, not_bad_minutes=0.5, mode="mean"):
+        """
+        Geldrying detection
+        Args:
+            data (numpy.ndarray): A 2D numpy array containing mean/mode and standard deviation values.
+
+        Returns:
+            bool: True if the standard deviation values are within the threshold, False otherwise.
+        """
+        #TODO: improve good bad detection currently only for geldrying used
+        if mode == "mean":
+            bad, reason = self.cont_mean_increase(m_stds, num_bad_means = 30*60*bad_minutes, num_not_bad_means=30*60*not_bad_minutes) 
+        elif mode == "mode":
+            bad, reason = self.cont_mode_increase(m_stds, num_bad_modes = 30*60*bad_minutes, num_not_bad_modes=30*60*not_bad_minutes) 
+        return bad, reason
     
-    def __init__(self, yaml_file_path, print_loading=True) -> None:
-        self.sessions = {}
-        self.cohort_year = None
-        self.dob = None
-        self.animal_id = None 
-        self.pdays = None 
-        self.session_dates = None 
-        self.session_names = None 
-        self.sex = None 
-        self.munits = None
-        self.load_yaml(yaml_file_path)
-        self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
-        if print_loading:
-            print(f"Added animal: {self.animal_id}")
+    def sliding_window(self, arr, window_size, step_size=1):
+        """
+        Generate sliding windows of size window_size over an array.
 
-    def load_yaml(self, yaml_path):
-        #TODO: integrate variable loading of properties
-        with open(yaml_path, "r") as yaml_file:
-            animal_metadata_dict = yaml.safe_load(yaml_file)        
-        self.cohort_year = int(animal_metadata_dict["cohort_year"])
-        self.dob = animal_metadata_dict["dob"]
-        self.animal_id = animal_metadata_dict["name"]
-        self.pdays = [int(pday) for pday in animal_metadata_dict["pdays"]]
-        self.session_dates = animal_metadata_dict["session_dates"]
-        self.session_names = animal_metadata_dict["session_names"]
-        self.sex = animal_metadata_dict["sex"]
-        self.munits = animal_metadata_dict["UseMunits"] if "UseMunits" in animal_metadata_dict.keys() else None
+        Args:
+            arr (list): The input array.
+            k (int): The size of the sliding window.
 
+        Yields:
+            list: A sliding window of size window_size.
 
-    def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", print_loading=True, delete=False):
-        yaml_file_index = self.session_names.index(session_id)
-        session = Session(self.animal_id, session_id, 
-                          generate=generate, 
-                          regenerate=regenerate, 
-                          unit_ids=unit_ids, 
-                          delete=delete, 
-                          age=self.pdays[yaml_file_index], 
-                          session_date=self.session_dates[yaml_file_index], 
-                          munits=self.munits, 
-                          print_loading=print_loading)
-        self.sessions[session_id] = session
-        return session
-           
-    def get_overview(self):
-        print("-----------------------------------------------")
-        print(f"{self.animal_id} born: {self.dob} sex: {self.sex}")
-        overview_df = pd.DataFrame(columns = ['session_name', 'date', 'P', 'suite2p_folder_paths'])#, 'duration [min]'])
-        for session_id, session in self.sessions.items():
-            overview_df.loc[len(overview_df)] = {'session_name': session_id, 'date': session.session_date, 'P':session.age, 'suite2p_folder_paths':session.s2p_folder_paths}
-        display(overview_df)
-        print("-----------------------------------------------")
-        return overview_df
+        Returns:
+            None: If the length of the array is less than window_size.
+        """
+        n = len(arr)
+        if n < window_size:
+            return None
+        window = arr[:window_size]
+        yield window
+        for i in range(window_size, n, step_size):
+            window = np.append(window[step_size:], arr[i])
+            yield window
+
+    def sliding_mode_std(self, arr, window_size):
+        """
+        Compute the mode for each sliding window of size k over an array.
+
+        Args:
+            arr (list): The input array.
+            k (int): The size of the sliding window.
+
+        Returns:
+            list: A list of mode values for each sliding window.
+        """
+        num_windows = len(arr)-window_size+1
+        mode_stds = np.zeros([num_windows, 2])
+        for num, window in enumerate(self.sliding_window(arr, window_size)):
+            mode_stds[num, 0], count = scipy.stats.mode(window)
+            mode_stds[num, 1] = np.std(window)
+        return mode_stds
+
+    def sliding_mean_std(self, arr, window_size):
+        """
+        Compute the sliding window mean and standard deviation of an array.
+
+        Parameters:
+        arr (array-like): Input array.
+        k (int): Window size.
+
+        Returns:
+        list: A list of tuples containing the mean and standard deviation of each window.
+        """
+        num_windows = len(arr)-window_size+1
+        mean_stds = np.zeros([num_windows, 2])
+        for num, window in enumerate(self.sliding_window(arr, window_size)):
+            mean_stds[num, 0] = np.mean(window)
+            mean_stds[num, 1] = np.std(window)
+        return np.array(mean_stds)
+
+    def get_all_sliding_cell_stat(self, fluorescence, window_size=30*60, parallel=True, processes=16, mode="mean"):
+        """
+        Calculate the mean and standard deviation of sliding window (default: 30*60 = 1 sec.) fluorescence for each cell.
+
+        Args:
+            fluorescence (numpy.ndarray): A 3D numpy array containing fluorescence data for each cell.
+
+        Returns:
+            numpy.ndarray: A (cells, frames, 2) Dimensional numpy array containing the mean [:,:,0] and 
+            standard deviation [:,:,1] of fluorescence for each cell.
+
+        Example:
+            means = np.array(get_all_sliding_cell_stat)[:,:,0]
+            stds = np.array(get_all_sliding_cell_stat)[:,:,1]
+        """
+        if mode=="mean":
+            get_all_sliding_cell_stat = parmap.map(self.sliding_mean_std, fluorescence, window_size, pm_processes=processes, 
+                                    pm_pbar=True, pm_parallel=parallel)
+        elif mode=="mode":
+            get_all_sliding_cell_stat = parmap.map(self.sliding_mode_std, fluorescence, window_size, pm_processes=processes, 
+                                    pm_pbar=True, pm_parallel=parallel)
+        return get_all_sliding_cell_stat
 
 class Vizualizer:
     def __init__(self, animals={}, save_dir=Animal.root_dir):
@@ -1667,96 +1794,6 @@ class Vizualizer:
         plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
         return pday_cell_count_df
         
-class Unit:
-    def __init__(self, suite2p_folder_path, session, unit_id):
-        self.suite2p_folder_path = suite2p_folder_path
-        self.animal_id = session.animal_id
-        self.session_id = session.session_id
-        self.session_dir = session.session_dir
-        self.unit_id = unit_id
-        self.c, self.contours, self.footprints = self.get_c()
-        self.dedup_cell_ids = None
-        self.get_all_sliding_cell_stat = None
-        self.fluorescence = butter_lowpass_filter(self.c.dff, cutoff=0.5, fs=30, order=2)
-        self.cell_geldrying = None
-        self.load_geldrying()
-        self.cell_geldrying_reasons = None
-        self.ops = self.define_ops()
-        self.refImg = None
-        self.yx_shift = [0, 0]
-        self.usefull = None
-        
-
-    def get_c(self):
-        #Merging cell footprints
-        c = run_cabin_corr(Animal.root_dir, data_dir=os.path.join(self.suite2p_folder_path, "plane0"),
-                            animal_id=self.animal_id, session_id=self.session_id)
-        contours = c.contours
-        footprints = c.footprints
-        return c, contours, footprints
-
-    def get_geldrying_cells(self, bad_minutes = 1.5, not_bad_minutes=0.5, mode="mean"):
-        #detect gel_drying with sliding mean change. Too long increase of mean = bad
-        #returns boolean list of cells, where True is a cell labeled as drying 
-        if type(self.cell_geldrying) is np.ndarray:
-            return self.cell_geldrying
-        if type(self.get_all_sliding_cell_stat) is not np.ndarray:
-            anz = Analyzer()
-            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(fluorescence=self.fluorescence, mode=mode)
-        anz = Analyzer()
-        self.cell_geldrying = np.full([len(self.get_all_sliding_cell_stat)], True)
-        self.cell_geldrying_reasons = [""]*len(self.get_all_sliding_cell_stat)
-        for i, mean_stds in enumerate(self.get_all_sliding_cell_stat):
-            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds, bad_minutes=bad_minutes, not_bad_minutes=not_bad_minutes, mode=mode) 
-        self.geldrying_to_npy()
-        return self.cell_geldrying
-    
-    def geldrying_to_npy(self):
-        fname = "cell_drying.npy"
-        fpath = os.path.join(self.suite2p_folder_path, "plane0", fname)
-        np.save(fpath, self.cell_geldrying)
-
-    def load_geldrying(self):
-        fname = "cell_drying.npy"
-        fpath = os.path.join(self.suite2p_folder_path, "plane0", fname)
-        try:
-            self.cell_geldrying = np.load(fpath)
-        except:
-            self.cell_geldrying = None
-        return self.cell_geldrying
-    
-    def get_reference_image(self, n_frames_to_be_acquired=1000, image_x_size=512, image_y_size=512):
-        if self.refImg is None:
-            b_loader = Binary_loader()
-            frames = b_loader.load_binary(self.suite2p_folder_path, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
-            self.refImg = register.compute_reference(frames, ops=self.ops)
-        return self.refImg
-    
-    def define_ops(self):
-        ops = register.default_ops()
-        ops["nonrigid"] = False
-        return ops
-    
-    def calc_yx_shift(self, refAndMasks, num_align_frames=1000, image_x_size=512, image_y_size=512):
-        if self.yx_shift == [0, 0]:
-            b_loader = Binary_loader()
-            frames = b_loader.load_binary(self.suite2p_folder_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
-            frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
-        self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
-        return self.yx_shift
-
-    def print_s2p_iscell(self):
-        iscell_path = search_file(self.suite2p_folder_path, "iscell.npy")
-        iscell = np.load(iscell_path)
-        num_cells = len(iscell[:, 0])
-        num_good_cells = sum(iscell[:, 0])
-        num_bad_cells = num_cells-num_good_cells
-        print(f"Suite2p: Cells: {num_cells}  Good: {num_good_cells}  Bad: {num_bad_cells}")
-        return num_good_cells
-
-    def num_not_geldrying(self):
-        return len(self.cell_geldrying)-sum(self.cell_geldrying)
-
 class Binary_loader:
     """
     A class for loading binary data and converting it into an animation.

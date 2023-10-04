@@ -147,6 +147,7 @@ def add_session_animal_folders(animals, animals_spreadsheet, directory=None):
             print(f"added animal from spreadsheet: {animal_id}")
         animal_path = os.path.join(root_dir, animal_id)
         
+        functional_channel_list = []
         for session_id in get_directories(animal_path):
             session_path = os.path.join(animal_path, session_id, "002P-F")
 
@@ -171,7 +172,9 @@ def add_session_animal_folders(animals, animals_spreadsheet, directory=None):
                 last_fname_part = splitted_fname[-1].split(".")[0]
                 session_parts = [int(part_number[-1])-1 for part_number in re.findall("S[0-9]", last_fname_part)]
                 fpath = os.path.join(session_path, fname)
-                munits_list = get_recording_munits(fpath, session_parts)
+                munits_list, number_channels = get_recording_munits(fpath, session_parts)
+                
+                # Get MUnit number list of first Mescfile session MSession_0
                 if len(munits_list) <= len(session_parts):
                     usefull_munits = munits_list
                     file_naming = session_parts[:len(usefull_munits)]
@@ -185,6 +188,12 @@ def add_session_animal_folders(animals, animals_spreadsheet, directory=None):
                         if add_mesc_munit_pair:
                             mesc_munit_pair = [fname, munits_list]
                             mesc_munit_pairs.append(mesc_munit_pair)
+                
+                functional_channel = 2 if 20210821 < int(session_date) and int(session_date) < 20220422 and number_channels > 1 else 1
+                functional_channel_list.append(functional_channel)
+                
+            #TODO: integrate functional channels into individual yaml files
+            animals[animal_id]["functional_channels"] = functional_channel_list
 
             if mesc_munit_pairs:
                 if len(mesc_munit_pairs) > 0:
@@ -201,7 +210,12 @@ def get_recording_munits(mesc_fpath, session_parts, fps = 30, at_least_minutes_o
             if unit["Channel_0"].shape[0] > fps*60*at_least_minutes_of_recording: 
                 unit_number = name.split("_")[-1]
                 recording_munits.append(int(unit_number))
-    return recording_munits
+                # get number of imaging channels 
+                number_channels = 0
+                for key in unit.keys():
+                    if "Channel" in key:
+                        number_channels += 1
+    return recording_munits, number_channels
 
 def move_mesc_to_session_folder(directory=None):
     directory = None if directory == "" else directory
