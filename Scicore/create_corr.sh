@@ -5,7 +5,7 @@
 #SBATCH --mem-per-cpu=2G              #This is the memory reserved per core.
 
 
-#SBATCH --time=00:30:00         #This is the time that your task will run 01:00:00 or 1-00:00:00
+#SBATCH --time=00:10:00         #This is the time that your task will run 01:00:00 or 1-00:00:00
 #SBATCH --qos=6hours	        #You will run in this queue 6hours or 1day or 1 week
 #SBATCH --array=1-462           #This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks: 1-200
 
