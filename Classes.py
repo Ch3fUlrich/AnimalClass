@@ -316,7 +316,7 @@ class Session:
         #FIXME: change to multiple mesc files!!!!
         files_list = get_files(self.session_dir, ending="mesc")
         for file_name in files_list:
-            if len(re.findall("S[0-9]", file_name)) > 0:
+            if len(re.findall("S[0-9]", file_name)) == 0:
                 continue
             else:
                 self.mesc_data_path = os.path.join(self.session_dir, file_name)
@@ -2136,8 +2136,11 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"],
             animals_dict[animal_id] = animal
     return animals_dict
 
-def run_cabin_corr(root_dir, data_dir, animal_id, session_id, parallel=True):
+def run_cabin_corr(root_dir, data_dir, animal_id, session_id, regenerate=False, parallel=True):
     #Init
+    cabincorr_path = os.path.join(data_dir, "binarized_traces.npz")
+    if regenerate:
+        del_file_dir(cabincorr_path)
     c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
 
     c.parallel_flag = parallel

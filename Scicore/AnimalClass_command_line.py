@@ -92,6 +92,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             print(f"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Starting {animal_id} {session_id} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
             print(f"-----------------------------------Generating Initial Suite2P Files-----------------------------------")
             session.run_suite2p(regenerate=False, unit_ids="all")
+            #session.run_suite2p(regenerate=True, unit_ids="all")
             session.get_cabincorr_data_paths(generate=True, regenerate=regenerate, unit_ids="all")
 
 
@@ -123,10 +124,10 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             
             delete_bin_tiff_s2p_intermediate(session)
 
-            do_cabincoor(session, unit="")
-            do_cabincoor(session, unit="merged")
-            session.load_corr_matrix(generate_corr=True, unit_id="all")
-            session.load_corr_matrix(generate_corr=True, unit_id="merged")
+            do_cabincoor(session, regenerate=regenerate, unit="")
+            do_cabincoor(session, regenerate=regenerate, unit="merged")
+            session.load_corr_matrix(generate_corr=True, regenerate=True, unit_id="all")
+            session.load_corr_matrix(generate_corr=True, regenerate=True, unit_id="merged")
             
             dir_exist_create(os.path.join(viz.save_dir, animal_id))
             dir_exist_create(os.path.join(viz.save_dir, animal_id, session_id))
@@ -220,15 +221,16 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                 except:
                     print(f"###################################FAILED###################################FAILED###################################FAILED###################################")
 
-def do_cabincoor(session, unit=""):
+def do_cabincoor(session, regenerate=True, unit=""):
     for s2p_path in session.s2p_folder_paths:
             splitted_path = s2p_path.split("suite2p_")
             if splitted_path[-1] == unit or len(splitted_path)==1:
-                c = run_cabin_corr(root_dir, os.path.join(s2p_path, "plane0"), session.animal_id, session.session_id)
+                c = run_cabin_corr(root_dir, os.path.join(s2p_path, "plane0"), session.animal_id, session.session_id, regenerate=regenerate)
                 c.corr_parallel_flag = True
                 c.zscore = True 
                 c.n_tests_zscore = 1000
                 c.n_cores = 32
+                #c.recompute_correlation = True
                 c.recompute_correlation = False
                 c.binning_window = 30        # binning window in frames
                 c.subsample = 1              # subsample traces by this factor
