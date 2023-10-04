@@ -135,35 +135,15 @@ class Session:
             print(f"Loading session: {animal_id} {session_id}")
         self.animal_id = animal_id
         self.session_id = session_id
-        self.session_date = session_date #TODO: change to real date
+        self.session_date = session_date
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id, Animal.dir_)
         self.calcium_object = None
         # gcamp channels change, because suite2p cables were swapped between 
         self.functional_chan = functional_chan
         self.age = age
         # load session information
-        self.mesc_data_path = self.get_mesc_data_path()        #FIXME: change to multiple mesc files!!!!
-        self.mesc_munit_pairs = mesc_munit_pairs #define_mesc_munit_pairs(mesc_munit_pairs) #FIXME: use this for tif creation
-
-        
-        """def define_usefull_munits(self):
-            #FIXME:
-            öljsadköljasdöljfasdlf
-            return 
-
-        def define_mesc_munit_pairs(predefined_pairs=[]):
-            mesc_munit_pairs = []
-            for found_mesc_fname in get_files(self.ession_dir):
-                for mesc_munit_pair in predefined_pairs:
-                    predef_mesc_name = mesc_munit_pair[0]
-                    # skip if mesc file name munits are already defined
-                    if found_mesc_fname in predef_mesc_name: 
-                        continue
-                    # define usefull munit to merge
-                    usefull_munits = self.define_usefull_munits()
-                    mesc_munit_pairs.append([found_mesc_fname, [usefull_munits]])
-            mesc_munit_pairs += predefined_pairs
-            return mesc_munit_pairs"""
+        self.mesc_data_paths = self.get_mesc_data_paths() #TODO: create a mesc class instead
+        self.mesc_munit_pairs, self.number_channels = self.define_mesc_munit_pairs(mesc_munit_pairs) #FIXME: use this for tif creation
         
         self.session_parts = self.get_session_parts()
         self.tiff_data_paths = self.get_tiff_data_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
@@ -175,47 +155,38 @@ class Session:
 
         # load cabincorr data
         self.cabincorr_data_paths = self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
-        #TODO: implement cabincorr functions for filtering correct data
         self.cells = None
-        #self.corr_mean, self.corr_std = self.get_corr_mean_std()
         print(f"Finished {animal_id}: {session_id}")
 
-    def get_mesc_data_path(self):
+    def get_mesc_data_paths(self):
         # Search for MESC file names needed for TIFF creation
-        #FIXME: change to multiple mesc files!!!!
+        mesc_file_list = []
         files_list = get_files(self.session_dir, ending="mesc")
         for file_name in files_list:
             if len(re.findall("S[0-9]", file_name)) == 0:
                 continue
             else:
-                self.mesc_data_path = os.path.join(self.session_dir, file_name)
-                return self.mesc_data_path
-        return None
+                mesc_file_list.append(os.path.join(self.session_dir, file_name))
+        self.mesc_data_paths = mesc_file_list
+        return self.mesc_data_paths
 
-    def get_list_of_session_parts(self, file_name):
-        last_fname_part = file_name.split("\\")[-1].split("_")[-1].split(".")[0]
-        session_parts = re.findall("S[0-9]", last_fname_part)
-        return session_parts
-    
-    def get_session_parts(self, file_name = None):
+    def get_list_of_session_parts(self, file_names):
+        if type(file_names) != list:
+            file_names = [file_names]
         session_parts = []
-        
+        for file_name in file_names:
+            last_fname_part = file_name.split("\\")[-1].split("_")[-1].split(".")[0]
+            session_parts.append(re.findall("S[0-9]", last_fname_part))
+        return np.unique(session_parts)
+    
+    def get_session_parts(self, file_names = None):
+        session_parts = []
         # get session parts from MESC file name if available
-        if file_name == None:
-            if self.mesc_data_path:
-                session_parts = self.get_list_of_session_parts(self.mesc_data_path)
+        if file_names == None:
+            if self.mesc_data_paths:
+                session_parts = self.get_list_of_session_parts(self.mesc_data_paths)
         else:
-            session_parts = self.get_list_of_session_parts(file_name)
-        
-        # get session parts from TIF file names if MESC file not available
-        if len(session_parts)==0:
-            tiff_session_parts = []
-            tiff_files_list = get_files(self.session_dir, ending="tiff")
-            for tiff_file_name in tiff_files_list:
-                tiff_session_parts += self.get_list_of_session_parts(tiff_file_name)
-
-            session_parts = list(np.unique(tiff_session_parts))
-
+            session_parts = self.get_list_of_session_parts(file_names)
         self.session_parts = session_parts
         return self.session_parts
 
@@ -247,6 +218,40 @@ class Session:
         self.tiff_data_paths = np.unique(tiff_data_paths).tolist()
         return self.tiff_data_paths
 
+    ################################################################################################################################
+    def get_recording_munits(mesc_fpath, session_parts, fps = 30, at_least_minutes_of_recording=5):
+        # Get MUnit number list of first Mescfile session MSession_0
+        with h5py.File(mesc_fpath, 'r') as file:
+            munits = file[list(file.keys())[0]]
+            recording_munits = []
+            for name, unit in munits.items():
+                # if recording has at least x minutes
+                if unit["Channel_0"].shape[0] > fps*60*at_least_minutes_of_recording: 
+                    unit_number = name.split("_")[-1]
+                    recording_munits.append(int(unit_number))
+                    # get number of imaging channels 
+                    number_channels = 0
+                    for key in unit.keys():
+                        if "Channel" in key:
+                            number_channels += 1
+        return recording_munits, number_channels
+
+    def define_mesc_munit_pairs(self, predefined_pairs=[]):
+        mesc_munit_pairs = []
+        for found_mesc_fname in get_files(self.session_dir):
+            for mesc_munit_pair in predefined_pairs:
+                predef_mesc_name = mesc_munit_pair[0]
+                # skip if mesc file name munits are already defined
+                if found_mesc_fname in predef_mesc_name: 
+                    continue
+                # define usefull munit to merge
+                usefull_munits, number_channels = self.get_recording_munits()
+                mesc_munit_pairs.append([found_mesc_fname, [usefull_munits]])
+        mesc_munit_pairs += predefined_pairs
+        return mesc_munit_pairs, number_channels
+    ################################################################################################################################
+    #FIXME: insert stuff from above into function below (mesc to tiff conversion)
+
     def generate_tiff_from_mesc(self, unit_ids="all", delete=False, regenerate=False):
         fps = 30
         at_least_minutes_of_recording = 5
@@ -254,7 +259,7 @@ class Session:
             unit_ids = [unit_ids]
 
         if "all" in unit_ids:
-            tiff_file_name = self.mesc_data_path.replace('.mesc','.tif')
+            tiff_file_name = self.mesc_data_path.replace('.mesc','.tif')#FIXME: change to data_pahts
             unit_ids = self.get_session_parts()
         else:
             tiff_file_name = os.path.join(self.session_dir, f"{self.animal_id}_{self.session_id}_{Animal.dir_}_")
@@ -264,7 +269,7 @@ class Session:
         
             
         if tiff_file_name not in self.tiff_data_paths or regenerate:
-            mesc_file_name = self.mesc_data_path
+            mesc_file_name = self.mesc_data_path #FIXME: change to data_pahts
 
             if mesc_file_name == None:
                 print("No MESC file found")
