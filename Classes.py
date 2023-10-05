@@ -91,7 +91,7 @@ class Animal:
         self.session_names = animal_metadata_dict["session_names"]
         self.sex = animal_metadata_dict["sex"]
         self.mesc_munit_pairs = animal_metadata_dict["UseMUnits"] if "UseMUnits" in animal_metadata_dict.keys() else None
-        self.funcional_channels = animal_metadata_dict["functional_channels"] if "functional_channels" in animal_metadata_dict.keys() else [1]*len(self.session_dates)
+        self.funcional_channels = animal_metadata_dict["functional_channels"] if "functional_channels" in animal_metadata_dict.keys() else [0]*len(self.session_dates)
             
     def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", print_loading=True, delete=False):
         yaml_file_index = self.session_names.index(session_id)
@@ -248,6 +248,7 @@ class Session:
         return self.tiff_data_paths
 
     def generate_tiff_from_mesc(self, unit_ids="all", delete=False, regenerate=False):
+        mesc_functional_chan = self.functional_chan-1
         fps = 30
         at_least_minutes_of_recording = 5
         if isinstance(unit_ids, str):
@@ -278,7 +279,7 @@ class Session:
                     fluorescence_recording_session_numbers = []
                     for name, unit in munits.items():
                         # if recording has at least x minutes
-                        if unit[f'Channel_{self.functional_chan}'].shape[0] > fps*60*at_least_minutes_of_recording: 
+                        if unit[f'Channel_{mesc_functional_chan}'].shape[0] > fps*60*at_least_minutes_of_recording: 
                             unit_number = name.split("_")[-1]
                             fluorescence_recording_session_numbers.append(int(unit_number))
 
@@ -300,7 +301,7 @@ class Session:
                     #
                     for sess in sess_list:
                         print ("processing: ", sess)
-                        temp = file['MSession_0'][sess][f'Channel_{self.functional_chan}'][()]
+                        temp = file['MSession_0'][sess][f'Channel_{mesc_functional_chan}'][()]
                         print ("    data loaded size: ", temp.shape)
                         data.append(temp)
                 data = np.vstack(data)
@@ -419,7 +420,7 @@ class Session:
             'fs': 30,               # sampling rate of recording, determines binning for cell detection
             'look_one_level_down': False, # whether to look in ALL subfolders when searching for tiffs
             'data_path': [self.session_dir], # a list of folders with tiffs 
-            'functional_chan': self.functional_chan,
+            #'functional_chan': self.functional_chan,
                                     # (or folder of folders with tiffs if look_one_level_down is True, or subfolders is not empty)
             'save_folder': save_folder,
             #'threshold_scaling': 2.0, # we are increasing the threshold for finding ROIs to limit the number of non-cell ROIs found (sometimes useful in gcamp injections)
