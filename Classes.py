@@ -137,17 +137,20 @@ class Session:
         self.session_id = session_id
         self.session_date = session_date
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id, Animal.dir_)
-        self.calcium_object = None
         # gcamp channels change, because suite2p cables were swapped between 
         self.functional_chan = functional_chan
         self.age = age
         # load session information
-        self.mesc_data_paths = self.get_mesc_data_paths() #TODO: create a mesc class instead
+        self.mesc_data_paths = self.get_data_paths(ending="mesc") #TODO: create a dataset class instead?
         self.mesc_munit_pairs, self.number_channels = self.define_mesc_munit_pairs(mesc_munit_pairs) #FIXME: use this for tif creation
+        self.tiff_data_paths = self.get_data_paths(ending="tiff") 
+        self.generate_tiff_from_mesc(regenerate=regenerate, unit_ids=unit_ids, delete=delete)#FIXME: change to create all unit_ids
         
-        self.session_parts = self.get_session_parts()
+        self.session_parts = self.get_session_parts() #TODO: still used for?
         self.tiff_data_paths = self.get_tiff_data_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
         self.s2p_folder_paths = self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
+
+        self.calcium_object = None
         self.units = None
         self.merged_unit = None
         self.cell_geldrying = None
@@ -158,17 +161,17 @@ class Session:
         self.cells = None
         print(f"Finished {animal_id}: {session_id}")
 
-    def get_mesc_data_paths(self):
-        # Search for MESC file names needed for TIFF creation
-        mesc_file_list = []
-        files_list = get_files(self.session_dir, ending="mesc")
+    def get_data_paths(self, ending="mesc"):
+        # Search for file names with specific ending and naming content 
+        regex_search = "S[0-9]" if ending=="mesc" else "MUnit" if ending=="tiff" else "not suited ending"
+        file_list = []
+        files_list = get_files(self.session_dir, ending=ending)
         for file_name in files_list:
-            if len(re.findall("S[0-9]", file_name)) == 0:
+            if len(re.findall(regex_search, file_name)) == 0:
                 continue
             else:
-                mesc_file_list.append(os.path.join(self.session_dir, file_name))
-        self.mesc_data_paths = mesc_file_list
-        return self.mesc_data_paths
+                file_list.append(os.path.join(self.session_dir, file_name))
+        return file_list
 
     def get_list_of_session_parts(self, file_names):
         if type(file_names) != list:
@@ -177,7 +180,7 @@ class Session:
         for file_name in file_names:
             last_fname_part = file_name.split("\\")[-1].split("_")[-1].split(".")[0]
             session_parts.append(re.findall("S[0-9]", last_fname_part))
-        return np.unique(session_parts)
+        return np.unique(session_parts).tolist()
     
     def get_session_parts(self, file_names = None):
         session_parts = []
@@ -190,10 +193,42 @@ class Session:
         self.session_parts = session_parts
         return self.session_parts
 
+    def get_recording_munits(self, mesc_fpath, fps = 30, at_least_minutes_of_recording=5):
+        # Get MUnit number list of first Mescfile session MSession_0
+        with h5py.File(mesc_fpath, 'r') as file:
+            munits = file[list(file.keys())[0]]
+            recording_munits = []
+            for name, unit in munits.items():
+                # if recording has at least x minutes
+                if unit["Channel_0"].shape[0] > fps*60*at_least_minutes_of_recording: 
+                    unit_number = name.split("_")[-1]
+                    recording_munits.append(int(unit_number))
+                    # get number of imaging channels 
+                    number_channels = 0
+                    for key in unit.keys():
+                        if "Channel" in key:
+                            number_channels += 1
+        return recording_munits, number_channels
+
+    def define_mesc_munit_pairs(self, predefined_pairs=[]):
+        mesc_munit_pairs = []
+        for mesc_data_path in self.mesc_data_paths:
+            mesc_fnames = mesc_data_path.split("\\")[-1]
+            undefined_mesc_munit_pair = True
+            for mesc_munit_pair in predefined_pairs:
+                predef_mesc_name = mesc_munit_pair[0]
+                # skip if mesc file name munits are already defined
+                if mesc_fnames in predef_mesc_name:
+                    undefined_mesc_munit_pair = False
+            if undefined_mesc_munit_pair:
+                # define usefull munit to merge
+                usefull_munits, number_channels = self.get_recording_munits(mesc_data_path)
+                mesc_munit_pairs.append([mesc_fnames, [usefull_munits]])
+
+        mesc_munit_pairs += predefined_pairs
+        return mesc_munit_pairs#, number_channels
+
     def get_tiff_data_paths(self, generate=False, regenerate=False, unit_ids="all", delete=False):
-        delete = False #TODO: Mesc is probably always usefull.
-        tiff_data_paths = []
-        self.tiff_data_paths = []
         if regenerate:
             if unit_ids == "single" or unit_ids == "all":
                 for unit in self.session_parts:
@@ -218,106 +253,61 @@ class Session:
         self.tiff_data_paths = np.unique(tiff_data_paths).tolist()
         return self.tiff_data_paths
 
-    ################################################################################################################################
-    def get_recording_munits(mesc_fpath, session_parts, fps = 30, at_least_minutes_of_recording=5):
-        # Get MUnit number list of first Mescfile session MSession_0
-        with h5py.File(mesc_fpath, 'r') as file:
-            munits = file[list(file.keys())[0]]
-            recording_munits = []
-            for name, unit in munits.items():
-                # if recording has at least x minutes
-                if unit["Channel_0"].shape[0] > fps*60*at_least_minutes_of_recording: 
-                    unit_number = name.split("_")[-1]
-                    recording_munits.append(int(unit_number))
-                    # get number of imaging channels 
-                    number_channels = 0
-                    for key in unit.keys():
-                        if "Channel" in key:
-                            number_channels += 1
-        return recording_munits, number_channels
-
-    def define_mesc_munit_pairs(self, predefined_pairs=[]):
-        mesc_munit_pairs = []
-        for found_mesc_fname in get_files(self.session_dir):
-            for mesc_munit_pair in predefined_pairs:
-                predef_mesc_name = mesc_munit_pair[0]
-                # skip if mesc file name munits are already defined
-                if found_mesc_fname in predef_mesc_name: 
-                    continue
-                # define usefull munit to merge
-                usefull_munits, number_channels = self.get_recording_munits()
-                mesc_munit_pairs.append([found_mesc_fname, [usefull_munits]])
-        mesc_munit_pairs += predefined_pairs
-        return mesc_munit_pairs, number_channels
-    ################################################################################################################################
     #FIXME: insert stuff from above into function below (mesc to tiff conversion)
 
-    def generate_tiff_from_mesc(self, unit_ids="all", delete=False, regenerate=False):
-        fps = 30
-        at_least_minutes_of_recording = 5
-        if isinstance(unit_ids, str):
-            unit_ids = [unit_ids]
+    def generate_tiff_from_mesc(self, generate=False, regenerate=False, delete=False):
+        delete = False #TODO: Mesc is probably always usefull.
+        self.tiff_data_paths = [] if generate and regenerate else self.tiff_data_paths
 
-        if "all" in unit_ids:
-            tiff_file_name = self.mesc_data_path.replace('.mesc','.tif')#FIXME: change to data_pahts
-            unit_ids = self.get_session_parts()
-        else:
-            tiff_file_name = os.path.join(self.session_dir, f"{self.animal_id}_{self.session_id}_{Animal.dir_}_")
-            for unit in unit_ids:
-                tiff_file_name += unit + "-"
-            tiff_file_name = tiff_file_name[:-1] + ".tiff"
-        
-            
-        if tiff_file_name not in self.tiff_data_paths or regenerate:
-            mesc_file_name = self.mesc_data_path #FIXME: change to data_pahts
+        to_generate_tiff_paths = {}
+        # get all possible tiff file names
+        for mesc_fname, munits in self.mesc_munit_pairs:
+            tiff_mesc_fname = mesc_fname.split(".mesc")[0]
+            for munit in munits:
+                tiff_mesc_munit_fname = f"{tiff_mesc_fname}_MUnit_{munit}.tiff"                
+                # if tiff file name is not in tiff_data_paths, generate it
+                possible_tiff_namings_path = os.path.join(self.session_dir, tiff_mesc_munit_fname)
+                if possible_tiff_namings_path not in self.tiff_data_paths:
+                    if mesc_fname not in to_generate_tiff_paths.keys():
+                        to_generate_tiff_paths[mesc_fname] = [possible_tiff_namings_path] 
+                    else:
+                        to_generate_tiff_paths[mesc_fname].append(possible_tiff_namings_path)
+                else:
+                    print(f".mesc -> .tiff file already done")
+                    print(f"{possible_tiff_namings_path}")
+                    print(f"... skipping conversion...")
 
-            if mesc_file_name == None:
-                print("No MESC file found")
-            else:
-                # merging all mescs tiff
-                print("Merging Mesc to Tiff...")
-                
-                # Get MUnit number list of first Mescfile session MSession_0
-                with h5py.File(mesc_file_name, 'r') as file:
-                    munits = file[list(file.keys())[0]]
-                    fluorescence_recording_session_numbers = []
-                    for name, unit in munits.items():
-                        # if recording has at least x minutes
-                        if unit[f'Channel_{self.functional_chan}'].shape[0] > fps*60*at_least_minutes_of_recording: 
-                            unit_number = name.split("_")[-1]
-                            fluorescence_recording_session_numbers.append(int(unit_number))
+        if generate:
+            for mesc_fname, tiff_paths in to_generate_tiff_paths.items():
+                mesc_path = [mesc_path for mesc_path in self.mesc_data_paths if mesc_fname in mesc_path][0]
+                for tiff_path in tiff_paths:
+                    mesc_path = self.mesc_data_path #FIXME: change to data_pahts
 
-                # Get number_shift, if a bad fluorescence file was manually deleted
-                # CAUTION: if deletion is done in the middle the correction will break
-                biggest_session_number = max([int(unit.replace("S", ""))-1 for unit in self.session_parts])
-                biggest_possible_session_number = max(fluorescence_recording_session_numbers)
-                number_shift = biggest_session_number-biggest_possible_session_number
+                    # merging all mescs tiff
+                    print("Merging Mesc to Tiff...")
+                    
+                    sess_list = []
+                    for unit in unit_ids:
+                        temp = unit.replace("S",'')
+                        temp = 'MUnit_'+str(int(temp)-1-number_shift)
+                        print ("session loaded: ", temp)
+                        sess_list.append(temp)
 
-                sess_list = []
-                for unit in unit_ids:
-                    temp = unit.replace("S",'')
-                    temp = 'MUnit_'+str(int(temp)-1-number_shift)
-                    print ("session loaded: ", temp)
-                    sess_list.append(temp)
+                    data = []
+                    with h5py.File(mesc_path, 'r') as file:
+                        #
+                        for sess in sess_list:
+                            print ("processing: ", sess)
+                            temp = file['MSession_0'][sess][f'Channel_{self.functional_chan}'][()]
+                            print ("    data loaded size: ", temp.shape)
+                            data.append(temp)
+                    data = np.vstack(data)
+                    print(data.shape)
 
-                data = []
-                with h5py.File(mesc_file_name, 'r') as file:
-                    #
-                    for sess in sess_list:
-                        print ("processing: ", sess)
-                        temp = file['MSession_0'][sess][f'Channel_{self.functional_chan}'][()]
-                        print ("    data loaded size: ", temp.shape)
-                        data.append(temp)
-                data = np.vstack(data)
-                print(data.shape)
-
-                tifffile.imwrite(tiff_file_name, data)
-                if delete:
-                    os.remove(mesc_file_name)
-                print("Finished generating TIFF from MESC data.")
-        else:
-            print(".mesc -> .tiff file already done... skipping conversion...")
-
+                    tifffile.imwrite(tiff_file_name, data)
+                    if delete:
+                        os.remove(mesc_path)
+                    print("Finished generating TIFF from MESC data.")
         return tiff_file_name
 
     def get_s2p_folder_paths(self, generate=False, regenerate=False, unit_ids="all", delete=False):
@@ -1231,13 +1221,6 @@ class Vizualizer:
         #### save figures
     
     def bursts(self, animal_id, session_id, fluorescence_type="F_raw", num_cells="all", unit_id="all", remove_geldrying=True, dpi=300, fps="30"):
-
-        #TODO: insert possibility to filter for good cells?
-        #is_cells_ids = np.where(calcium_object.iscell==1)[0]
-        #is_not_cells_ids = np.where(calcium_object.iscell==0)[0]
-        #num_is_cells = is_cells_ids.shape[0] #get is cells
-        #calcium_object.plot_traces(calcium_object.F_filtered, np.arange(num_is_cells))
-
         #for s2p_folder in self.animals[animal_id].sessions[session].s2p_folder_paths:
         session = self.animals[animal_id].sessions[session_id]
         bin_traces_zip = session.load_cabincorr_data(unit_id=unit_id)
