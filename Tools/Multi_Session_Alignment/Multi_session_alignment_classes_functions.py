@@ -53,19 +53,18 @@ def search_file(directory, filename):
             return os.path.join(root, filename)
     return None
 
-def get_directories(directory):
+def get_directories(directory, regex_search=""):
     """
-    Returns a list of directories in the specified folder path.
-
-    Args:
-        folder_path (str): The path of the folder to get the directories from.
-
+    This function returns a list of directories from the specified directory that match the regular expression search pattern.
+    
+    Parameters:
+    directory (str): The directory path where to look for directories.
+    regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all directories are included.
+    
     Returns:
-        list: A list of directory names.
+    list: A list of directory names that match the regular expression search pattern.
     """
-    # Get a list of directories in the specified folder
-    # Filter the list to include only directories (excluding the "figures" directory)
-    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))]
+    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0]
     return directories
 
 def del_file_dir(fpath):
@@ -89,10 +88,6 @@ def del_file_dir(fpath):
             os.remove(fpath)
         else:
             shutil.rmtree(fpath)
-def get_animal_folder_names(directory):
-    directories = get_directories(directory)
-    animal_folder_names = [folder for folder in directories if folder[:3]=="DON"]
-    return animal_folder_names
 
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], restore=False, print_loading=True):
     """
@@ -109,7 +104,7 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], re
     Returns:
     - animals_dict (dict): A dictionary containing animal IDs as keys and corresponding Animal objects as values.
     """
-    present_animal_ids = get_animal_folder_names(root_dir)
+    present_animal_ids = get_directories(root_dir, regex_search="DON-")
     animals_dict = {}
 
     # Search for animal_ids

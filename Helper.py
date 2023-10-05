@@ -477,45 +477,33 @@ def del_file_dir(fpath):
         else:
             shutil.rmtree(fpath)
 
-def get_directories(directory):
+def get_directories(directory, regex_search=""):
     """
-    Returns a list of directories in the specified folder path.
-
-    Args:
-        folder_path (str): The path of the folder to get the directories from.
-
+    This function returns a list of directories from the specified directory that match the regular expression search pattern.
+    
+    Parameters:
+    directory (str): The directory path where to look for directories.
+    regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all directories are included.
+    
     Returns:
-        list: A list of directory names.
+    list: A list of directory names that match the regular expression search pattern.
     """
-    # Get a list of directories in the specified folder
-    # Filter the list to include only directories (excluding the "figures" directory)
-    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))]
+    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0]
     return directories
 
-def get_animal_folder_names(directory):
-    directories = get_directories(directory)
-    animal_folder_names = [folder for folder in directories if folder[:3]=="DON"]
-    return animal_folder_names
-
-def get_files(directory, ending="all"):
+def get_files(directory, ending="all", regex_search=""):
     """
-    This function returns a list of files in a given directory. 
-    If an ending is specified, it returns only the files that end with the specified ending.
+    This function returns a list of files from the specified directory that match the regular expression search pattern and have the specified file ending.
     
-    :param directory: The directory to search for files.
-    :type directory: str
-    :param ending: The file ending to filter by. Default value is "all", which returns all files.
-    :type ending: str
-    :return: A list of files in the given directory. If an ending is specified, only files that end with the specified ending are returned.
-    :rtype: list
+    Parameters:
+    directory (str): The directory path where to look for files.
+    ending (str, optional): The file ending to match. Default is 'all', which means all file endings are included.
+    regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all files are included.
+    
+    Returns:
+    list: A list of file names that match the regular expression search pattern and have the specified file ending.
     """
-    files_list = [name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name))]
-    if ending != "all":
-        files_list_with_ending = []
-        for file in files_list:
-            if file.endswith(ending):
-                files_list_with_ending.append(file)
-        return files_list_with_ending
+    files_list = [name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0 and name.endswith(ending)]
     return files_list
 
 def search_file(directory, filename):
