@@ -91,7 +91,7 @@ class Animal:
         self.session_names = animal_metadata_dict["session_names"]
         self.sex = animal_metadata_dict["sex"]
         self.mesc_munit_pairs = animal_metadata_dict["UseMUnits"] if "UseMUnits" in animal_metadata_dict.keys() else None
-        self.funcional_channels = animal_metadata_dict["functional_channels"] if "functional_channels" in animal_metadata_dict.keys() else [1]*len(self.session_dates)
+        self.funcional_channels = animal_metadata_dict["functional_channels"] if "functional_channels" in animal_metadata_dict.keys() else [0]*len(self.session_dates)
             
     def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", print_loading=True, delete=False):
         yaml_file_index = self.session_names.index(session_id)
@@ -256,6 +256,7 @@ class Session:
     #FIXME: insert stuff from above into function below (mesc to tiff conversion)
 
     def generate_tiff_from_mesc(self, generate=False, regenerate=False, delete=False):
+        mesc_functional_chan = self.functional_chan-1 # mesc starts with 0, suite2p with 1
         delete = False #TODO: Mesc is probably always usefull.
         self.tiff_data_paths = [] if generate and regenerate else self.tiff_data_paths
 
@@ -293,16 +294,16 @@ class Session:
                         print ("session loaded: ", temp)
                         sess_list.append(temp)
 
-                    data = []
-                    with h5py.File(mesc_path, 'r') as file:
-                        #
-                        for sess in sess_list:
-                            print ("processing: ", sess)
-                            temp = file['MSession_0'][sess][f'Channel_{self.functional_chan}'][()]
-                            print ("    data loaded size: ", temp.shape)
-                            data.append(temp)
-                    data = np.vstack(data)
-                    print(data.shape)
+                data = []
+                with h5py.File(mesc_file_name, 'r') as file:
+                    #
+                    for sess in sess_list:
+                        print ("processing: ", sess)
+                        temp = file['MSession_0'][sess][f'Channel_{mesc_functional_chan}'][()]
+                        print ("    data loaded size: ", temp.shape)
+                        data.append(temp)
+                data = np.vstack(data)
+                print(data.shape)
 
                     tifffile.imwrite(tiff_file_name, data)
                     if delete:
@@ -414,7 +415,7 @@ class Session:
             'fs': 30,               # sampling rate of recording, determines binning for cell detection
             'look_one_level_down': False, # whether to look in ALL subfolders when searching for tiffs
             'data_path': [self.session_dir], # a list of folders with tiffs 
-            'functional_chan': self.functional_chan,
+            #'functional_chan': self.functional_chan,
                                     # (or folder of folders with tiffs if look_one_level_down is True, or subfolders is not empty)
             'save_folder': save_folder,
             #'threshold_scaling': 2.0, # we are increasing the threshold for finding ROIs to limit the number of non-cell ROIs found (sometimes useful in gcamp injections)

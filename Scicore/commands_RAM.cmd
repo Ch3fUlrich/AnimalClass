@@ -15,7 +15,7 @@ python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_comm
 python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py DON-009192 20220330
 
 
-update wrong channel sessions --> 12678395
+update wrong channel sessions --> 12967686
 
 
 
