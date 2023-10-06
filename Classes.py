@@ -141,6 +141,7 @@ class Session:
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id, Animal.dir_)
         self.functional_chan = functional_chan
         self.age = age
+
         # load session information
         self.mesc_data_paths = self.get_data_paths(ending="mesc")
         self.mesc_munit_pairs = self.define_mesc_munit_pairs(mesc_munit_pairs)
@@ -149,13 +150,12 @@ class Session:
         self.s2p_folder_paths = self.get_data_paths(regex_search="suite2p", folder=True)
         self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
         
+        # Merging, generating cabincorr. suite2p, tiff from mesc
         #TODO: integrate possibility to also create individual combinations of munits?
-        self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, delete=delete)#FIXME: change to create all unit_ids
-        self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
-        self.run_suite2p(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete) #FIXME: du weist
-        # load cabincorr data
-        #FIXME:
-        self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
+        self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, delete=delete)
+        self.generate_suite2p(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete) #FIXME: du weist
+        self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids=unit_ids) #FIXME:
+        #FIXME: create a merging function instead of running everything on its own (recursive better than iterative)
 
         self.calcium_object = None
         self.units = None
@@ -180,16 +180,20 @@ class Session:
             fnames = get_directories(directory, regex_search=regex_search)
         else:
             fnames = get_files(directory, ending=ending, regex_search=regex_search)
-        fpaths = []
-        for fname in fnames:
-            usefull = True
-            fpath = os.path.join(directory, fname)
+        
+        fpaths = None
+        if fnames:
+            fpaths = []
+            for fname in fnames:
+                usefull = True
+                fpath = os.path.join(directory, fname)
 
-            if regex_search=="suite2p" and folder: #auto filter for usefull suite2p folders
-                fluorescence_path = search_file(fpath, Session.fluoresence_fname)
-                usefull = True if fluorescence_path else False
-            if usefull:
-                fpaths.append(fpath)
+                if regex_search=="suite2p" and folder: #auto filter for usefull suite2p folders
+                    fluorescence_path = search_file(fpath, Session.fluoresence_fname)
+                    usefull = True if fluorescence_path else False
+
+                if usefull:
+                    fpaths.append(fpath)
         return fpaths
 
     def get_list_of_session_parts(self, file_names):
@@ -252,25 +256,26 @@ class Session:
         delete = False #TODO: Mesc is probably always usefull.
         self.tiff_data_paths = [] if generate and regenerate else self.tiff_data_paths
 
-        to_generate_tiff_paths = {} # dictionary of tiff file names to generate with mesc file names and munit numbers
-        # get all possible tiff file names
-        for mesc_fname, munits in self.mesc_munit_pairs:
-            tiff_mesc_fname = mesc_fname.split(".mesc")[0]
-            for munit in munits:
-                tiff_mesc_munit_fname = f"{tiff_mesc_fname}_MUnit_{munit}.tiff"                
-                # if tiff file name is not in tiff_data_paths, generate it
-                possible_tiff_namings_path = os.path.join(self.session_dir, tiff_mesc_munit_fname)
-                if possible_tiff_namings_path not in self.tiff_data_paths:
-                    if mesc_fname not in to_generate_tiff_paths.keys():
-                        to_generate_tiff_paths[possible_tiff_namings_path] = [[mesc_fname, munit]] 
-                    else:
-                        to_generate_tiff_paths[possible_tiff_namings_path].append([mesc_fname, munit])
-                else:
-                    print(f".mesc -> .tiff file already done")
-                    print(f"{possible_tiff_namings_path}")
-                    print(f"... skipping conversion...")
-
         if generate:
+            to_generate_tiff_paths = {} # dictionary of tiff file names to generate with mesc file names and munit numbers
+            # get all possible tiff file names
+            for mesc_fname, munits in self.mesc_munit_pairs:
+                tiff_mesc_fname = mesc_fname.split(".mesc")[0]
+                for munit in munits:
+                    tiff_mesc_munit_fname = f"{tiff_mesc_fname}_MUnit_{munit}.tiff"                
+                    # if tiff file name is not in tiff_data_paths, generate it
+                    tiff_namings_path = os.path.join(self.session_dir, tiff_mesc_munit_fname)
+                    if tiff_namings_path not in self.tiff_data_paths:
+                        if mesc_fname not in to_generate_tiff_paths.keys():
+                            to_generate_tiff_paths[tiff_namings_path] = [[mesc_fname, munit]] 
+                        else:
+                            to_generate_tiff_paths[tiff_namings_path].append([mesc_fname, munit])
+                    else:
+                        print(f".mesc -> .tiff file already done")
+                        print(f"{tiff_namings_path}")
+                        print(f"... skipping conversion...")
+
+            # generate tiff files
             for tiff_path, mesc_fname_munit in to_generate_tiff_paths.items():
                 mesc_path = [mesc_path for mesc_path in self.mesc_data_paths if mesc_fname_munit[0] in mesc_path][0]
                 munit = mesc_fname_munit[1]
@@ -294,93 +299,96 @@ class Session:
             self.tiff_data_paths = self.get_data_paths(ending="tiff")
         return self.tiff_data_paths
 
-    #FIXME: insert stuff from above into function below (mesc to tiff conversion)
-    def run_suite2p(self, generate=False, regenerate=False, unit_ids="all", delete=False):
+    def generate_suite2p(self, generate=False, regenerate=False, unit_ids="all", delete=False):
         self.s2p_folder_paths = [] if generate and regenerate else self.s2p_folder_paths
+        
+        if generate:
+            if not self.s2p_folder_paths:
+                dir_exist_create(os.path.join(self.session_dir, "tiff"))
+                self.s2p_folder_paths = []
 
-        to_generate_suite2p_paths = {} # dictionary of suite2p folder names 
-        # get all possible suite2p folder names
-        for tiff_data_path in self.tiff_data_paths:
-            tiff_fname = tiff_data_path.split("\\")[-1].split(".tiff")[0]
-            tiff_session_parts = re.findall("S[0-9]", tiff_fname)
-            tiff_munit = re.findall("MUnit_[0-9]", tiff_fname)
-            s2p_fname = f"suite2p_{'-'.join(tiff_session_parts)}_MUnit_{tiff_munit[0]}"
-            s2p_folder_path = os.path.join(self.session_dir, "tif", s2p_fname)
+            to_generate_suite2p_paths = {} # dictionary of suite2p folder names 
+            # get all possible suite2p folder names
+            for tiff_data_path in self.tiff_data_paths:
+                tiff_fname = tiff_data_path.split("\\")[-1].split(".tiff")[0]
+                tiff_session_parts = re.findall("S[0-9]", tiff_fname)
+                tiff_munit = re.findall("MUnit_[0-9]", tiff_fname)
+                s2p_fname = f"suite2p_{'-'.join(tiff_session_parts)}_MUnit_{tiff_munit[0]}"
+                s2p_folder_path = os.path.join(self.session_dir, "tif", s2p_fname)
 
-            if s2p_folder_path not in self.s2p_folder_paths:
-                if tiff_fname not in to_generate_suite2p_paths.keys():
-                    to_generate_suite2p_paths[s2p_folder_path] = [tiff_data_path]
+                if s2p_folder_path not in self.s2p_folder_paths:
+                    dir_exist_create(s2p_folder_path)
+                    if tiff_fname not in to_generate_suite2p_paths.keys():
+                        to_generate_suite2p_paths[s2p_folder_path] = [tiff_data_path]
+                    else:
+                        to_generate_suite2p_paths[s2p_folder_path].append(tiff_data_path)
                 else:
-                    to_generate_suite2p_paths[s2p_folder_path].append(tiff_data_path)
+                    print(f".tiff -> suite2p folder already done")
+                    print(f"{s2p_folder_path}")
+                    print(f"... skipping conversion...")
+
+            #TODO: add ability to only create one tiff from mesc not all
+            for s2p_folder_path, tiff_data_path in to_generate_suite2p_paths.items():
+                if not os.path.exists(tiff_data_path):
+                    print(f"Generating missing tiff files for {s2p_folder_path}")
+                    self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate)
+
+            # run suite2p
+            if unit_ids == "all":
+                # generate missing tiffs
+                tiff_fnames = [tiff_data_path.split("\\")[-1] for tiff_data_path in self.tiff_data_paths]
+                save_folder=os.path.join("tif", "suite2p")
+                self.run_suite2p(tiff_fnames, save_folder=save_folder, 
+                                 reuse_bin=False, delete_bin=True, move_bin=False)
+                
+            elif unit_ids == "single":
+                for s2p_folder_path, tiff_data_path in to_generate_suite2p_paths.items():
+                    tiff_fname = tiff_data_path.split("\\")[-1].split(".tiff")[0]
+                    # Binary data from Suite2p for all MUnits is not needed for merging
+                    tiff_file_name = f"{self.animal_id}_{self.session_id}_{Animal.dir_}"
+
+                    self.run_suite2p(tiff_fname, save_folder=s2p_folder_path)
             else:
-                print(f".tiff -> suite2p folder already done")
-                print(f"{s2p_folder_path}")
-                print(f"... skipping conversion...")
+                raise ValueError("Only 2 unit_ids are excepted: 'all' and 'single'")
+        self.s2p_folder_paths = self.get_data_paths(regex_search="suite2p", folder=True)
 
-        integrate single and all............................................
+        if delete:
+            print("Removing Tiff...")
+            for data_path in self.tiff_data_paths:
+                os.remove(data_path)
+        self.tiff_data_paths = self.get_data_paths(ending="tiff")
+        return self.s2p_folder_paths
 
-        if unit_ids == "single":
-            for unit in self.session_parts:
-                suite2p_single = suite2p_folder + unit
-                fluorescence_path = search_file(suite2p_single, Session.fluoresence_fname)
-                self.run_suite2p(regenerate=regenerate, unit_ids=unit, delete=delete)
-        else:
-            suite2p_folder = os.path.join(self.session_dir, "tif", "suite2p")
-            self.run_suite2p(regenerate=regenerate, unit_ids=unit_ids, delete=delete)
-
-        dir_exist_create(os.path.join(self.session_dir, "tif"))
-        s2p_folder_paths = get_directories(os.path.join(self.session_dir, "tif"))
-
-        # Binary data from Suite2p for all MUnits is not needed for merging
-        delete_bin = True if unit_ids=="all" else False
-        move_bin = False if unit_ids=="all" else True
-
-        save_folder=os.path.join("tif", "suite2p")
-        tiff_file_name = f"{self.animal_id}_{self.session_id}_{Animal.dir_}"
+    def run_suite2p(self, tiff_fnames, save_folder, 
+                    reuse_bin=True, delete_old_temp_bin=True, 
+                    delete_bin=False, move_bin=True, fps=30, batch_size=500):
         
-        tiff_file_names = []
-        if unit_ids != "all":
-            if isinstance(unit_ids, str):
-                unit_ids = [unit_ids]
-            for unit in unit_ids:
-                save_folder=save_folder + "_" + unit
-                tiff_file_names.append(tiff_file_name+"_"+unit+".tiff")
-        else:
-            for unit in self.session_parts:
-                tiff_file_names.append(tiff_file_name+"_"+unit+".tiff")
-
-        dir_exist_create(os.path.join(self.session_dir, save_folder))
-
-        current_fluorescence_data_path = search_file(os.path.join(self.session_dir, save_folder), Session.fluoresence_fname)
-        if current_fluorescence_data_path != None and not regenerate:
-            return current_fluorescence_data_path
+        print(f"Starting Suite2p... saving in {save_folder}")
         
-        for tiff_file_name in tiff_file_names:
-            data_path = os.path.join(self.session_dir, tiff_file_name)
-            if data_path not in self.tiff_data_paths:
-                print(f"Failed to run Suite2P \n No Tiff found: {data_path}")
-                return None    
-
-        print("Starting Suite2p...")
+        if type(tiff_fnames)==str:
+            tiff_fnames = [tiff_fnames]
+        
         # set your options for running
         ops = default_ops() # populates ops with the default options
 
         # deleting binary file from old s2p run
-        s2p_temp_binary_location = os.path.join(self.session_dir, "suite2p", "plane0", "data.bin")
-        print(f"Deleting old binary file from {s2p_temp_binary_location}")
-        #if os.path.exists(s2p_temp_binary_location):
-        #    os.remove(s2p_temp_binary_location)
+        if delete_old_temp_bin:
+            s2p_temp_binary_location = os.path.join(self.session_dir, "suite2p", "plane0", "data.bin")
+            print(f"Deleting old binary file from {s2p_temp_binary_location}")
+            del_file_dir(s2p_temp_binary_location)
 
-        s2p_binary_file = os.path.join(save_folder, "plane0", "data.bin")
-        if os.path.exists(s2p_binary_file):
-            shutil.copy(s2p_binary_file, s2p_temp_binary_location)
-            print(f"Reusing binary file {s2p_binary_file}")
+        # reusing binary file generated in the past, if present
+        if reuse_bin:
+            s2p_binary_file = os.path.join(save_folder, "plane0", "data.bin")
+            if os.path.exists(s2p_binary_file):
+                shutil.copy(s2p_binary_file, s2p_temp_binary_location)
+                print(f"Reusing binary file {s2p_binary_file}")
 
         # provide an h5 path in 'h5py' or a tiff path in 'data_path'
         # db overwrites any ops (allows for experiment specific settings)
         db = {
-            'batch_size': 500,      # we will decrease the batch_size in case low RAM on computer
-            'fs': 30,               # sampling rate of recording, determines binning for cell detection
+            'batch_size': batch_size,      # we will decrease the batch_size in case low RAM on computer
+            'fs': fps,               # sampling rate of recording, determines binning for cell detection
             'look_one_level_down': False, # whether to look in ALL subfolders when searching for tiffs
             'data_path': [self.session_dir], # a list of folders with tiffs 
             #'functional_chan': self.functional_chan,
@@ -389,7 +397,7 @@ class Session:
             #'threshold_scaling': 2.0, # we are increasing the threshold for finding ROIs to limit the number of non-cell ROIs found (sometimes useful in gcamp injections)
             #'tau': 1.25,           # timescale of gcamp to use for deconvolution
             #'nimg_init': 500,      # Can create errors... how many frames to use to compute reference image for registration
-            'tiff_list': tiff_file_names,
+            'tiff_list': tiff_fnames,
             'allow_overlap': False,  #extract signals from pixels which belong to two ROIs. By default, any pixels which belong to two ROIs (overlapping pixels) are excluded from the computation of the ROI trace.
             'delete_bin': delete_bin,    # delete binary files afterwards
             'keep_movie_raw': False, # keep the binary file of the non-registered frames
@@ -398,72 +406,37 @@ class Session:
             'save_disk': os.path.join(self.session_dir, save_folder) # Move the bin files to this location afterwards
             #'combined': False      # combine results across planes in separate folder “combined” at end of processing.
             }
+        
         # run one experiment
         opsEnd = run_s2p(ops=ops, db=db)
-        self.s2p_folder_paths.append(os.path.join(self.session_dir, save_folder))
-        self.s2p_folder_paths = np.unique(self.s2p_folder_paths).tolist()
-
-        self.s2p_folder_paths = self.get_data_paths(regex_search="suite2p", folder=True)
         print("Finished Suite2p.")
 
-        if delete:
-            print("Removing Tiff...")
-            for data_path in self.tiff_data_paths:
-                os.remove(data_path)
-        self.tiff_data_paths = self.get_data_paths(ending="tiff")
-
-    def get_cabincorr_data_paths(self, generate=False, regenerate=False, unit_ids="all"):
-        self.cabincorr_data_paths = []
-
-        if regenerate:
-            if unit_ids == "single":
-                for unit in self.session_parts:
-                    self.run_cabincorr(regenerate=regenerate, unit_ids=unit)
-
-        s2p_dirs = self.get_s2p_folder_paths()
-        
-        for s2pdir in s2p_dirs:
-            cabincorr_file_path = search_file(s2pdir, Session.cabincorr_fname)
-            if cabincorr_file_path != None:
-                self.cabincorr_data_paths.append(cabincorr_file_path)
-
-        if generate:
-            if unit_ids == "single":
-                for unit in self.session_parts:
-                    self.run_cabincorr(regenerate=regenerate, unit_ids=unit)
-            else:
-                self.run_cabincorr(regenerate=regenerate, unit_ids=unit_ids)
+#FIXME: insert stuff from above into function below (mesc to tiff conversion)
+    def get_cabincorr_data_pths(self, generate=False, regenerate=False, unit_ids="all"):
         return self.cabincorr_data_paths
         
-    def run_cabincorr(self, regenerate=False, unit_ids="all"):
-        #TODO: create cabincorr package
-        suite2p_folder = os.path.join(self.session_dir, "tif", "suite2p")
+        #FIXME: is generating for all suite2p_folders......
+    def generate_cabincorr(self, generate=False, regenerate=False, unit_ids="all"): 
+        self.cabincorr_data_paths = [] if generate and regenerate else self.cabincorr_data_paths
 
-        if unit_ids != "all":
-            if isinstance(unit_ids, str):
-                unit_ids = [unit_ids]
-            for unit in unit_ids:                
-                suite2p_folder = suite2p_folder + "_" + unit
-
-        current_cabincorr_data_path = search_file(suite2p_folder, Session.cabincorr_fname)
-
-        if current_cabincorr_data_path != None and not regenerate:
-            return current_cabincorr_data_path
+        if generate:
+            for s2p_path in self.s2p_folder_paths:
+                cabincorr_file_path = search_file(s2p_path, Session.cabincorr_fname)
+                data_dir = os.path.join(s2p_path, "plane0") 
+                if cabincorr_file_path:
+                    if cabincorr_file_path not in self.cabincorr_data_paths:
+                        c = run_cabin_corr(Animal.root_dir, data_dir=data_dir, regenerate=regenerate,
+                                        animal_id=self.animal_id, session_id=self.session_id)
+                    else:
+                        print(f"suite2p -> {Session.cabincorr_fname} file already done")
+                        print(f"{cabincorr_file_path}")
+                        print(f"... skipping generation...")
+                else:
+                    c = run_cabin_corr(Animal.root_dir, data_dir=data_dir, regenerate=regenerate, 
+                                    animal_id=self.animal_id, session_id=self.session_id)
         
-        current_fluorescence_data_path = search_file(suite2p_folder, Session.fluoresence_fname)
-
-        if current_fluorescence_data_path == None:
-            print(f"Failed to run CaBinCorr \n No Suite2P data found: {suite2p_folder}")
-            return None 
-
-        print("Starting CaBinCorr...")
-        c = run_cabin_corr(Animal.root_dir, data_dir=os.path.join(suite2p_folder, "plane0"),
-                           animal_id=self.animal_id, session_id=self.session_id)
-        
-
-        current_cabincorr_data_path = search_file(suite2p_folder, Animal.cabincorr_fname)
-        self.cabincorr_data_paths.append(current_cabincorr_data_path)
-        return current_cabincorr_data_path
+        self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
+        return self.cabincorr_data_paths
     
     def load_cabincorr_data(self, unit_id="all"):
         bin_traces_zip = None
@@ -753,8 +726,8 @@ class Session:
                 for unit_id, unit in updated_units.items():
                     del_file_dir(unit.suite2p_folder_path)
 
-            self.get_cabincorr_data_paths()
-            self.get_s2p_folder_paths()
+            self.s2p_folder_paths = self.get_data_paths(regex_search="suite2p", folder=True)
+            self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
             merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged")
             merged_unit.get_geldrying_cells()
             self.merged_unit = merged_unit
@@ -762,8 +735,8 @@ class Session:
     
     def merge_units_get_geldrying(self, generate=True, regenerate=False, delete_used_subsessions=False, binary_needed=True):
         print(f"-------------------------------Generating Initial Suite2P Files for individual units ---------------------")
-        self.get_s2p_folder_paths(generate=generate, regenerate=regenerate, unit_ids="single")
-        self.get_cabincorr_data_paths(generate=generate, regenerate=regenerate, unit_ids="single")
+        self.generate_suite2p(generate=generate, regenerate=regenerate, unit_ids="single")#FIXME: working?
+        self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids="single")#FIXME: working?
         if binary_needed:
             print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
             # Rerunning Suite2p if binary file is not present
@@ -780,7 +753,9 @@ class Session:
                             part_to_rerun = part
                     if part_to_rerun:
                         print(f"binary file not present in {s2p_path}")
-                        self.run_suite2p(regenerate=True, unit_ids=part_to_rerun)
+                        session_part_munit_naming = s2p_path.split("\\")[-1].split("suite2_")[0]
+                        tiff_fname = [tiff_path.split("\\")[-1] for tiff_path in self.tiff_data_paths if session_part_munit_naming in tiff_path][0]#FIXME: working?
+                        self.run_suite2p(tiff_fname, save_folder=s2p_path)
         print(f"-----------------------------------Loading Units-----------------------------------")
         self.get_units(get_geldrying=True)
         print(f"-----------------------------------Merging Units-----------------------------------")
@@ -2140,6 +2115,10 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"],
 
 def run_cabin_corr(root_dir, data_dir, animal_id, session_id, regenerate=False, parallel=True):
     #Init
+    current_fluorescence_data_path = search_file(data_dir, Session.fluoresence_fname)
+    if current_fluorescence_data_path == None:
+        print(f"Failed to run CaBinCorr \n No Suite2P data found: {data_dir}")
+        return None 
     cabincorr_path = os.path.join(data_dir, "binarized_traces.npz")
     if regenerate:
         del_file_dir(cabincorr_path)

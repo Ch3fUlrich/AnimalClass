@@ -488,7 +488,11 @@ def get_directories(directory, regex_search=""):
     Returns:
     list: A list of directory names that match the regular expression search pattern.
     """
-    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0]
+    directories = None
+    if os.path.exists(directory):
+        directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0]
+    else:
+        print(f"Directory does not exist: {directory}")
     return directories
 
 def get_files(directory, ending="all", regex_search=""):
@@ -503,7 +507,11 @@ def get_files(directory, ending="all", regex_search=""):
     Returns:
     list: A list of file names that match the regular expression search pattern and have the specified file ending.
     """
-    files_list = [name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0 and name.endswith(ending)]
+    files_list = None
+    if os.path.exists(directory):
+        files_list = [name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0 and name.endswith(ending)]
+    else:
+        print(f"Directory does not exist: {directory}")
     return files_list
 
 def search_file(directory, filename):
