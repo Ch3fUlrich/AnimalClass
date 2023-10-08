@@ -11,6 +11,7 @@ plt.style.use('dark_background')
 #plt.style.use('default')
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+mlp.use('Agg')
 
 # Regular Expression searching
 import re
@@ -134,6 +135,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             viz.save_dir = os.path.join(viz.save_dir, animal_id, session_id)
 
             if plotting:
+                mlp.use('Agg')
                 print(f"-----------------------------------Plotting-----------------------------------")
                 print(f"-----------------------------------Plotting Individual Munits-----------------------------------")
                 try:
