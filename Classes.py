@@ -255,6 +255,7 @@ class Session:
         mesc_functional_chan = self.functional_chan-1 # mesc starts with 0, suite2p with 1
         delete = False #TODO: Mesc is probably always usefull.
         self.tiff_data_paths = [] if generate and regenerate else self.tiff_data_paths
+        self.tiff_data_paths = [] if not self.tiff_data_paths else self.tiff_data_paths
 
         if generate:
             to_generate_tiff_paths = {} # dictionary of tiff file names to generate with mesc file names and munit numbers
@@ -267,9 +268,8 @@ class Session:
                     tiff_namings_path = os.path.join(self.session_dir, tiff_mesc_munit_fname)
                     if tiff_namings_path not in self.tiff_data_paths:
                         if mesc_fname not in to_generate_tiff_paths.keys():
-                            to_generate_tiff_paths[tiff_namings_path] = [[mesc_fname, munit]] 
-                        else:
-                            to_generate_tiff_paths[tiff_namings_path].append([mesc_fname, munit])
+                            to_generate_tiff_paths[tiff_namings_path] = [mesc_fname, munit] 
+
                     else:
                         print(f".mesc -> .tiff file already done")
                         print(f"{tiff_namings_path}")
@@ -277,8 +277,9 @@ class Session:
 
             # generate tiff files
             for tiff_path, mesc_fname_munit in to_generate_tiff_paths.items():
-                mesc_path = [mesc_path for mesc_path in self.mesc_data_paths if mesc_fname_munit[0] in mesc_path][0]
+                mesc_fname = mesc_fname_munit[0]
                 munit = mesc_fname_munit[1]
+                mesc_path = os.path.join("\\".join(tiff_path.split("\\")[:-1]), mesc_fname)
                 munit_naming = f"MUnit_{munit}"
 
                 print("Merging Mesc to Tiff...")                
@@ -297,6 +298,7 @@ class Session:
                 print("Finished generating TIFF from MESC data.")
 
             self.tiff_data_paths = self.get_data_paths(ending="tiff")
+            print(asdf)
         return self.tiff_data_paths
 
     def generate_suite2p(self, generate=False, regenerate=False, unit_ids="all", delete=False):
@@ -411,16 +413,14 @@ class Session:
         opsEnd = run_s2p(ops=ops, db=db)
         print("Finished Suite2p.")
 
-#FIXME: insert stuff from above into function below (mesc to tiff conversion)
-    def get_cabincorr_data_pths(self, generate=False, regenerate=False, unit_ids="all"):
-        return self.cabincorr_data_paths
-        
-        #FIXME: is generating for all suite2p_folders......
     def generate_cabincorr(self, generate=False, regenerate=False, unit_ids="all"): 
         self.cabincorr_data_paths = [] if generate and regenerate else self.cabincorr_data_paths
 
         if generate:
-            for s2p_path in self.s2p_folder_paths:
+            #only create run cabincorr on wanted suite2p files (standard, individual units or merged)
+            s2p_path = os.path.join(self.session_dir, "suite2p") if unit_ids == "all" else os.path.join(self.session_dir, "suite2p_merged") if unit_ids == "merged" else self.s2p_folder_paths
+            s2p_paths_to_look_at = [s2p_path] if len(s2p_path)==1 else s2p_path
+            for s2p_path in s2p_paths_to_look_at:
                 cabincorr_file_path = search_file(s2p_path, Session.cabincorr_fname)
                 data_dir = os.path.join(s2p_path, "plane0") 
                 if cabincorr_file_path:
@@ -438,12 +438,13 @@ class Session:
         self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
         return self.cabincorr_data_paths
     
+#FIXME: insert stuff from above into function below (mesc to tiff conversion)
     def load_cabincorr_data(self, unit_id="all"):
         bin_traces_zip = None
         for path in self.cabincorr_data_paths:
             path_unit = path.split("suite2p")[-1].split("\plane0")[0]
             if path_unit == "_"+unit_id or unit_id == "all" and len(path_unit)==0:
-                if os.path.exists(path):
+                if os.path.exists(path): #pathnames changed
                     bin_traces_zip = np.load(path, allow_pickle=True)
                 else:
                     print("No CaBincorrPath found")
@@ -783,7 +784,6 @@ class Unit:
         self.yx_shift = [0, 0]
         self.usefull = None
         
-
     def get_c(self):
         #Merging cell footprints
         c = run_cabin_corr(Animal.root_dir, data_dir=os.path.join(self.suite2p_folder_path, "plane0"),
