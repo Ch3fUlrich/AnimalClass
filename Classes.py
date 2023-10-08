@@ -130,6 +130,7 @@ class Animal:
 class Session:
     fluoresence_fname = "F.npy"
     cabincorr_fname = "binarized_traces.npz"
+    cell_geldrying_fname = "cell_drying.npy"
 
     def __init__(self, animal_id, session_id, generate=False, regenerate=False, mesc_munit_pairs=None,
                  unit_ids="all", delete=False, age=None, session_date=None, functional_chan=None, print_loading=True) -> None:
@@ -202,7 +203,7 @@ class Session:
         session_parts = []
         for file_name in file_names:
             last_fname_part = file_name.split("\\")[-1].split("_")[-1].split(".")[0]
-            session_parts.append(re.findall("S[0-9]", last_fname_part))
+            session_parts += re.findall("S[0-9]", last_fname_part)
         return np.unique(session_parts).tolist()
     
     def get_session_parts(self, file_names = None):
@@ -298,15 +299,15 @@ class Session:
                 print("Finished generating TIFF from MESC data.")
 
             self.tiff_data_paths = self.get_data_paths(ending="tiff")
-            print(asdf)
         return self.tiff_data_paths
 
+#FIXME: everything working as it should???
     def generate_suite2p(self, generate=False, regenerate=False, unit_ids="all", delete=False):
         self.s2p_folder_paths = [] if generate and regenerate else self.s2p_folder_paths
         
         if generate:
             if not self.s2p_folder_paths:
-                dir_exist_create(os.path.join(self.session_dir, "tiff"))
+                dir_exist_create(os.path.join(self.session_dir, "tif"))
                 self.s2p_folder_paths = []
 
             to_generate_suite2p_paths = {} # dictionary of suite2p folder names 
@@ -315,15 +316,13 @@ class Session:
                 tiff_fname = tiff_data_path.split("\\")[-1].split(".tiff")[0]
                 tiff_session_parts = re.findall("S[0-9]", tiff_fname)
                 tiff_munit = re.findall("MUnit_[0-9]", tiff_fname)
-                s2p_fname = f"suite2p_{'-'.join(tiff_session_parts)}_MUnit_{tiff_munit[0]}"
+                s2p_fname = f"suite2p_{'-'.join(tiff_session_parts)}_{tiff_munit[0]}"
                 s2p_folder_path = os.path.join(self.session_dir, "tif", s2p_fname)
 
                 if s2p_folder_path not in self.s2p_folder_paths:
                     dir_exist_create(s2p_folder_path)
                     if tiff_fname not in to_generate_suite2p_paths.keys():
-                        to_generate_suite2p_paths[s2p_folder_path] = [tiff_data_path]
-                    else:
-                        to_generate_suite2p_paths[s2p_folder_path].append(tiff_data_path)
+                        to_generate_suite2p_paths[s2p_folder_path] = tiff_data_path
                 else:
                     print(f".tiff -> suite2p folder already done")
                     print(f"{s2p_folder_path}")
@@ -345,10 +344,8 @@ class Session:
                 
             elif unit_ids == "single":
                 for s2p_folder_path, tiff_data_path in to_generate_suite2p_paths.items():
-                    tiff_fname = tiff_data_path.split("\\")[-1].split(".tiff")[0]
+                    tiff_fname = tiff_data_path.split("\\")[-1]
                     # Binary data from Suite2p for all MUnits is not needed for merging
-                    tiff_file_name = f"{self.animal_id}_{self.session_id}_{Animal.dir_}"
-
                     self.run_suite2p(tiff_fname, save_folder=s2p_folder_path)
             else:
                 raise ValueError("Only 2 unit_ids are excepted: 'all' and 'single'")
@@ -412,7 +409,7 @@ class Session:
         # run one experiment
         opsEnd = run_s2p(ops=ops, db=db)
         print("Finished Suite2p.")
-
+#FIXME: everything working as it should???
     def generate_cabincorr(self, generate=False, regenerate=False, unit_ids="all"): 
         self.cabincorr_data_paths = [] if generate and regenerate else self.cabincorr_data_paths
 
@@ -437,8 +434,7 @@ class Session:
         
         self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
         return self.cabincorr_data_paths
-    
-#FIXME: insert stuff from above into function below (mesc to tiff conversion)
+#FIXME: everything working as it should??? 
     def load_cabincorr_data(self, unit_id="all"):
         bin_traces_zip = None
         for path in self.cabincorr_data_paths:
@@ -463,7 +459,7 @@ class Session:
                     found = True
                     print(f"Loading Cells from {s2p_path}") 
                     break
-        if not found or merged == False:
+        if not found or not merged:
             if merged == True:
                 print(f"Path to suite2p_merged not found.")
             print(f"Searching for standard Suite2p folder...")
@@ -563,18 +559,23 @@ class Session:
 
     def load_geldrying(self):
         self.cell_geldrying = None
-        fname = "cell_drying.npy"
         for s2p_path in self.s2p_folder_paths:
             if "merged" in s2p_path:
-                fpath = os.path.join(s2p_path, "plane0", fname)
+                fpath = os.path.join(s2p_path, "plane0", Session.cell_geldrying_fname)
         if os.path.exists(fpath):
             self.cell_geldrying = np.load(fpath)
         else:
             print(f"File not found: {fpath}")
         return self.cell_geldrying
 
+....................................................
+#FIXME: insert stuff from above into function below (mesc to tiff conversion)
     def get_units(self, get_geldrying=False, restore=False):
         units = {}
+        #TODO: will not recognize if a suite2p folder is missing
+        for s2p_paths in self.s2p_folder_paths:
+            #FIXME: write method to load data from present units from all suite2p files
+
         for part in self.session_parts:
             not_session_parts = np.array(self.session_parts)[np.array(self.session_parts)!=part]
             unit_id = int(part[1]) 
@@ -588,6 +589,7 @@ class Session:
                             single_unit = False
                     if single_unit:
                         break
+            
             data_path = os.path.join(s2p_folder_path, "plane0")
             if restore:
                 backup_path_files(data_path, restore=True)
@@ -766,6 +768,8 @@ class Session:
 
 
 class Unit:
+    cell_geldrying_fname = "cell_drying.npy"
+
     def __init__(self, suite2p_folder_path, session, unit_id):
         self.suite2p_folder_path = suite2p_folder_path
         self.animal_id = session.animal_id
@@ -809,13 +813,11 @@ class Unit:
         return self.cell_geldrying
     
     def geldrying_to_npy(self):
-        fname = "cell_drying.npy"
-        fpath = os.path.join(self.suite2p_folder_path, "plane0", fname)
+        fpath = os.path.join(self.suite2p_folder_path, "plane0", Unit.cell_geldrying_fname)
         np.save(fpath, self.cell_geldrying)
 
     def load_geldrying(self):
-        fname = "cell_drying.npy"
-        fpath = os.path.join(self.suite2p_folder_path, "plane0", fname)
+        fpath = os.path.join(self.suite2p_folder_path, "plane0", Unit.cell_geldrying_fname)
         try:
             self.cell_geldrying = np.load(fpath)
         except:
@@ -856,6 +858,8 @@ class Unit:
 
 
 class Cell:
+    cell_geldrying_fname = "cell_drying.npy"
+
     def __init__(self, animal_id, session_id, cell_id, s2p_path):
         #super().__init__(animal_id, session_id, unit_ids=unit_ids)
         self.animal_id = animal_id
@@ -887,7 +891,7 @@ class Cell:
 
     def is_geldrying(self):
         if type(self.geldrying) != bool:
-            geldrying_path = search_file(self.s2p_path, "cell_drying.npy")
+            geldrying_path = search_file(self.s2p_path, Cell.cell_geldrying_fname)
             if geldrying_path:
                 self.geldrying = np.load(geldrying_path)[self.cell_id]
             else:
@@ -2167,7 +2171,7 @@ def delete_bin_tiff_s2p_intermediate(session):
             iscell = np.load(iscell_path)[:,0]
             iscell_count = sum(iscell)
         
-        notgel_path = os.path.join(s2p_folder, "plane0", "cell_drying.npy")
+        notgel_path = os.path.join(s2p_folder, "plane0", Session.cell_geldrying_fname)
         notgel_count = -1
         if os.path.exists(notgel_path):
             notgel = np.load(notgel_path)==0
