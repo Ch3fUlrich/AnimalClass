@@ -311,9 +311,21 @@ class Session:
                 self.s2p_folder_paths = []
 
             to_generate_suite2p_paths = {} # dictionary of suite2p folder names 
-            # get all possible suite2p folder names
+            # check if standard suite2p folder is already created
+            s2p_fname = f"suite2p"
+            s2p_folder_path = os.path.join(self.session_dir, "tif", s2p_fname)
+            if s2p_folder_path not in self.s2p_folder_paths:
+                dir_exist_create(s2p_folder_path)
+                if "all" not in to_generate_suite2p_paths.keys():
+                    to_generate_suite2p_paths[s2p_folder_path] = "all"
+            else:
+                print(f".tiff -> suite2p folder already done")
+                print(f"{s2p_folder_path}")
+                print(f"... skipping conversion...")
+
+            # get all possible suite2p session part munit folder names
             for tiff_data_path in self.tiff_data_paths:
-                tiff_fname = tiff_data_path.split("\\")[-1].split(".tiff")[0]
+                tiff_fname = tiff_data_path.split("\\")[-1]
                 tiff_session_parts = re.findall("S[0-9]", tiff_fname)
                 tiff_munit = re.findall("MUnit_[0-9]", tiff_fname)
                 s2p_fname = f"suite2p_{'-'.join(tiff_session_parts)}_{tiff_munit[0]}"
@@ -328,21 +340,21 @@ class Session:
                     print(f"{s2p_folder_path}")
                     print(f"... skipping conversion...")
 
-            #TODO: add ability to only create one tiff from mesc not all
             for s2p_folder_path, tiff_data_path in to_generate_suite2p_paths.items():
-                if not os.path.exists(tiff_data_path):
+                if tiff_data_path == "all":
+                    print(f"Generating all possible and missing tiff files for {s2p_folder_path}")
+                    self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate)
+                #FIXME: add ability to only create one tiff from mesc not all
+                elif not os.path.exists(tiff_data_path):
                     print(f"Generating missing tiff files for {s2p_folder_path}")
                     self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate)
 
-            # run suite2p
-            if unit_ids == "all":
-                # generate missing tiffs
-                tiff_fnames = [tiff_data_path.split("\\")[-1] for tiff_data_path in self.tiff_data_paths]
-                save_folder=os.path.join("tif", "suite2p")
-                self.run_suite2p(tiff_fnames, save_folder=save_folder, 
-                                 reuse_bin=False, delete_bin=True, move_bin=False)
-                
-            elif unit_ids == "single":
+                # run suite2p              
+                #FIXME: test if this is working
+                if tiff_data_path == "all":
+                    tiff_fnames = [tiff_data_path.split("\\")[-1] for tiff_data_path in self.tiff_data_paths]
+                    self.run_suite2p(tiff_fnames, save_folder=s2p_folder_path, 
+                                    reuse_bin=False, delete_bin=True, move_bin=False)
                 for s2p_folder_path, tiff_data_path in to_generate_suite2p_paths.items():
                     tiff_fname = tiff_data_path.split("\\")[-1]
                     # Binary data from Suite2p for all MUnits is not needed for merging
@@ -358,7 +370,7 @@ class Session:
         self.tiff_data_paths = self.get_data_paths(ending="tiff")
         return self.s2p_folder_paths
 
-    def run_suite2p(self, tiff_fnames, save_folder, 
+    def run_suite2p(self, tiff_fnames, save_folder,
                     reuse_bin=True, delete_old_temp_bin=True, 
                     delete_bin=False, move_bin=True, fps=30, batch_size=500):
         
@@ -568,14 +580,14 @@ class Session:
             print(f"File not found: {fpath}")
         return self.cell_geldrying
 
-....................................................
+#....................................................
 #FIXME: insert stuff from above into function below (mesc to tiff conversion)
     def get_units(self, get_geldrying=False, restore=False):
         units = {}
         #TODO: will not recognize if a suite2p folder is missing
         for s2p_paths in self.s2p_folder_paths:
             #FIXME: write method to load data from present units from all suite2p files
-
+            print(asdf)
         for part in self.session_parts:
             not_session_parts = np.array(self.session_parts)[np.array(self.session_parts)!=part]
             unit_id = int(part[1]) 
