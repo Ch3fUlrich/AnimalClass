@@ -79,7 +79,7 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
 
     for animal_id, animal in animals.items():
         print(f"{animal_id}: {list(animal.sessions.keys())}")
-    load_all_procedure = "generat" if generate else "load"
+    load_all_procedure = "generate" if generate else "load"
     print(f"Starting to {load_all_procedure}")
     clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=delete)
 
@@ -116,7 +116,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             
             print(f"-----------------------------------Loading Units-----------------------------------")
             #TODO: change restore to value needed
-            units = session.get_units(restore=False, get_geldrying=True)
+            units = session.get_units(restore=False, get_geldrying=True, unit_type="single")
 
             print(f"-----------------------------------Merging Units-----------------------------------")
             merged_unit = session.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
@@ -225,23 +225,23 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
 
 def do_cabincoor(session, regenerate=True, unit=""):
     for s2p_path in session.s2p_folder_paths:
-            splitted_path = s2p_path.split("suite2p_")
-            if splitted_path[-1] == unit or len(splitted_path)==1:
-                c = run_cabin_corr(root_dir, os.path.join(s2p_path, "plane0"), session.animal_id, session.session_id, regenerate=regenerate)
-                c.corr_parallel_flag = True
-                c.zscore = True 
-                c.n_tests_zscore = 1000
-                c.n_cores = 32
-                #c.recompute_correlation = True
-                c.recompute_correlation = False
-                c.binning_window = 30        # binning window in frames
-                c.subsample = 1              # subsample traces by this factor
-                c.scale_by_DFF = True        # scale traces by DFF
-                c.shuffle_data = False
-                c.subselect_moving_only = False
-                c.subselect_quiescent_only = False
-                c.make_correlation_dirs()
-                c.compute_correlations()
+        splitted_path = s2p_path.split("suite2p_")
+        if splitted_path[-1] == unit or len(splitted_path)==1:
+            c = run_cabin_corr(root_dir, os.path.join(s2p_path, "plane0"), session.animal_id, session.session_id, regenerate=regenerate)
+            c.corr_parallel_flag = True
+            c.zscore = True 
+            c.n_tests_zscore = 1000
+            c.n_cores = 32
+            #c.recompute_correlation = True
+            c.recompute_correlation = False
+            c.binning_window = 30        # binning window in frames
+            c.subsample = 1              # subsample traces by this factor
+            c.scale_by_DFF = True        # scale traces by DFF
+            c.shuffle_data = False
+            c.subselect_moving_only = False
+            c.subselect_quiescent_only = False
+            c.make_correlation_dirs()
+            c.compute_correlations()
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]

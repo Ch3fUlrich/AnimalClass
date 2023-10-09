@@ -611,10 +611,8 @@ class Session:
             print(f"File not found: {fpath}")
         return self.cell_geldrying
 
-#....................................................
-#FIXME: insert stuff from above into function below (mesc to tiff conversion)
     def get_units(self, generate=False, regenerate=False, 
-                  load_unit_type="single", get_geldrying=False, 
+                  unit_type="single", get_geldrying=False, 
                   restore=False):
         """
         This function load data from suiet2p folders corresponding to the same Experiment (animal_id, session_id)
@@ -625,8 +623,8 @@ class Session:
                 'all' or loading all units from tif folder in Session.session_dir 
         """
         defined_unit_types = ["single", "summary", "all"]
-        if load_unit_type not in defined_unit_types:
-            raise ValueError(f"load_unit_type is only defined for 'single', 'summary', 'all'")
+        if unit_type not in defined_unit_types:
+            raise ValueError(f"unit_type is only defined for 'single', 'summary', 'all'")
         units = {}
         
         s2p_root_folder_path = os.path.join(self.session_dir, "tif")
@@ -634,12 +632,12 @@ class Session:
         all_possible_s2p_folders = []
         summary_suite2p_folder_endings = ["", "merged"]
         for ending in summary_suite2p_folder_endings:
-            if load_unit_type == "single":
+            if unit_type == "single":
                 break
             all_possible_s2p_folders.append(standard_s2p_path_naming + "_" + ending)
         
         for mesc_munit_combination in self.get_all_unique_mesc_munit_combinations():
-            if load_unit_type == "summary":
+            if unit_type == "summary":
                 break
             unique_s2p_folder_ending = self.fname_extract_sessparts_munits(mesc_munit_combination)
             s2p_path = standard_s2p_path_naming + unique_s2p_folder_ending
@@ -647,6 +645,7 @@ class Session:
 
         for s2p_path in self.s2p_folder_paths:
             unit_id = s2p_path.split("suite2p")[-1]
+            unit_id = unit_id[1:] if len(unit_id) > 0 else unit_id
             unit_type = "summary" if unit_id in summary_suite2p_folder_endings else "single"
             
             data_path = os.path.join(s2p_path, "plane0")
@@ -687,12 +686,14 @@ class Session:
             backup_path_files(data_path, restore=restore)
             unit = Unit(data_path, session=self, unit_id=unit_id, unit_type=unit_type)
         else:
-            print("No s2p folder found for full session")
+            print(f"No s2p folder found {s2p_path}      unit_id: {unit_id}")
         return unit
 
-    def get_most_good_cell_unit(self):
+    def get_most_good_cell_unit(self, unit_type="single"):
         most_good_cells = 0
         for unit_id, unit in self.units.items():
+            if unit.unit_type != unit_type:
+                continue
             num_good_cells = unit.num_not_geldrying()
             if num_good_cells >= most_good_cells:
                 most_good_cells = num_good_cells 
@@ -700,7 +701,7 @@ class Session:
         print(f"Best Mask has {most_good_cells} cells and is from {best_unit.unit_id}")
         return best_unit
 
-    def get_usefull_units(self, min_num_usefull_cells):
+    def get_usefull_units(self, min_num_usefull_cells, unit_type="single"):
         """
         This method updates the 'usefull' attribute of each unit in the 'units' dictionary and returns a dictionary of units that have more than 'min_num_usefull_cells' number of good cells.
 
@@ -710,6 +711,9 @@ class Session:
         :rtype: dict
         """
         for unit_id, unit in self.units.items():
+            if unit.unit_type != unit_type:
+                unit.usefull = False
+                continue
             num_good_cells = unit.num_not_geldrying()
             if num_good_cells > min_num_usefull_cells:
                 unit.usefull = True
@@ -753,7 +757,7 @@ class Session:
         :rtype: Unit
         """
         generate = True if regenerate==True else generate
-        merged_s2p_path = os.path.join(self.s2p_folder_paths[0].split("suite2p")[0], "suite2p_merged")
+        merged_s2p_path = os.path.join(self.s2p_folder_paths[0].split("suite2p")[0], "suite2p_merged", "plane0")
         if os.path.exists(merged_s2p_path):
             if regenerate:
                 del_file_dir(merged_s2p_path)
@@ -765,10 +769,10 @@ class Session:
             if not self.units:
                 self.get_units(get_geldrying=True, unit_type=unit_type)
             # get unit with the most good cells (after geldrying detection)
-            best_unit = self.get_most_good_cell_unit()
+            best_unit = self.get_most_good_cell_unit(unit_type=unit_type)
             # get units with enough usefull cells (at least 1/3 of best MUnit cells)
             min_num_usefull_cells = best_unit.num_not_geldrying() / 3
-            units = self.get_usefull_units(min_num_usefull_cells)
+            units = self.get_usefull_units(min_num_usefull_cells, unit_type=unit_type)
             
             self.calc_unit_yx_shifts(best_unit, units)
 
@@ -783,7 +787,7 @@ class Session:
                 # shift merged mask
                 print(f"Updating Unit {unit_id}")
                 merger.shift_update_unit_s2p_files(unit, merged_stat, image_x_size=image_x_size, image_y_size=image_y_size)
-                updated_units[unit_id] = Unit(unit.suite2p_folder_path, session=self, unit_id=unit_id, unit_type=unit.unit_type)
+                updated_units[unit_id] = Unit(unit.s2p_folder_path, session=self, unit_id=unit_id, unit_type=unit.unit_type)
                 merged_unit_id += str(unit_id)+"_"
             # concatenate S2P results
             ops = default_ops()
@@ -793,12 +797,12 @@ class Session:
 
             self.s2p_folder_paths = self.get_data_paths(regex_search="suite2p", folder=True)
             self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
-            merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged")
+            merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged", unit_type="summary")
             merged_unit.get_geldrying_cells()
 
             if delete_used_subsessions:
                 for unit_id, unit in updated_units.items():
-                    del_file_dir(unit.suite2p_folder_path)
+                    del_file_dir(unit.s2p_folder_path)
                     
             self.merged_unit = merged_unit
         return merged_unit
@@ -835,13 +839,15 @@ class Session:
 
 
 class Unit:
-    def __init__(self, s2p_folder_path, session:Session, unit_id, unit_type):
+    def __init__(self, s2p_folder_path, session:Session, unit_id, unit_type, print_loading=True):
         self.s2p_folder_path = s2p_folder_path
         self.animal_id = session.animal_id
         self.session_id = session.session_id
         self.session_dir = session.session_dir
         self.unit_id = unit_id
         self.unit_type = unit_type
+        if print_loading:
+            print(f"Loadung {self.animal_id} {self.session_id} {self.unit_id}")
         self.functional_chan = session.functional_chan
         self.c, self.contours, self.footprints = self.get_c()
         self.dedup_cell_ids = None
@@ -884,11 +890,10 @@ class Unit:
         np.save(fpath, self.cell_geldrying)
 
     def load_geldrying(self):
+        self.cell_geldrying = None
         fpath = os.path.join(self.s2p_folder_path, Session.cell_geldrying_fname)
-        try:
+        if os.path.exists(fpath):
             self.cell_geldrying = np.load(fpath)
-        except:
-            self.cell_geldrying = None
         return self.cell_geldrying
     
     def get_reference_image(self, n_frames_to_be_acquired=1000, image_x_size=512, image_y_size=512):
@@ -908,7 +913,7 @@ class Unit:
             b_loader = Binary_loader()
             frames = b_loader.load_binary(self.s2p_folder_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
             frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
-        self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
+            self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
         return self.yx_shift
 
     def print_s2p_iscell(self):
@@ -1954,7 +1959,6 @@ class Merger:
         Does not merge ops
         """
         path = units[list(units.keys())[0]].s2p_folder_path
-        path = os.path.join(path, "plane0")
         merged_F = np.load(os.path.join(path, "F.npy"))
         merged_Fneu = np.load(os.path.join(path,   "Fneu.npy"))
         merged_spks = np.load(os.path.join(path,   "spks.npy"))
@@ -1963,7 +1967,6 @@ class Merger:
             if unit_id == list(units.keys())[0]:
                 continue
             path = unit.s2p_folder_path
-            path = os.path.join(path, "plane0")
             F =  np.load(os.path.join(path, "F.npy"))
             merged_F = np.concatenate([merged_F, F], axis=1)
             Fneu =  np.load(os.path.join(path, "Fneu.npy"))
@@ -2141,7 +2144,7 @@ class Merger:
         return clean_cell_ids, cleaned_merged_footprints
     
     def shift_update_unit_s2p_files(self, unit, new_stat, image_x_size=512, image_y_size=512):
-        data_path = os.path.join(unit.s2p_folder_path, "plane0")
+        data_path = unit.s2p_folder_path
         # shift merged mask
         shift_to_unit = np.array([-1]) * unit.yx_shift
         shifted_unit_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_unit, image_x_size=image_x_size, image_y_size=image_y_size)
