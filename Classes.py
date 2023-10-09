@@ -288,7 +288,7 @@ class Session:
                 mesc_fname, munit = mesc_munit_combination.split("_MUnit_")
                 tiff_path = os.path.join(self.session_dir, mesc_munit_combination+".tiff")
                 if tiff_path not in self.tiff_data_paths:
-                    mesc_path = os.path.join("\\".join(tiff_path.split("\\")[:-1]), mesc_fname)
+                    mesc_path = os.path.join("\\".join(tiff_path.split("\\")[:-1]), mesc_fname+".mesc")
                     munit_naming = f"MUnit_{munit}"
 
                     print("Merging Mesc to Tiff...")                
@@ -321,7 +321,8 @@ class Session:
             return unique_name
         return session_parts, munit_parts
     
-    def generate_suite2p(self, wanted_combination=None, generate=False, regenerate=False, unit_ids="all", delete=False):
+    def generate_suite2p(self, wanted_combination=None, generate=False, 
+                         regenerate=False, unit_ids="all", delete=False):
         self.s2p_folder_paths = [] if generate and regenerate else self.s2p_folder_paths
         s2p_root_folder_path = os.path.join(self.session_dir, "tif")
         
@@ -445,7 +446,8 @@ class Session:
         opsEnd = run_s2p(ops=ops, db=db)
         print("Finished Suite2p.")
 
-    def generate_cabincorr(self, wanted_combination=None, generate=False, regenerate=False, unit_ids="all"): 
+    def generate_cabincorr(self, wanted_combination=None, generate=False, 
+                            regenerate=False, unit_ids="all"): 
         self.cabincorr_data_paths = [] if not self.cabincorr_data_paths else self.cabincorr_data_paths
 
         if generate:

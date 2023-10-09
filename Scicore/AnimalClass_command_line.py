@@ -92,9 +92,9 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             #    continue
             print(f"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Starting {animal_id} {session_id} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
             print(f"-----------------------------------Generating Initial Suite2P Files-----------------------------------")
-            session.run_suite2p(regenerate=False, unit_ids="all")
-            #session.run_suite2p(regenerate=True, unit_ids="all")
-            session.get_cabincorr_data_paths(generate=True, regenerate=regenerate, unit_ids="all")
+            session.generate_suite2p(regenerate=False, unit_ids="all")
+            #session.generate_suite2p(regenerate=True, unit_ids="all")
+            session.generate_cabincorr(generate=True, regenerate=regenerate, unit_ids="all")
 
 
             print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
@@ -112,11 +112,10 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                             part_to_rerun = part
                     if part_to_rerun:
                         print(f"binary file not present in {s2p_path}")
-                        session.run_suite2p(regenerate=True, unit_ids=part_to_rerun)
+                        session.generate_suite2p(regenerate=True, unit_ids=part_to_rerun)
             
             print(f"-----------------------------------Loading Units-----------------------------------")
-            #TODO: change restore to value needed
-            units = session.get_units(restore=False, get_geldrying=True, unit_type="single")
+            units = session.get_units(restore=True, get_geldrying=True, unit_type="single")
 
             print(f"-----------------------------------Merging Units-----------------------------------")
             merged_unit = session.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
