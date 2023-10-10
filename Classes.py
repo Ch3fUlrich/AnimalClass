@@ -576,7 +576,6 @@ class Session:
                 break
         corr_matrix_path = os.path.join(path, "plane0", f"allcell_corr_pval_zscore.npy")
         cleaned_corr_matrix_path = os.path.join(path, "plane0", f"allcell_clean_corr_pval_zscore.npy")
-        del_file_dir(corr_matrix_path)#FIXME: remove this line
 
         if not os.path.exists(corr_matrix_path):
             if generate_corr:

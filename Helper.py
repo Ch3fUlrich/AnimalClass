@@ -495,13 +495,13 @@ def get_directories(directory, regex_search=""):
         print(f"Directory does not exist: {directory}")
     return directories
 
-def get_files(directory, ending="all", regex_search=""):
+def get_files(directory, ending="", regex_search=""):
     """
     This function returns a list of files from the specified directory that match the regular expression search pattern and have the specified file ending.
     
     Parameters:
     directory (str): The directory path where to look for files.
-    ending (str, optional): The file ending to match. Default is 'all', which means all file endings are included.
+    ending (str, optional): The file ending to match. Default is '', which means all file endings are included.
     regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all files are included.
     
     Returns:
