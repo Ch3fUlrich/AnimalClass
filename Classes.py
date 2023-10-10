@@ -289,7 +289,7 @@ class Session:
                 mesc_fname_session_parts, munit = mesc_munit_combination.split("_MUnit_")
                 tiff_path = os.path.join(self.session_dir, mesc_munit_combination+".tiff")
                 if tiff_path not in self.tiff_data_paths:
-                    mesc_path = os.path.join("\\".join(tiff_path.split("\\")[:-1]), mesc_fname+".mesc")
+                    mesc_path = os.path.join("\\".join(tiff_path.split("\\")[:-1]), mesc_fname_session_parts +".mesc")
                     munit_naming = f"MUnit_{munit}"
 
                     print("Merging Mesc to Tiff...")                
@@ -352,24 +352,22 @@ class Session:
                     # standard suite2p run
                     if mesc_munit_combination == "":
                         print(f"Generating all possible and missing tiff files for {s2p_folder_path}")
-                        tiff_data_paths = self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, delete=delete)
+                        tiff_data_paths = self.generate_tiff_from_mesc(generate=generate, delete=delete)
                         tiff_fnames = [tiff_data_path.split("\\")[-1] for tiff_data_path in tiff_data_paths]
                         self.run_suite2p(tiff_fnames, save_folder=s2p_folder_path, 
                                     reuse_bin=False, delete_bin=True, move_bin=False)
                     else:
-                        # Single unit mesc run
+                        # Single unit mesc runmerge_units
                         tiff_fname = None
+                        self.tiff_data_paths = [] if not self.tiff_data_paths else self.tiff_data_paths
                         for tiff_data_path in self.tiff_data_paths:
                             if mesc_munit_combination in tiff_data_path:
                                 tiff_fname = tiff_data_path.split("\\")[-1]
                                 break
                         if not tiff_fname:
-                            if generate:
                                 print(f"Generating missing tiff file for {mesc_munit_combination}")
-                                tiff_data_path = self.generate_tiff_from_mesc(wanted_combination=mesc_munit_combination, generate=generate, regenerate=regenerate, delete=delete)
+                                tiff_data_path = self.generate_tiff_from_mesc(wanted_combination=mesc_munit_combination, generate=generate, delete=delete)
                                 tiff_fname = tiff_data_path.split("\\")[-1]
-                            else:
-                                print(f"No tiff data path found for {mesc_munit_combination}")
                         if tiff_fname:
                             self.run_suite2p(tiff_fname, save_folder=s2p_folder_path)
                 else:
@@ -458,8 +456,7 @@ class Session:
             elif unit_ids == "merged":
                 s2p_path = standard_s2p_path_naming + "_merged"
                 if s2p_path not in self.s2p_folder_paths:
-                    self.merge_units(regenerate=regenerate, 
-                                     unit_type="single", 
+                    self.merge_units(unit_type="single", 
                                      delete_used_subsessions=delete)
             elif unit_ids == "single":
                 s2p_folder_paths = []
@@ -773,7 +770,7 @@ class Session:
                 unit.calc_yx_shift(refAndMasks, num_align_frames=num_align_frames)
 
     def merge_units(self, generate=True, regenerate=False, get_geldrying=True,
-                    unit_type="single", delete_used_subsessions=False, 
+                    unit_type="single", delete_used_subsessions=False, compute_corrs=False, 
                     image_x_size=512, image_y_size=512, parallel=True):
         """
         Takes MUnits with #cells> #most_cells/3 based on best MUnit (cells withoug geldrying).
@@ -806,18 +803,18 @@ class Session:
             if not self.units:
                 self.get_units(get_geldrying=True, unit_type=unit_type, generate=generate)
             for unit_id, unit in self.units.items():
-                binary_file_present = os.path.exists(
-                    os.path.join(
-                        unit.s2p_folder_path, "plane0", Session.binary_fname))
+                binary_path = os.path.join(unit.s2p_folder_path, Session.binary_fname)
+                binary_file_present = os.path.exists(binary_path)
                 if not binary_file_present:
-                    print(f"Binary file not found for {unit.s2p_folder_path}")
-                    print(f"Binary file not found for {unit.s2p_folder_path}")
-                    print(f"Binary file not found for {unit.s2p_folder_path}")
-                    print(f"Binary file not found for {unit.s2p_folder_path}")
-                    print(f"Binary file not found for {unit.s2p_folder_path}")
-                    #for mesc_munit_combinations in self.get_all_unique_mesc_munit_combinations():
-                    #    if unit_id in mesc_munit_combination:
-                    #        session.generate_suite2p(wanted_combination=wanted_combination, regenerate=True, unit_ids=unit_type, delete=delete)
+                    print(f"Binary file not found in {unit.s2p_folder_path}")
+                    print(f"recomputing suite2p for Unit {unit.animal_id} {unit.session_id} {unit_id}")
+                    unit_id_session_parts, unit_id_munits = unit_id.split("_MUnit_")
+                    for mesc_munit_combination in self.get_all_unique_mesc_munit_combinations():
+                        if unit_id_session_parts in mesc_munit_combination and "MUnit_"+unit_id_munits in mesc_munit_combination:
+                            self.generate_suite2p(wanted_combination=mesc_munit_combination,
+                                                    generate=generate,
+                                                    regenerate=True, 
+                                                    unit_ids=unit.unit_type)
             # get unit with the most good cells (after geldrying detection)
             best_unit = self.get_most_good_cell_unit(unit_type=unit_type)
             # get units with enough usefull cells (at least 1/3 of best MUnit cells)
@@ -851,7 +848,7 @@ class Session:
             merged_unit = Unit(merged_s2p_path, self, 
                                unit_id=f"{merged_unit_id}_merged", 
                                unit_type="summary",
-                               compute_corrs=False,
+                               compute_corrs=compute_corrs,
                                parallel=parallel)
             if get_geldrying:
                 merged_unit.get_geldrying_cells()
@@ -867,37 +864,6 @@ class Session:
             self.merged_unit = merged_unit
         return merged_unit
     
-    def merge_units_get_geldrying(self, generate=True, regenerate=False, delete_used_subsessions=False, binary_needed=True):
-        print(f"-------------------------------Generating Initial Suite2P Files for individual units ---------------------")
-        self.generate_suite2p(generate=generate, regenerate=regenerate, unit_ids="single")#FIXME: working?
-        self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids="single")#FIXME: working?
-        if binary_needed:
-            print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
-            # Rerunning Suite2p if binary file is not present
-            bin_fname = "data.bin"
-            for s2p_path in self.s2p_folder_paths:
-                binary_file_present = False
-                part_to_rerun = False
-                for part in self.session_parts:
-                    if part in s2p_path:
-                        binary_file_present = os.path.exists(os.path.join(s2p_path, "plane0", bin_fname))
-                        if binary_file_present:
-                            break
-                        else:
-                            part_to_rerun = part
-                    if part_to_rerun:
-                        print(f"binary file not present in {s2p_path}")
-                        session_part_munit_naming = s2p_path.split("\\")[-1].split("suite2_")[0]
-                        tiff_fname = [tiff_path.split("\\")[-1] for tiff_path in self.tiff_data_paths if session_part_munit_naming in tiff_path][0]#FIXME: working?
-                        self.run_suite2p(tiff_fname, save_folder=s2p_path)
-        print(f"-----------------------------------Loading Units-----------------------------------")
-        self.get_units(get_geldrying=True)
-        print(f"-----------------------------------Merging Units-----------------------------------")
-        merged_unit = self.merge_units(generate=generate, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
-        merged_unit.get_geldrying_cells()
-        return merged_unit
-
-
 class Unit:
     def __init__(self, s2p_folder_path, session:Session, unit_id, unit_type, 
                  compute_corrs=False, regenerate=False, parallel=True, print_loading=True):
@@ -908,7 +874,7 @@ class Unit:
         self.unit_id = unit_id
         self.unit_type = unit_type
         if print_loading:
-            print(f"Loading {self.animal_id} {self.session_id} {self.unit_id}")
+            print(f"Loading Unit {self.animal_id} {self.session_id} {self.unit_id}")
         self.functional_chan = session.functional_chan
         self.c, self.contours, self.footprints = self.get_c(compute_corrs=compute_corrs, 
                                                             regenerate=regenerate, parallel=parallel)

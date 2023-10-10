@@ -68,14 +68,14 @@ mice23 = ["DON-014837", "DON-014838", "DON-014840", "DON-014847", "DON-014849", 
 def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True, delete=False, skip_animal=[], skip_session=[]):
     #TODO: skipping option is not integrated
     #generate=False
-    animals = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, 
-                       wanted_session_ids=wanted_session_ids, 
+    animals = load_all(root_dir, 
+                       wanted_animal_ids=wanted_animal_ids, 
+                       wanted_session_ids=wanted_session_ids,  
                        generate=generate, delete=delete) # Load all animals
-
-    fps = 30
-    seconds = 60
-    window_size = fps*seconds # 1 minutes
-    viz = Vizualizer(animals, save_dir = Animal.root_dir)
+    # delete suite2p folder for every session
+    for animal_id, animal in animals.items():
+        for session_id, session in animal.sessions.items():
+            shutil.rmtree(os.path.join(session.session_dir, "tif"))
 
     for animal_id, animal in animals.items():
         print(f"{animal_id}: {list(animal.sessions.keys())}")
@@ -92,41 +92,23 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             #    continue
             print(f"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Starting {animal_id} {session_id} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
             print(f"-----------------------------------Generating standard Suite2P Files-----------------------------------")
-            session.generate_cabincorr(generate=True, regenerate=regenerate, unit_ids="all", compute_corrs=True)
-            session.generate_cabincorr(generate=True, regenerate=regenerate, unit_ids="merged", compute_corrs=True)
-            print(f"-----------------------------------Run Suite2p / Rerun Suite2P if data.bin is missing-----------------------------------")
-            # Rerunning Suite2p if binary file is not present
-            bin_fname = "data.bin"
-            for s2p_path in session.s2p_folder_paths:
-                binary_file_present = False
-                part_to_rerun = False
-                for part in session.session_parts:
-                    if part in s2p_path:
-                        binary_file_present = os.path.exists(os.path.join(s2p_path, "plane0", bin_fname))
-                        if binary_file_present:
-                            break
-                        else:
-                            part_to_rerun = part
-                    if part_to_rerun:
-                        print(f"binary file not present in {s2p_path}")
-                        session.generate_suite2p(regenerate=True, unit_ids=part_to_rerun)
-            
+            session.generate_cabincorr(generate=True, regenerate=regenerate, 
+                                       unit_ids="all", compute_corrs=True)
             print(f"-----------------------------------Loading Units-----------------------------------")
-            units = session.get_units(restore=True, get_geldrying=True, unit_type="single", generate=True, regenerate=regenerate)
-            #TODO: integrate generate into function
+            units = session.get_units(restore=True, get_geldrying=True, 
+                                      unit_type="single", generate=True, 
+                                      regenerate=regenerate)
             print(f"-----------------------------------Merging Units-----------------------------------")
             merged_unit = session.merge_units(generate=True, 
-                                              regenerate=True, 
+                                              regenerate=regenerate, 
+                                              compute_corrs=True,
                                               delete_used_subsessions=delete_used_subsessions)
-            #merged_unit = session.merge_units(generate=True, regenerate=False, delete_used_subsessions=True)
-            
-            #delete_bin_tiff_s2p_intermediate(session)#FIXME:
-
-            do_cabincoor(session, regenerate=regenerate, unit="")
-            do_cabincoor(session, regenerate=regenerate, unit="merged")
+            #c = merged_unit.get_c(compute_corrs=True, regenerate=regenerate)
+            print(f"-----------------------------------Creating correlations matrices-----------------------------------")
             session.load_corr_matrix(generate_corr=True, regenerate=True, unit_id="all")
             session.load_corr_matrix(generate_corr=True, regenerate=True, unit_id="merged")
             
+            #delete_bin_tiff_s2p_intermediate(session)#FIXME:
             dir_exist_create(os.path.join(viz.save_dir, animal_id))
             dir_exist_create(os.path.join(viz.save_dir, animal_id, session_id))
             viz.save_dir = os.path.join(viz.save_dir, animal_id, session_id)
@@ -219,25 +201,6 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                     viz.unit_fluorescence_good_bad(merged_unit, batch_size="all", interactive=False, plot_duplicates=False)
                 except:
                     print(f"###################################FAILED###################################FAILED###################################FAILED###################################")
-
-def do_cabincoor(session, regenerate=True, unit=""):
-    for s2p_path in session.s2p_folder_paths:
-        splitted_path = s2p_path.split("suite2p_")
-        if splitted_path[-1] == unit or len(splitted_path)==1:
-            c = run_cabin_corr(root_dir, os.path.join(s2p_path, "plane0"), session.animal_id, session.session_id, regenerate=regenerate)
-            c.corr_parallel_flag = True
-            c.zscore = True 
-            c.n_tests_zscore = 1000
-            c.n_cores = 32
-            c.recompute_correlation = regenerate
-            c.binning_window = 30        # binning window in frames
-            c.subsample = 1              # subsample traces by this factor
-            c.scale_by_DFF = True        # scale traces by DFF
-            c.shuffle_data = False
-            c.subselect_moving_only = False
-            c.subselect_quiescent_only = False
-            c.make_correlation_dirs()
-            c.compute_correlations()
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
