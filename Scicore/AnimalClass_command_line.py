@@ -91,13 +91,10 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             #if animal_id in skip_animal and session_id in skip_session:
             #    continue
             print(f"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Starting {animal_id} {session_id} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-            print(f"-----------------------------------Generating Initial Suite2P Files-----------------------------------")
-            session.generate_suite2p(regenerate=False, unit_ids="all")
-            #session.generate_suite2p(regenerate=True, unit_ids="all")
-            session.generate_cabincorr(generate=True, regenerate=regenerate, unit_ids="all")
-
-
-            print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
+            print(f"-----------------------------------Generating standard Suite2P Files-----------------------------------")
+            session.generate_cabincorr(generate=True, regenerate=regenerate, unit_ids="all", compute_corrs=True)
+            session.generate_cabincorr(generate=True, regenerate=regenerate, unit_ids="merged", compute_corrs=True)
+            print(f"-----------------------------------Run Suite2p / Rerun Suite2P if data.bin is missing-----------------------------------")
             # Rerunning Suite2p if binary file is not present
             bin_fname = "data.bin"
             for s2p_path in session.s2p_folder_paths:
@@ -115,14 +112,15 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                         session.generate_suite2p(regenerate=True, unit_ids=part_to_rerun)
             
             print(f"-----------------------------------Loading Units-----------------------------------")
-            units = session.get_units(restore=True, get_geldrying=True, unit_type="single")
+            units = session.get_units(restore=True, get_geldrying=True, unit_type="single", generate=True, regenerate=regenerate)
             #TODO: integrate generate into function
             print(f"-----------------------------------Merging Units-----------------------------------")
-            merged_unit = session.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
+            merged_unit = session.merge_units(generate=True, 
+                                              regenerate=True, 
+                                              delete_used_subsessions=delete_used_subsessions)
             #merged_unit = session.merge_units(generate=True, regenerate=False, delete_used_subsessions=True)
-            merged_unit.get_geldrying_cells()
             
-            delete_bin_tiff_s2p_intermediate(session)
+            #delete_bin_tiff_s2p_intermediate(session)#FIXME:
 
             do_cabincoor(session, regenerate=regenerate, unit="")
             do_cabincoor(session, regenerate=regenerate, unit="merged")
@@ -231,8 +229,7 @@ def do_cabincoor(session, regenerate=True, unit=""):
             c.zscore = True 
             c.n_tests_zscore = 1000
             c.n_cores = 32
-            #c.recompute_correlation = True
-            c.recompute_correlation = False
+            c.recompute_correlation = regenerate
             c.binning_window = 30        # binning window in frames
             c.subsample = 1              # subsample traces by this factor
             c.scale_by_DFF = True        # scale traces by DFF

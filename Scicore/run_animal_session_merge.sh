@@ -5,8 +5,8 @@
 #SBATCH --mem-per-cpu=4G              #This is the memory reserved per core.
 
 
-#SBATCH --time=3-00:00:00         #This is the time that your task will run 01:00:00 or 1-00:00:00
-#SBATCH --qos=1week          #You will run in this queue 6hours or 1day  or 1week
+#SBATCH --time=12:00:00         #This is the time that your task will run 01:00:00 or 1-00:00:00
+#SBATCH --qos=1day          #You will run in this queue 6hours or 1day  or 1week
 #SBATCH --array=1-31        #This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory

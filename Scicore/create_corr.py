@@ -27,14 +27,14 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"]):
 def create_corr(animals):
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
-            do_cabincoor(session, unit="all")
-            do_cabincoor(session, unit="merged")
+            #do_cabincoor(session, unit="all")
+            #do_cabincoor(session, unit="merged")
             session.load_corr_matrix(generate_corr=True, regenerate=True, unit_id="all")
             session.load_corr_matrix(generate_corr=True, regenerate=True, unit_id="merged")
             delete_bin_tiff_s2p_intermediate(session)
 
 
-def do_cabincoor(session, unit=""):
+def do_cabincoor(session, unit="", recompute=False):
     for s2p_path in session.s2p_folder_paths:
             splitted_path = s2p_path.split("suite2p_")
             if splitted_path[-1] == unit or len(splitted_path)==1:
@@ -43,15 +43,15 @@ def do_cabincoor(session, unit=""):
                 c.zscore = True 
                 c.n_tests_zscore = 1000
                 c.n_cores = 32
-                c.recompute_correlation = False
+                c.recompute_correlation = recompute
                 c.binning_window = 30        # binning window in frames
                 c.subsample = 1              # subsample traces by this factor
                 c.scale_by_DFF = True        # scale traces by DFF
                 c.shuffle_data = False
                 c.subselect_moving_only = False
                 c.subselect_quiescent_only = False
-                #FIXME: c.make_correlation_dirs()
-                #FIXME: c.compute_correlations()
+                c.make_correlation_dirs()
+                c.compute_correlations()
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
