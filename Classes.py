@@ -624,6 +624,7 @@ class Session:
                 'summary' for loading only units composed of all single units e.g. standard suite2p or merged suite2p without geldrying,
                 'all' or loading all units from tif folder in Session.session_dir 
         """
+        #TODO: integrate generate into function
         defined_unit_types = ["single", "summary", "all"]
         if unit_type not in defined_unit_types:
             raise ValueError(f"unit_type is only defined for 'single', 'summary', 'all'")
@@ -667,7 +668,7 @@ class Session:
         self.units = units
         return self.units
     
-    def get_Unit(self, unit_id, s2p_path=None, data_path=None, unit_type=None, restore=True):
+    def get_Unit(self, unit_id, s2p_path=None, data_path=None, unit_type=None, restore=False):
         #create Unit for whole session with standard suite2p output
         correct_path = False
         data_path = None
@@ -685,7 +686,8 @@ class Session:
                 break
         data_path = os.path.join(s2p_path, "plane0") if correct_path else None
         if data_path:
-            backup_path_files(data_path, restore=restore)
+            #FIXME: why permissen denied???
+            #backup_path_files(data_path, restore=restore)
             unit = Unit(data_path, session=self, unit_id=unit_id, unit_type=unit_type)
         else:
             print(f"No s2p folder found {s2p_path}      unit_id: {unit_id}")

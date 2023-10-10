@@ -116,7 +116,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             
             print(f"-----------------------------------Loading Units-----------------------------------")
             units = session.get_units(restore=True, get_geldrying=True, unit_type="single")
-
+            #TODO: integrate generate into function
             print(f"-----------------------------------Merging Units-----------------------------------")
             merged_unit = session.merge_units(generate=True, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
             #merged_unit = session.merge_units(generate=True, regenerate=False, delete_used_subsessions=True)
