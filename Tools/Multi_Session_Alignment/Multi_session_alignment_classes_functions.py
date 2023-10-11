@@ -397,6 +397,13 @@ class Session:
         self.c, self.contours, self.footprints = self.get_c_contours_footprints(regenerate=regenerate)
         self.bin_traces_zip = None
 
+    def load_yx_shift(yaml):
+        #FIXME: use this 
+        translation = None
+        rotation_point =  None
+        rotation_angle = None
+        return translation, rotation_point, rotation_angle
+
     def set_ops(self, ops=None):
         if not ops:
             ops_path = os.path.join(self.suite2p_path, "ops.npy")

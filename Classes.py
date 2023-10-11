@@ -132,6 +132,7 @@ class Session:
     cabincorr_fname = "binarized_traces.npz"
     cell_geldrying_fname = "cell_drying.npy"
     iscell_fname = "iscell.npy"
+    binary_fname = "data.bin"
 
 
     def __init__(self, animal_id, session_id, generate=False, regenerate=False, mesc_munit_pairs=None,
@@ -149,16 +150,16 @@ class Session:
         self.mesc_data_paths = self.get_data_paths(ending="mesc")
         self.mesc_munit_pairs = self.define_mesc_munit_pairs(mesc_munit_pairs)
         self.tiff_data_paths = self.get_data_paths(ending="tiff")
-        self.session_parts = self.get_session_parts() #TODO: still used for?
+        self.session_parts = self.get_session_parts() 
         self.s2p_folder_paths = self.get_data_paths(regex_search="suite2p", folder=True)
-        self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.s2p_folder_paths]
+        self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.s2p_folder_paths] if self.s2p_folder_paths else None
         self.cabincorr_data_paths = self.get_data_paths(directories=self.suite2p_plane0_paths, regex_search=Session.cabincorr_fname)
         
         # Merging, generating cabincorr. suite2p, tiff from mesc
-        #TODO: integrate possibility to also create individual combinations of munits?
         self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, delete=delete)
         self.generate_suite2p(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
         self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
+        
         #FIXME: create a merging function instead of running everything on its own (recursive better than iterative)
 
 
@@ -285,10 +286,10 @@ class Session:
             mesc_munit_combinations = [wanted_combination] if wanted_combination else self.get_all_unique_mesc_munit_combinations()
             for mesc_munit_combination in mesc_munit_combinations:
                 # if tiff file name is not in tiff_data_paths, generate it
-                mesc_fname, munit = mesc_munit_combination.split("_MUnit_")
+                mesc_fname_session_parts, munit = mesc_munit_combination.split("_MUnit_")
                 tiff_path = os.path.join(self.session_dir, mesc_munit_combination+".tiff")
                 if tiff_path not in self.tiff_data_paths:
-                    mesc_path = os.path.join("\\".join(tiff_path.split("\\")[:-1]), mesc_fname+".mesc")
+                    mesc_path = os.path.join("\\".join(tiff_path.split("\\")[:-1]), mesc_fname_session_parts +".mesc")
                     munit_naming = f"MUnit_{munit}"
 
                     print("Merging Mesc to Tiff...")                
@@ -344,42 +345,32 @@ class Session:
             
             for mesc_munit_combination in mesc_munit_combinations:
                 # if s2p_path is not in s2p_folder_paths, generate it
-                unique_s2p_folder_ending = self.fname_extract_sessparts_munits(mesc_munit_combination) if mesc_munit_combination!="" else ""
+                unique_s2p_folder_ending = "_"+self.fname_extract_sessparts_munits(mesc_munit_combination) if mesc_munit_combination!="" else ""
                 s2p_folder_path = standard_s2p_path_naming + unique_s2p_folder_ending
-                dir_exist_create(s2p_folder_path)
                 if s2p_folder_path not in self.s2p_folder_paths:
+                    dir_exist_create(s2p_folder_path)
                     # standard suite2p run
                     if mesc_munit_combination == "":
                         print(f"Generating all possible and missing tiff files for {s2p_folder_path}")
-                        tiff_data_paths = self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, delete=delete)
+                        tiff_data_paths = self.generate_tiff_from_mesc(generate=generate, delete=delete)
                         tiff_fnames = [tiff_data_path.split("\\")[-1] for tiff_data_path in tiff_data_paths]
+                        #TODO: how to decide which files first?
                         self.run_suite2p(tiff_fnames, save_folder=s2p_folder_path, 
                                     reuse_bin=False, delete_bin=True, move_bin=False)
-                        
-                        for mesc_munit_combination in self.get_all_unique_mesc_munit_combinations():
-                            for tiff_data_path in self.tiff_data_paths:
-                                if mesc_munit_combination in tiff_data_path:
-                                    tiff_data_paths.append(tiff_data_path)
-                                else:
-                                    info = f"Missing Tiff. Generating now: {tiff_data_path}" if generate else f"Missing Tiff: {tiff_data_path}"
-                                    print(info)
-                                    tiff_data_path = self.generate_tiff_from_mesc(wanted_combination=mesc_munit_combination, generate=generate, regenerate=regenerate, delete=delete)
-                                    tiff_data_paths.append()
-                        tiff_fnames
-                    # Single unit mesc run
-                    tiff_fname = None
-                    for tiff_data_path in self.tiff_data_paths:
-                        if mesc_munit_combination in tiff_data_path:
+                    else:
+                        # Single unit mesc runmerge_units
+                        tiff_fname = None
+                        self.tiff_data_paths = [] if not self.tiff_data_paths else self.tiff_data_paths
+                        for tiff_data_path in self.tiff_data_paths:
+                            if mesc_munit_combination in tiff_data_path:
+                                tiff_fname = tiff_data_path.split("\\")[-1]
+                                break
+                        if not tiff_fname:
+                            print(f"Generating missing tiff file for {mesc_munit_combination}")
+                            tiff_data_path = self.generate_tiff_from_mesc(wanted_combination=mesc_munit_combination, generate=generate, delete=delete)
                             tiff_fname = tiff_data_path.split("\\")[-1]
-                            break
-                    if not tiff_fname:
-                        if generate:
-                            print(f"Generating missing tiff files for {mesc_munit_combination}")
-                            tiff_data_path = self.generate_tiff_from_mesc(wanted_combination=mesc_munit_combination, generate=generate, regenerate=regenerate, delete=delete)
-                            tiff_fname = tiff_data_path.split("\\")[-1]
+                        if tiff_fname:
                             self.run_suite2p(tiff_fname, save_folder=s2p_folder_path)
-                        else:
-                            print(f"No Tiff datapath found for {mesc_munit_combination}")
                 else:
                     print(f".tiff -> suite2p folder already done")
                     print(f"{s2p_folder_path}")
@@ -447,7 +438,8 @@ class Session:
         print("Finished Suite2p.")
 
     def generate_cabincorr(self, wanted_combination=None, generate=False, 
-                            regenerate=False, unit_ids="all"): 
+                            regenerate=False, unit_ids="all", delete=False,
+                            compute_corrs=False, parallel=True): 
         self.cabincorr_data_paths = [] if not self.cabincorr_data_paths else self.cabincorr_data_paths
 
         if generate:
@@ -456,18 +448,27 @@ class Session:
             if wanted_combination:
                 wanted_fname = self.fname_extract_sessparts_munits(wanted_combination)
                 s2p_path = standard_s2p_path_naming + "_" + wanted_fname
+                if s2p_path not in self.s2p_folder_paths:
+                    self.generate_suite2p(wanted_combination=wanted_combination, generate=generate, delete=delete)
             elif unit_ids == "all":
                 s2p_path = standard_s2p_path_naming
+                if s2p_path not in self.s2p_folder_paths:
+                    self.generate_suite2p(unit_ids="all", generate=generate, delete=delete)
             elif unit_ids == "merged":
                 s2p_path = standard_s2p_path_naming + "_merged"
+                if s2p_path not in self.s2p_folder_paths:
+                    self.merge_units(unit_type="single", 
+                                     delete_used_subsessions=delete)
             elif unit_ids == "single":
+                s2p_folder_paths = []
                 for mesc_munit_combination in self.get_all_unique_mesc_munit_combinations():
                     # if s2p_path is not in s2p_folder_paths, generate it
                     unique_s2p_folder_ending = self.fname_extract_sessparts_munits(mesc_munit_combination)
                     s2p_folder_path = standard_s2p_path_naming + "_" + unique_s2p_folder_ending
                     if s2p_folder_path not in self.s2p_folder_paths:
-                        self.generate_suite2p(wanted_combination=mesc_munit_combination, generate=generate, regenerate=regenerate)
-                s2p_path = self.s2p_folder_paths
+                        self.generate_suite2p(wanted_combination=mesc_munit_combination, generate=generate, delete=delete)
+                        s2p_folder_paths.append(s2p_folder_path)
+                s2p_path = s2p_folder_paths
             else:
                 raise ValueError("Only options [single, all, merged] are allowed for unit_ids")
             
@@ -475,7 +476,8 @@ class Session:
             for s2p_path in s2p_paths_to_look_at:
                 data_dir = os.path.join(s2p_path, "plane0")
                 c = run_cabin_corr(Animal.root_dir, data_dir=data_dir, regenerate=regenerate,
-                                animal_id=self.animal_id, session_id=self.session_id)
+                                animal_id=self.animal_id, session_id=self.session_id, 
+                                compute_corrs=compute_corrs, parallel=parallel)
         
         self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
         return self.cabincorr_data_paths
@@ -491,7 +493,7 @@ class Session:
                     print("No CaBincorrPath found")
         return bin_traces_zip
     
-    def get_cells(self, merged=True):
+    def get_cells(self, merged=True, generate=False, regenerate=False):
         if self.cells:
             return self.cells
         
@@ -502,7 +504,7 @@ class Session:
             for s2p_path in self.s2p_folder_paths:
                 if "merged" in s2p_path:
                     found = True
-                    print(f"Loading Cells from {s2p_path}") 
+                    print(f"Loading Cells from merged Suite2P folder {s2p_path}") 
                     break
         if not found or not merged:
             if merged == True:
@@ -519,6 +521,14 @@ class Session:
         
         cell_fname = str(0)+".npz"
         cell_npz_path = search_file(s2p_path, cell_fname)
+        if not cell_npz_path:
+            data_dir = os.path.join(s2p_path, "plane0")
+            c = run_cabin_corr(Animal.root_dir, data_dir=data_dir, 
+                               animal_id=self.animal_id, 
+                               session_id=self.session_id,
+                               compute_corrs=generate,
+                               regenerate=regenerate)
+            cell_npz_path = search_file(s2p_path, cell_fname)
         if cell_npz_path:
             corr_path = search_file(s2p_path, cell_fname).split(cell_fname)[0]
             cells = {}
@@ -529,13 +539,15 @@ class Session:
             cells_sorted = {cell_id: cell for cell_id, cell in sorted(cells.items())}
             self.cells = cells_sorted
         else:
-            print(f"{cell_fname} not found. Assuming no correlation data is present.")
+            print(f"{cell_fname} not found in subdirectories of {s2p_path}")
         return self.cells
 
-    def create_corr_matrix(self, corr_matrix_path, merged=True):
+    def create_corr_matrix(self, corr_matrix_path, 
+                           generate=False,
+                           regenerate=False, merged=True):
         print("Loading correlation data from individual cell.npz files...")
         corr_matrix, pval_matrix, z_score_matrix = None, None, None
-        cells = self.get_cells(merged)
+        cells = self.get_cells(merged, generate=generate, regenerate=regenerate)
         if type(cells) == dict:
             pearson_corrs = [] 
             pvalue_pearson_corrs = []
@@ -556,7 +568,8 @@ class Session:
             np.save(corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
         return corr_matrix, pval_matrix, z_score_matrix
 
-    def load_corr_matrix(self, unit_id="merged", generate_corr=False, regenerate=False, remove_geldrying=True):
+    def load_corr_matrix(self, unit_id="merged", 
+                         generate=False, regenerate=False, remove_geldrying=True):
         """
         Loads the correlation matrix for the specified unit ID.
 
@@ -578,13 +591,16 @@ class Session:
         cleaned_corr_matrix_path = os.path.join(path, "plane0", f"allcell_clean_corr_pval_zscore.npy")
 
         if not os.path.exists(corr_matrix_path):
-            if generate_corr:
-                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(corr_matrix_path, merged)
+            if generate:
+                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(corr_matrix_path, merged=merged, 
+                                                                                   generate=generate)
             else:
                 print("No correlation data. Returning None, None")
         else:
             if regenerate:
-                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(self, corr_matrix_path, merged)
+                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(self, corr_matrix_path, merged=merged, 
+                                                                                   generate=generate,
+                                                                                   regenerate=regenerate)
             else:
                 print(f"Loading {corr_matrix_path}")
                 corr_matrix, pval_matrix, z_score_matrix = np.load(corr_matrix_path)
@@ -614,7 +630,7 @@ class Session:
 
     def get_units(self, generate=False, regenerate=False, 
                   unit_type="single", get_geldrying=False, 
-                  restore=False):
+                  restore=False, delete=False, min_needed_cells_per_unit=80):
         """
         This function load data from suiet2p folders corresponding to the same Experiment (animal_id, session_id)
         units: string    
@@ -623,7 +639,6 @@ class Session:
                 'summary' for loading only units composed of all single units e.g. standard suite2p or merged suite2p without geldrying,
                 'all' or loading all units from tif folder in Session.session_dir 
         """
-        #TODO: integrate generate into function
         defined_unit_types = ["single", "summary", "all"]
         if unit_type not in defined_unit_types:
             raise ValueError(f"unit_type is only defined for 'single', 'summary', 'all'")
@@ -631,31 +646,46 @@ class Session:
         
         s2p_root_folder_path = os.path.join(self.session_dir, "tif")
         standard_s2p_path_naming = os.path.join(s2p_root_folder_path, "suite2p")
-        all_possible_s2p_folders = []
-        summary_suite2p_folder_endings = ["", "merged"]
+        units_s2p_fpath = []
+        summary_suite2p_folder_endings = ["", "_merged"]
         for ending in summary_suite2p_folder_endings:
             if unit_type == "single":
                 break
-            all_possible_s2p_folders.append(standard_s2p_path_naming + "_" + ending)
+            units_s2p_fpath.append(standard_s2p_path_naming + ending)
         
-        for mesc_munit_combination in self.get_all_unique_mesc_munit_combinations():
+        mesc_munit_combinations = self.get_all_unique_mesc_munit_combinations()
+        for mesc_munit_combination in mesc_munit_combinations:
             if unit_type == "summary":
                 break
             unique_s2p_folder_ending = self.fname_extract_sessparts_munits(mesc_munit_combination)
-            s2p_path = standard_s2p_path_naming + unique_s2p_folder_ending
-            all_possible_s2p_folders.append(s2p_path)
+            s2p_path = standard_s2p_path_naming + "_" + unique_s2p_folder_ending
+            units_s2p_fpath.append(s2p_path)
 
-        for s2p_path in self.s2p_folder_paths:
+        for s2p_path in units_s2p_fpath:
             unit_id = s2p_path.split("suite2p")[-1]
             unit_id = unit_id[1:] if len(unit_id) > 0 else unit_id
             unit_type = "summary" if unit_id in summary_suite2p_folder_endings else "single"
-            
+            if s2p_path not in self.s2p_folder_paths:
+                if unit_id == "merged":
+                    continue
+                print(f"No s2p folder found for {unit_id}: {s2p_path}.")
+                wanted_combination = None 
+                if unit_type != "single":
+                    for mesc_munit_combination in mesc_munit_combinations:
+                        print(mesc_munit_combination)
+                        if unit_id in mesc_munit_combination:
+                            wanted_combination = mesc_munit_combination
+                            print(wanted_combination)
+                            break
+                self.generate_suite2p(wanted_combination=wanted_combination, generate=generate, 
+                                      regenerate=regenerate, unit_ids=unit_type, delete=delete)
+                
             data_path = os.path.join(s2p_path, "plane0")
             backup_path_files(data_path, restore=False)
             unit = self.get_Unit(s2p_path=s2p_path, unit_id=unit_id, unit_type=unit_type, restore=restore)
             num_good_cells = unit.print_s2p_iscell()
-            if num_good_cells < 100: #If less than 100 good cells
-                print(f"Skipping Unit {unit.unit_id} (<100 cells)")    
+            if num_good_cells < min_needed_cells_per_unit: #If less than 100 good cells
+                print(f"Skipping Unit {unit.unit_id} (<{min_needed_cells_per_unit} cells)")    
             else:
                 units[unit_id] = unit
                 #single cells sliding mean detector for gel detection
@@ -740,7 +770,9 @@ class Session:
             if unit.usefull:
                 unit.calc_yx_shift(refAndMasks, num_align_frames=num_align_frames)
 
-    def merge_units(self, generate=True, regenerate=False, unit_type="single", delete_used_subsessions=False, image_x_size=512, image_y_size=512):
+    def merge_units(self, generate=True, regenerate=False, get_geldrying=True,
+                    unit_type="single", delete_used_subsessions=False, compute_corrs=False, 
+                    image_x_size=512, image_y_size=512, parallel=True):
         """
         Takes MUnits with #cells> #most_cells/3 based on best MUnit (cells withoug geldrying).
         1. stat files are merged (suite2p) + deduplicated(cabincorr algo)
@@ -770,7 +802,20 @@ class Session:
 
         if generate:
             if not self.units:
-                self.get_units(get_geldrying=True, unit_type=unit_type)
+                self.get_units(get_geldrying=True, unit_type=unit_type, generate=generate)
+            for unit_id, unit in self.units.items():
+                binary_path = os.path.join(unit.s2p_folder_path, Session.binary_fname)
+                binary_file_present = os.path.exists(binary_path)
+                if not binary_file_present:
+                    print(f"Binary file not found in {unit.s2p_folder_path}")
+                    print(f"recomputing suite2p for Unit {unit.animal_id} {unit.session_id} {unit_id}")
+                    unit_id_session_parts, unit_id_munits = unit_id.split("_MUnit_")
+                    for mesc_munit_combination in self.get_all_unique_mesc_munit_combinations():
+                        if unit_id_session_parts in mesc_munit_combination and "MUnit_"+unit_id_munits in mesc_munit_combination:
+                            self.generate_suite2p(wanted_combination=mesc_munit_combination,
+                                                    generate=generate,
+                                                    regenerate=True, 
+                                                    unit_ids=unit.unit_type)
             # get unit with the most good cells (after geldrying detection)
             best_unit = self.get_most_good_cell_unit(unit_type=unit_type)
             # get units with enough usefull cells (at least 1/3 of best MUnit cells)
@@ -790,59 +835,40 @@ class Session:
                 # shift merged mask
                 print(f"Updating Unit {unit_id}")
                 merger.shift_update_unit_s2p_files(unit, merged_stat, image_x_size=image_x_size, image_y_size=image_y_size)
-                updated_units[unit_id] = Unit(unit.s2p_folder_path, session=self, unit_id=unit_id, unit_type=unit.unit_type)
+                updated_units[unit_id] = Unit(unit.s2p_folder_path, 
+                                              session=self, 
+                                              unit_id=unit_id, 
+                                              unit_type=unit.unit_type,
+                                              parallel=parallel)
                 merged_unit_id += str(unit_id)+"_"
             # concatenate S2P results
             ops = default_ops()
+            #TODO: how to decide which unit was imaged first?
             merged_F, _, _, _ = merger.merge_s2p_files(updated_units, merged_stat, ops) #best_unit.c.ops)
             #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
-
-            self.s2p_folder_paths = self.get_data_paths(regex_search="suite2p", folder=True)
-            self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
-            merged_unit = Unit(merged_s2p_path, self, f"{merged_unit_id}_merged", unit_type="summary")
-            merged_unit.get_geldrying_cells()
+            merged_unit = Unit(merged_s2p_path, self, 
+                               unit_id=f"{merged_unit_id}_merged", 
+                               unit_type="summary",
+                               compute_corrs=compute_corrs,
+                               parallel=parallel)
+            if get_geldrying:
+                merged_unit.get_geldrying_cells()
 
             if delete_used_subsessions:
-                for unit_id, unit in updated_units.items():
-                    del_file_dir(unit.s2p_folder_path)
+                units_s2p_paths = [unit.s2p_folder_path for unit_id, unit in updated_units.items()]
+                del updated_units
+                for path in units_s2p_paths:
+                    del_file_dir(path)
                     
+            self.s2p_folder_paths = self.get_data_paths(regex_search="suite2p", folder=True)
+            self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
             self.merged_unit = merged_unit
         return merged_unit
     
-    def merge_units_get_geldrying(self, generate=True, regenerate=False, delete_used_subsessions=False, binary_needed=True):
-        print(f"-------------------------------Generating Initial Suite2P Files for individual units ---------------------")
-        self.generate_suite2p(generate=generate, regenerate=regenerate, unit_ids="single")#FIXME: working?
-        self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids="single")#FIXME: working?
-        if binary_needed:
-            print(f"-----------------------------------Rerun Suite2P if data.bin is missing-----------------------------------")
-            # Rerunning Suite2p if binary file is not present
-            bin_fname = "data.bin"
-            for s2p_path in self.s2p_folder_paths:
-                binary_file_present = False
-                part_to_rerun = False
-                for part in self.session_parts:
-                    if part in s2p_path:
-                        binary_file_present = os.path.exists(os.path.join(s2p_path, "plane0", bin_fname))
-                        if binary_file_present:
-                            break
-                        else:
-                            part_to_rerun = part
-                    if part_to_rerun:
-                        print(f"binary file not present in {s2p_path}")
-                        session_part_munit_naming = s2p_path.split("\\")[-1].split("suite2_")[0]
-                        tiff_fname = [tiff_path.split("\\")[-1] for tiff_path in self.tiff_data_paths if session_part_munit_naming in tiff_path][0]#FIXME: working?
-                        self.run_suite2p(tiff_fname, save_folder=s2p_path)
-        print(f"-----------------------------------Loading Units-----------------------------------")
-        self.get_units(get_geldrying=True)
-        print(f"-----------------------------------Merging Units-----------------------------------")
-        merged_unit = self.merge_units(generate=False, regenerate=regenerate, delete_used_subsessions=delete_used_subsessions)
-        merged_unit.get_geldrying_cells()
-        return merged_unit
-
-
 class Unit:
-    def __init__(self, s2p_folder_path, session:Session, unit_id, unit_type, print_loading=True):
+    def __init__(self, s2p_folder_path, session:Session, unit_id, unit_type, 
+                 compute_corrs=False, regenerate=False, parallel=True, print_loading=True):
         self.s2p_folder_path = s2p_folder_path
         self.animal_id = session.animal_id
         self.session_id = session.session_id
@@ -850,9 +876,10 @@ class Unit:
         self.unit_id = unit_id
         self.unit_type = unit_type
         if print_loading:
-            print(f"Loadung {self.animal_id} {self.session_id} {self.unit_id}")
+            print(f"Loading Unit {self.animal_id} {self.session_id} {self.unit_id}")
         self.functional_chan = session.functional_chan
-        self.c, self.contours, self.footprints = self.get_c()
+        self.c, self.contours, self.footprints = self.get_c(compute_corrs=compute_corrs, 
+                                                            regenerate=regenerate, parallel=parallel)
         self.dedup_cell_ids = None
         self.get_all_sliding_cell_stat = None
         self.fluorescence = butter_lowpass_filter(self.c.dff, cutoff=0.5, fs=30, order=2)
@@ -864,27 +891,29 @@ class Unit:
         self.yx_shift = [0, 0]
         self.usefull = None
         
-    def get_c(self):
+    def get_c(self, compute_corrs=False, regenerate=False, parallel=True):
         #Merging cell footprints
         c = run_cabin_corr(Animal.root_dir, data_dir=self.s2p_folder_path,
-                            animal_id=self.animal_id, session_id=self.session_id)
-        contours = c.contours
-        footprints = c.footprints
-        return c, contours, footprints
+                            animal_id=self.animal_id, session_id=self.session_id,
+                            compute_corrs=compute_corrs, regenerate=regenerate, parallel=parallel)
+        return c, c.contours, c.footprints
 
-    def get_geldrying_cells(self, bad_minutes = 1.5, not_bad_minutes=0.5, mode="mean"):
+    def get_geldrying_cells(self, regenerate=False, parallel=True, bad_minutes = 1.5, not_bad_minutes=0.5, mode="mean"):
         #detect gel_drying with sliding mean change. Too long increase of mean = bad
         #returns boolean list of cells, where True is a cell labeled as drying 
-        if type(self.cell_geldrying) is np.ndarray:
+        if type(self.cell_geldrying) is np.ndarray and not regenerate:
             return self.cell_geldrying
         if type(self.get_all_sliding_cell_stat) is not np.ndarray:
             anz = Analyzer()
-            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(fluorescence=self.fluorescence, mode=mode)
+            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(parallel=parallel, fluorescence=self.fluorescence, mode=mode)
         anz = Analyzer()
         self.cell_geldrying = np.full([len(self.get_all_sliding_cell_stat)], True)
         self.cell_geldrying_reasons = [""]*len(self.get_all_sliding_cell_stat)
         for i, mean_stds in enumerate(self.get_all_sliding_cell_stat):
-            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds, bad_minutes=bad_minutes, not_bad_minutes=not_bad_minutes, mode=mode) 
+            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds,
+                                                                                   bad_minutes=bad_minutes, 
+                                                                                   not_bad_minutes=not_bad_minutes, 
+                                                                                   mode=mode) 
         self.geldrying_to_npy()
         return self.cell_geldrying
     
@@ -992,7 +1021,6 @@ class Analyzer:
 
     def __init__(self, animals={}):
         self.animals = animals
-        self.good = self.bad = self.evaluate_datasets_count()
 
     def good_mean_std(self, mean, std):
         return True if mean < Analyzer.mean_threshold or std > Analyzer.std_threshold else False
@@ -1005,7 +1033,8 @@ class Analyzer:
         for animal_id, animal in animals.items():
             try:
                 for session_id, session in animal.sessions.items():
-                    corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(generate_corr=generate_corr, remove_geldrying=remove_geldrying)
+                    corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(generate=generate_corr, 
+                                                                                        remove_geldrying=remove_geldrying)
                     mean = np.mean(corr_matrix.flatten())
                     std = np.std(corr_matrix.flatten())
                     if self.good_mean_std(mean, std):
@@ -1013,7 +1042,7 @@ class Analyzer:
                     else:
                         bad += 1
             except:
-                print("Error while evaluation datasets")
+                print(f"Error while evaluating dataset: {animal_id} {session_id}")
         return good, bad
 
     def lin_reg(self, data):
@@ -1339,7 +1368,9 @@ class Vizualizer:
         unit_id = "" if unit_id=="all" else unit_id
         # Create a figure and two subplots
         session = self.animals[animal_id].sessions[session_id]
-        corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=True)
+        corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
+                                                                            generate=generate_corr, 
+                                                                            remove_geldrying=True)
         if type(corr_matrix) == np.ndarray:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
             # First subplot
@@ -1400,7 +1431,9 @@ class Vizualizer:
         for animal_id, animal in filtered_animals.items():
             for session_id, session in animal.sessions.items():
                 age = session.age
-                corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=remove_geldrying)
+                corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
+                                                                                    generate=generate_corr, 
+                                                                                    remove_geldrying=remove_geldrying)
                 if type(corr_matrix) != np.ndarray:
                     continue
                 if not average_by_pday:
@@ -1449,7 +1482,9 @@ class Vizualizer:
             means = []
             stds = []
             for session_id, session in animal.sessions.items():
-                corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, generate_corr=generate_corr, remove_geldrying=remove_geldrying)
+                corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
+                                                                                    generate=generate_corr, 
+                                                                                    remove_geldrying=remove_geldrying)
                 if type(corr_matrix) != np.ndarray:
                     continue
                 ages.append(session.age)
@@ -2156,7 +2191,7 @@ class Merger:
         update_s2p_files(data_path, shifted_unit_stat)
 
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], 
-             generate=False, regenerate=False, unit_ids="single", delete=False, print_loading=True):
+             generate=False, regenerate=False, unit_ids="all", delete=False, print_loading=True):
     """
     Loads animal data from the specified root directory for the given animal IDs.
 
@@ -2165,7 +2200,7 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"],
     - animal_ids (list, optional): A list of animal IDs to load. Default is ["all"].
     - generate (bool, optional): If True, generates new session data. Default is False.
     - regenerate (bool, optional): If True, regenerates existing session data. Default is False.
-    - units (string, optional): Specifies the units. Default is "single".
+    - units (string, optional): Specifies the units. Default is "all".
     - delete (bool, optional): If True, deletes session data. Default is False.
 
     Returns:
@@ -2190,7 +2225,8 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"],
             animals_dict[animal_id] = animal
     return animals_dict
 
-def run_cabin_corr(root_dir, data_dir, animal_id, session_id, regenerate=False, parallel=True):
+def run_cabin_corr(root_dir, data_dir, animal_id, session_id, 
+                   compute_corrs=False, regenerate=False, parallel=True):
     #Init
     current_fluorescence_data_path = search_file(data_dir, Session.fluoresence_fname)
     if current_fluorescence_data_path == None:
@@ -2216,6 +2252,20 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id, regenerate=False, 
     c.load_binarization()
     # getting contours and footprints
     c.load_footprints()
+    if compute_corrs:
+        c.corr_parallel_flag = True
+        c.zscore = True 
+        c.n_tests_zscore = 1000
+        c.n_cores = 32
+        c.recompute_correlation = regenerate
+        c.binning_window = 30        # binning window in frames
+        c.subsample = 1              # subsample traces by this factor
+        c.scale_by_DFF = True        # scale traces by DFF
+        c.shuffle_data = False
+        c.subselect_moving_only = False
+        c.subselect_quiescent_only = False
+        c.make_correlation_dirs()
+        c.compute_correlations()
     return c
 
 def run_compute_correlations(c, parallel=True, min_number_bursts=0):
