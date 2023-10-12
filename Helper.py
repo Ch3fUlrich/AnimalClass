@@ -95,50 +95,22 @@ def get_num_batches_based_on_available_ram():
     print(f"Available RAM: {round(available_ram_gb)}GB setting number of batches to {num_batches}")
     return num_batches
 
-def update_s2p_files(data_path, stat):
-    # Read in existing data from a suite2p run. We will use the "ops" and registered binary.
-    ops = np.load(os.path.join(data_path, "ops.npy"), allow_pickle=True).item()
-    Lx = ops['Lx']
-    Ly = ops['Ly']
-    f_reg = suite2p.io.BinaryFile(Ly, Lx, os.path.join(data_path, "data.bin"))
+def make_list_ifnot(string_or_list):
+    return [string_or_list] if type(string_or_list) is str else string_or_list
 
-    """# Using these inputs, we will first mimic the stat array made by suite2p
-    masks = cellpose_masks['masks']
-    stat = []
-    for u_ix, u in enumerate(np.unique(masks)[1:]):
-        ypix,xpix = np.nonzero(masks==u)
-        npix = len(ypix)
-        stat.append({'ypix': ypix, 'xpix': xpix, 'npix': npix, 'lam': np.ones(npix, np.float32), 'med': [np.mean(ypix), np.mean(xpix)]})
-    stat = np.array(stat)
-    stat = roi_stats(stat, Ly, Lx)  # This function fills in remaining roi properties to make it compatible with the rest of the suite2p pipeline/GUI
-    """
-    # Feed these values into the wrapper functions
-    stat_after_extraction, F, Fneu, F_chan2, Fneu_chan2 = suite2p.extraction_wrapper(stat, f_reg, f_reg_chan2 = None, ops=ops)
-    # Do cell classification
-    classfile = suite2p.classification.builtin_classfile
-    iscell = suite2p.classify(stat=stat_after_extraction, classfile=classfile)
-    # Apply preprocessing step for deconvolution
-    dF = F.copy() - ops['neucoeff']*Fneu
-    dF = suite2p.extraction.preprocess(
-            F=dF,
-            baseline=ops['baseline'],
-            win_baseline=ops['win_baseline'],
-            sig_baseline=ops['sig_baseline'],
-            fs=ops['fs'],
-            prctile_baseline=ops['prctile_baseline']
-        )
-    # Identify spikes
-    spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
-
-    # Overwrite files in wd folder (consider backing up this folder first)
-    backup_path_files(data_path) 
-
-    np.save(os.path.join(data_path, 'F.npy'), F)
-    np.save(os.path.join(data_path, 'Fneu.npy'), Fneu)
-    np.save(os.path.join(data_path, 'iscell.npy'), iscell)
-    np.save(os.path.join(data_path, 'ops.npy'), ops)
-    np.save(os.path.join(data_path, 'spks.npy'), spks)
-    np.save(os.path.join(data_path, 'stat.npy'), stat)
+def find_binary_fpath(data_path, subdirectories=["data"], possible_binary_fnames=["data.bin", "Image_001_001.raw"]):
+    subdirectories = make_list_ifnot(subdirectories)
+    possible_binary_fnames = make_list_ifnot(possible_binary_fnames)
+    binary_fpath = None
+    possible_binary_data_paths = [data_path] + [os.path.join(data_path, subdirectory) for subdirectory in subdirectories]
+    for possible_binary_data_path in possible_binary_data_paths:
+        for possible_binary_fname in possible_binary_fnames:
+            binary_file_path = os.path.join(possible_binary_data_path, possible_binary_fname)
+            if os.path.exists(binary_file_path):
+                break
+    if not binary_fpath:
+        print(f"No binary path to {possible_binary_fnames} found in {possible_binary_data_paths}")
+    return binary_fpath
 
 def remove_rows_cols(data, remove_rows, remove_cols):
     data = np.delete(data, remove_rows, 0)
