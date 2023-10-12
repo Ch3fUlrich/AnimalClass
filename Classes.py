@@ -1355,7 +1355,7 @@ class Vizualizer:
         return fluorescence
 
     def traces(self, fluorescence, animal_id, session_id, unit_id="all", 
-               num_cells="all", fluorescence_type="", low_pass_filter=True, dpi=300):
+               num_cells="all", fluorescence_type="", low_pass_filter=True, fps=30, dpi=300):
         # plot fluorescence
         if low_pass_filter:
             fluorescence = butter_lowpass_filter(fluorescence, cutoff=0.5, fs=30, order=2)
@@ -1375,7 +1375,6 @@ class Vizualizer:
             file_name = f"{animal_id} {session_id}"
 
         seconds = 5
-        fps=30
         num_frames = fps*seconds
         num_x_ticks = 50
         written_label_steps = 2
@@ -2370,26 +2369,3 @@ def delete_bin_tiff_s2p_intermediate(session):
             s2p_path_ending = s2p_path.split("suite2p")[-1]
             if s2p_path_ending not in keep_endings:
                 del_file_dir(s2p_path)
-
-def create_rodrigo_folder(wanted_animal_ids, root_dir, animals=None):
-    #create folders for rodrigo
-    if not animals:
-        animals = load_all(root_dir, wanted_animal_ids=wanted_animal_ids, generate=False, print_loading=False) # Load all animals
-    corr_fname = "allcell_clean_corr_pval_zscore.npy"
-    rodrigo_corr_path = os.path.join(root_dir, "rodrigo")
-    dir_exist_create(rodrigo_corr_path)
-    for animal_id, animal in animals.items():
-        for session_id, session in animal.sessions.items():
-            # search for allcell_clean_corr_pval_zscore
-            corr_path = None
-            for s2p_path in session.suite2p_paths:
-                if "merged" in s2p_path:
-                    corr_path = search_file(s2p_path, corr_fname)
-            if corr_path:
-                # create directories
-                animal_path = os.path.join(rodrigo_corr_path, animal_id)
-                session_path = os.path.join(animal_path, session_id)
-                dir_exist_create(animal_path)
-                dir_exist_create(session_path)
-                #copy allcell_clean_corr_pval_zscore to created dir
-                shutil.copyfile(corr_path, os.path.join(session_path, corr_fname))
