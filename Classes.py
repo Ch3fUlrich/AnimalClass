@@ -145,6 +145,10 @@ class Session:
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id, Animal.dir_)
         self.functional_chan = functional_chan
         self.age = age
+        self.units = None
+        self.merged_unit = None
+        self.cell_geldrying = None
+        self.cells = None
 
         # load session information
         self.mesc_data_paths = self.get_data_paths(ending="mesc")
@@ -160,15 +164,8 @@ class Session:
         self.generate_suite2p(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
         self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
         
-        #FIXME: create a merging function instead of running everything on its own (recursive better than iterative)
-
-
-
-        self.calcium_object = None
-        self.units = None
-        self.merged_unit = None
-        self.cell_geldrying = None
-        self.cells = None
+        # generate top down pricipal
+        #self.self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
         
         print(f"Finished {animal_id}: {session_id}")
 
