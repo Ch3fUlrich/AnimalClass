@@ -96,9 +96,20 @@ def get_num_batches_based_on_available_ram():
     return num_batches
 
 def make_list_ifnot(string_or_list):
-    return [string_or_list] if type(string_or_list) is str else string_or_list
+    return [string_or_list] if type(string_or_list) != list else string_or_list
 
 def find_binary_fpath(data_path, subdirectories=["data"], possible_binary_fnames=["data.bin", "Image_001_001.raw"]):
+    """
+    Searches for binary files in the specified data path and its subdirectories.
+
+    Args:
+        data_path (str): The path to the data directory.
+        subdirectories (list, optional): A list of subdirectories to search for binary files. Defaults to ["data"].
+        possible_binary_fnames (list, optional): A list of possible binary file names. Defaults to ["data.bin", "Image_001_001.raw"].
+
+    Returns:
+        str: The path to the binary file if found, else None.
+    """
     subdirectories = make_list_ifnot(subdirectories)
     possible_binary_fnames = make_list_ifnot(possible_binary_fnames)
     binary_fpath = None

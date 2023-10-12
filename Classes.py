@@ -174,8 +174,7 @@ class Session:
 
     def get_data_paths(self, directories=None, ending="", regex_search=None, folder=False):
         # Search for file names with specific ending and naming content
-        if type(directories) != list:
-            directories = [directories]
+        directories = make_list_ifnot(directories)
         fpaths = None
         for directory in directories:
             if not directory:
@@ -209,8 +208,7 @@ class Session:
         return fpaths
 
     def get_list_of_session_parts(self, file_names):
-        if type(file_names) != list:
-            file_names = [file_names]
+        file_names = make_list_ifnot(file_names)
         session_parts = []
         for file_name in file_names:
             last_fname_part = file_name.split("\\")[-1].split("_")[-1].split(".")[0]
@@ -705,7 +703,7 @@ class Session:
         if not s2p_path:
             s2p_paths = self.suite2p_paths
         else:
-            s2p_paths = [s2p_path] if type(s2p_path) == str else s2p_path
+            s2p_paths = make_list_ifnot(s2p_paths)
             
         for s2p_path in s2p_paths:
             s2p_path_ending = s2p_path.split("suite2p")[-1]
@@ -1469,8 +1467,7 @@ class Vizualizer:
         return corr_matrix, pval_matrix
 
     def pearson_kde(self, filters=[], unit_id="all", x_axes_range=[-0.5, 0.5], generate_corr=False, remove_geldrying=True, average_by_pday=False, dpi=300):
-        if type(filters) != list:
-            filters = [filters]
+        filters = make_list_ifnot(filters)
         title_unit_text = "Suite2P" if unit_id == "all" else unit_id  
         title = f"All correlation coefficient KDE {filters} {title_unit_text} {x_axes_range}"
         unit_id = "" if unit_id=="all" else unit_id
@@ -1523,8 +1520,7 @@ class Vizualizer:
         plt.show()
 
     def plot_means_stds(self, filters=[], unit_id="", dpi=300, x_tick_jumps = 4, generate_corr=False, remove_geldrying=True):
-        if filters != list:
-            filters = [filters]
+        filters = make_list_ifnot(filters)
         
         mean_threshold = Analyzer.mean_threshold
         std_threshold = Analyzer.std_threshold
