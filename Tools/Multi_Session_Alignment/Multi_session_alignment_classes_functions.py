@@ -1,6 +1,7 @@
 # work with files 
 import yaml
 import copy
+import shutil
 
 # do Math stuff
 import numpy as np
@@ -173,71 +174,33 @@ def backup_path_files(data_path, backup_folder_name="backup",
             else:
                 print("Backup path already exists. Skipping")
 
-def update_s2p_files(data_path, stat):
-    # Read in existing data from a suite2p run. We will use the "ops" and registered binary.
-    suite2_data_path = os.path.join(data_path, "plane0")
-    binary_file_path = os.path.join(data_path, "data.bin")
-    binary_file_path = search_file(data_path, "Image_001_001.raw")
-    if not binary_file_path:
-        binary_file_path = search_file(data_path, "data.bin")
-    if not binary_file_path:
-        print("No binary file found. Canceling Suite2P file update.")
-        return None
+def make_list_ifnot(string_or_list):
+    return [string_or_list] if type(string_or_list) != list else string_or_list
 
-    binary_file_path if os.path.exists(binary_file_path) else os.path.join(data_path, "Image_001_001.raw")
-    
-    ops = np.load(os.path.join(suite2_data_path, "ops.npy"), allow_pickle=True).item()
-    Lx = ops['Lx']
-    Ly = ops['Ly']
-    f_reg = suite2p.io.BinaryFile(Ly, Lx, binary_file_path)
-
-    """# Using these inputs, we will first mimic the stat array made by suite2p
-    masks = cellpose_masks['masks']
-    stat = []
-    for u_ix, u in enumerate(np.unique(masks)[1:]):
-        ypix,xpix = np.nonzero(masks==u)
-        npix = len(ypix)
-        stat.append({'ypix': ypix, 'xpix': xpix, 'npix': npix, 'lam': np.ones(npix, np.float32), 'med': [np.mean(ypix), np.mean(xpix)]})
-    stat = np.array(stat)
-    stat = roi_stats(stat, Ly, Lx)  # This function fills in remaining roi properties to make it compatible with the rest of the suite2p pipeline/GUI
+def find_binary_fpath(data_path, subdirectories=["data"], possible_binary_fnames=["data.bin", "Image_001_001.raw"]):
     """
-    # Feed these values into the wrapper functions
-    stat_after_extraction, F, Fneu, F_chan2, Fneu_chan2 = suite2p.extraction_wrapper(stat, f_reg, f_reg_chan2 = None, ops=ops)
-    # Do cell classification
-    classfile = suite2p.classification.builtin_classfile
-    iscell = suite2p.classify(stat=stat_after_extraction, classfile=classfile)
-    # Apply preprocessing step for deconvolution
-    dF = F.copy() - ops['neucoeff']*Fneu
-    dF = suite2p.extraction.preprocess(
-            F=dF,
-            baseline=ops['baseline'],
-            win_baseline=ops['win_baseline'],
-            sig_baseline=ops['sig_baseline'],
-            fs=ops['fs'],
-            prctile_baseline=ops['prctile_baseline']
-        )
-    # Identify spikes
-    spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
+    Searches for binary files in the specified data path and its subdirectories.
 
-    # backing up original suite2p files first
-    backup_path_files(suite2_data_path) 
+    Args:
+        data_path (str): The path to the data directory.
+        subdirectories (list, optional): A list of subdirectories to search for binary files. Defaults to ["data"].
+        possible_binary_fnames (list, optional): A list of possible binary file names. Defaults to ["data.bin", "Image_001_001.raw"].
 
-    old_files = ["binarized_traces.mat", "binarized_traces.npz", "Fall.mat"]
-    old_folders = ["correlations", "figures"]
-    for old_folder in old_folders:
-        fpath = os.path.join(suite2_data_path, old_folder)
-        del_file_dir(fpath)
-    for old_file in old_files:
-        fpath = os.path.join(suite2_data_path, old_file)
-        del_file_dir(fpath)
-
-    np.save(os.path.join(suite2_data_path, 'F.npy'), F)
-    np.save(os.path.join(suite2_data_path, 'Fneu.npy'), Fneu)
-    np.save(os.path.join(suite2_data_path, 'iscell.npy'), iscell)
-    np.save(os.path.join(suite2_data_path, 'ops.npy'), ops)
-    np.save(os.path.join(suite2_data_path, 'spks.npy'), spks)
-    np.save(os.path.join(suite2_data_path, 'stat.npy'), stat)
-
+    Returns:
+        str: The path to the binary file if found, else None.
+    """
+    subdirectories = make_list_ifnot(subdirectories)
+    possible_binary_fnames = make_list_ifnot(possible_binary_fnames)
+    binary_fpath = None
+    possible_binary_data_paths = [data_path] + [os.path.join(data_path, subdirectory) for subdirectory in subdirectories]
+    for possible_binary_data_path in possible_binary_data_paths:
+        for possible_binary_fname in possible_binary_fnames:
+            binary_file_path = os.path.join(possible_binary_data_path, possible_binary_fname)
+            if os.path.exists(binary_file_path):
+                break
+    if not binary_fpath:
+        print(f"No binary path to {possible_binary_fnames} found in {possible_binary_data_paths}")
+    return binary_fpath
 
 #classes
 class Animal:
@@ -388,6 +351,7 @@ class Session:
         self.pday = pday
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id)
         self.suite2p_path = os.path.join(self.session_dir, "plane0")
+        self.binary_path = find_binary_fpath(self.session_dir)
         if restore:
             backup_path_files(self.suite2p_path, restore=restore)
         self.ops = self.set_ops()
@@ -396,6 +360,13 @@ class Session:
         self.yx_shift = [0, 0] if "day0" in session_id else None
         self.c, self.contours, self.footprints = self.get_c_contours_footprints(regenerate=regenerate)
         self.bin_traces_zip = None
+
+    def load_yx_shift(yaml):
+        #FIXME: use this 
+        translation = None
+        rotation_point =  None
+        rotation_angle = None
+        return translation, rotation_point, rotation_angle
 
     def set_ops(self, ops=None):
         if not ops:
@@ -426,7 +397,7 @@ class Session:
         """
         if self.refImg is None:
             b_loader = Binary_loader()
-            frames = b_loader.load_binary(self.session_dir, n_frames_to_be_acquired=n_frames_to_be_acquired, 
+            frames = b_loader.load_binary(self.binary_path, n_frames_to_be_acquired=n_frames_to_be_acquired, 
                                           image_x_size=self.image_x_size, image_y_size=self.image_y_size)
             self.refImg = register.compute_reference(frames, ops=self.ops)
         return self.refImg
@@ -448,7 +419,7 @@ class Session:
             self.yx_shift = yx_shift
         if not self.yx_shift:
             b_loader = Binary_loader()
-            frames = b_loader.load_binary(self.session_dir, n_frames_to_be_acquired=num_align_frames, image_x_size=self.image_x_size, image_y_size=self.image_y_size)
+            frames = b_loader.load_binary(self.binary_path, n_frames_to_be_acquired=num_align_frames, image_x_size=self.image_x_size, image_y_size=self.image_y_size)
             frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
             self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
         return self.yx_shift
@@ -471,6 +442,63 @@ class Session:
                 print("No CaBincorrPath found")
         return self.bin_traces_zip
     
+    def update_s2p_files(self, stat):
+        # Read in existing data from a suite2p run. We will use the "ops" and registered binary.
+        suite2_data_path = self.suite2p_path
+        binary_file_path = self.binary_path
+        
+        ops = np.load(os.path.join(suite2_data_path, "ops.npy"), allow_pickle=True).item()
+        Lx = ops['Lx']
+        Ly = ops['Ly']
+        f_reg = suite2p.io.BinaryFile(Ly, Lx, binary_file_path)
+
+        """# Using these inputs, we will first mimic the stat array made by suite2p
+        masks = cellpose_masks['masks']
+        stat = []
+        for u_ix, u in enumerate(np.unique(masks)[1:]):
+            ypix,xpix = np.nonzero(masks==u)
+            npix = len(ypix)
+            stat.append({'ypix': ypix, 'xpix': xpix, 'npix': npix, 'lam': np.ones(npix, np.float32), 'med': [np.mean(ypix), np.mean(xpix)]})
+        stat = np.array(stat)
+        stat = roi_stats(stat, Ly, Lx)  # This function fills in remaining roi properties to make it compatible with the rest of the suite2p pipeline/GUI
+        """
+        # Feed these values into the wrapper functions
+        stat_after_extraction, F, Fneu, F_chan2, Fneu_chan2 = suite2p.extraction_wrapper(stat, f_reg, f_reg_chan2 = None, ops=ops)
+        # Do cell classification
+        classfile = suite2p.classification.builtin_classfile
+        iscell = suite2p.classify(stat=stat_after_extraction, classfile=classfile)
+        # Apply preprocessing step for deconvolution
+        dF = F.copy() - ops['neucoeff']*Fneu
+        dF = suite2p.extraction.preprocess(
+                F=dF,
+                baseline=ops['baseline'],
+                win_baseline=ops['win_baseline'],
+                sig_baseline=ops['sig_baseline'],
+                fs=ops['fs'],
+                prctile_baseline=ops['prctile_baseline']
+            )
+        # Identify spikes
+        spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
+
+        # backing up original suite2p files first
+        backup_path_files(suite2_data_path) 
+
+        old_files = ["binarized_traces.mat", "binarized_traces.npz", "Fall.mat"]
+        old_folders = ["correlations", "figures"]
+        for old_folder in old_folders:
+            fpath = os.path.join(suite2_data_path, old_folder)
+            del_file_dir(fpath)
+        for old_file in old_files:
+            fpath = os.path.join(suite2_data_path, old_file)
+            del_file_dir(fpath)
+
+        np.save(os.path.join(suite2_data_path, 'F.npy'), F)
+        np.save(os.path.join(suite2_data_path, 'Fneu.npy'), Fneu)
+        np.save(os.path.join(suite2_data_path, 'iscell.npy'), iscell)
+        np.save(os.path.join(suite2_data_path, 'ops.npy'), ops)
+        np.save(os.path.join(suite2_data_path, 'spks.npy'), spks)
+        np.save(os.path.join(suite2_data_path, 'stat.npy'), stat)
+
 class Vizualizer:
     def __init__(self, animals={}, save_dir=Animal.root_dir):
         self.animals = animals
@@ -652,7 +680,7 @@ class Binary_loader:
     Attributes:
         None
     """
-    def load_binary(self, data_path, n_frames_to_be_acquired, fname="Image_001_001.raw", image_x_size=512, image_y_size=512):
+    def load_binary(self, fpath, n_frames_to_be_acquired, fname="Image_001_001.raw", image_x_size=512, image_y_size=512):
         """
         Loads binary data from a file.
 
@@ -669,8 +697,6 @@ class Binary_loader:
             np.ndarray: A NumPy array containing the loaded binary data.
         """
         # load binary file from suite2p_folder from session
-        image_size=image_x_size*image_y_size
-        fpath = search_file(data_path, fname)
         binary = np.memmap(fpath,
                             dtype='uint16',
                             mode='r',
@@ -1085,7 +1111,7 @@ class Merger:
         shifted_session_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_session, image_x_size=image_x_size, image_y_size=image_y_size)
 
         backup_path_files(suite2p_data_path)
-        update_s2p_files(data_path, shifted_session_stat)
+        session.update_s2p_files(shifted_session_stat)
 
     def merge_s2p_files(self, sessions, stat, first_session="day0"):
         """

@@ -1,6 +1,12 @@
 # <ins>**Todos ordered by importants**</ins>
 - [ ] run at Scicore
   - [ ] 2023
+  - [ ] 
+
+  projects:
+    -rodrigo: main person
+    -cecillia: needs to answer
+    -timerili (camebrige): hopfield nets
 
 - recreate the yaml file creation
 
@@ -164,7 +170,7 @@ comment:
 ## <ins>**Nathalie Mouse in a Box**</ins>
 ## <ins>**Nathalie Volition/Imagination**</ins>
 
-
+****
 
 
 ## Sources
