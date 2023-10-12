@@ -152,7 +152,7 @@ class Session:
         self.tiff_data_paths = self.get_data_paths(ending="tiff")
         self.session_parts = self.get_session_parts() 
         self.s2p_folder_paths = self.get_data_paths(regex_search="suite2p", folder=True)
-        self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.s2p_folder_paths]
+        self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.s2p_folder_paths] if self.s2p_folder_paths else None
         self.cabincorr_data_paths = self.get_data_paths(directories=self.suite2p_plane0_paths, regex_search=Session.cabincorr_fname)
         
         # Merging, generating cabincorr. suite2p, tiff from mesc
@@ -354,6 +354,7 @@ class Session:
                         print(f"Generating all possible and missing tiff files for {s2p_folder_path}")
                         tiff_data_paths = self.generate_tiff_from_mesc(generate=generate, delete=delete)
                         tiff_fnames = [tiff_data_path.split("\\")[-1] for tiff_data_path in tiff_data_paths]
+                        #TODO: how to decide which files first?
                         self.run_suite2p(tiff_fnames, save_folder=s2p_folder_path, 
                                     reuse_bin=False, delete_bin=True, move_bin=False)
                     else:
@@ -365,9 +366,9 @@ class Session:
                                 tiff_fname = tiff_data_path.split("\\")[-1]
                                 break
                         if not tiff_fname:
-                                print(f"Generating missing tiff file for {mesc_munit_combination}")
-                                tiff_data_path = self.generate_tiff_from_mesc(wanted_combination=mesc_munit_combination, generate=generate, delete=delete)
-                                tiff_fname = tiff_data_path.split("\\")[-1]
+                            print(f"Generating missing tiff file for {mesc_munit_combination}")
+                            tiff_data_path = self.generate_tiff_from_mesc(wanted_combination=mesc_munit_combination, generate=generate, delete=delete)
+                            tiff_fname = tiff_data_path.split("\\")[-1]
                         if tiff_fname:
                             self.run_suite2p(tiff_fname, save_folder=s2p_folder_path)
                 else:
@@ -629,7 +630,7 @@ class Session:
 
     def get_units(self, generate=False, regenerate=False, 
                   unit_type="single", get_geldrying=False, 
-                  restore=False, delete=False):
+                  restore=False, delete=False, min_needed_cells_per_unit=80):
         """
         This function load data from suiet2p folders corresponding to the same Experiment (animal_id, session_id)
         units: string    
@@ -683,8 +684,8 @@ class Session:
             backup_path_files(data_path, restore=False)
             unit = self.get_Unit(s2p_path=s2p_path, unit_id=unit_id, unit_type=unit_type, restore=restore)
             num_good_cells = unit.print_s2p_iscell()
-            if num_good_cells < 100: #If less than 100 good cells
-                print(f"Skipping Unit {unit.unit_id} (<100 cells)")    
+            if num_good_cells < min_needed_cells_per_unit: #If less than 100 good cells
+                print(f"Skipping Unit {unit.unit_id} (<{min_needed_cells_per_unit} cells)")    
             else:
                 units[unit_id] = unit
                 #single cells sliding mean detector for gel detection
@@ -842,6 +843,7 @@ class Session:
                 merged_unit_id += str(unit_id)+"_"
             # concatenate S2P results
             ops = default_ops()
+            #TODO: how to decide which unit was imaged first?
             merged_F, _, _, _ = merger.merge_s2p_files(updated_units, merged_stat, ops) #best_unit.c.ops)
             #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
@@ -903,12 +905,12 @@ class Unit:
             return self.cell_geldrying
         if type(self.get_all_sliding_cell_stat) is not np.ndarray:
             anz = Analyzer()
-            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(fluorescence=self.fluorescence, mode=mode)
+            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(parallel=parallel, fluorescence=self.fluorescence, mode=mode)
         anz = Analyzer()
         self.cell_geldrying = np.full([len(self.get_all_sliding_cell_stat)], True)
         self.cell_geldrying_reasons = [""]*len(self.get_all_sliding_cell_stat)
         for i, mean_stds in enumerate(self.get_all_sliding_cell_stat):
-            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds, parallel=parallel,
+            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds,
                                                                                    bad_minutes=bad_minutes, 
                                                                                    not_bad_minutes=not_bad_minutes, 
                                                                                    mode=mode) 

@@ -73,10 +73,11 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
                        wanted_session_ids=wanted_session_ids,  
                        generate=generate, delete=delete) # Load all animals
     # delete suite2p folder for every session
+    """
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
             shutil.rmtree(os.path.join(session.session_dir, "tif"))
-
+    """
     for animal_id, animal in animals.items():
         print(f"{animal_id}: {list(animal.sessions.keys())}")
     load_all_procedure = "generate" if generate else "load"
@@ -105,8 +106,8 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                                               delete_used_subsessions=delete_used_subsessions)
             #c = merged_unit.get_c(compute_corrs=True, regenerate=regenerate)
             print(f"-----------------------------------Creating correlations matrices-----------------------------------")
-            session.load_corr_matrix(generate_corr=True, regenerate=True, unit_id="all")
-            session.load_corr_matrix(generate_corr=True, regenerate=True, unit_id="merged")
+            session.load_corr_matrix(generate=True, regenerate=True, unit_id="all")
+            session.load_corr_matrix(generate=True, regenerate=True, unit_id="merged")
             
             #delete_bin_tiff_s2p_intermediate(session)#FIXME:
             dir_exist_create(os.path.join(viz.save_dir, animal_id))

@@ -30,5 +30,3 @@ python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_comm
 python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py DON-014840 20230222
 python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py DON-014840 20230312
 python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py DON-008498 20220202
-
-last is not new, but had to be redonee
