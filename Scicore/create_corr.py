@@ -29,9 +29,9 @@ def create_corr(animals):
         for session_id, session in animal.sessions.items():
             #do_cabincoor(session, unit="all")
             #do_cabincoor(session, unit="merged")
-            session.load_corr_matrix(generate_corr=True, regenerate=True, unit_id="all")
-            session.load_corr_matrix(generate_corr=True, regenerate=True, unit_id="merged")
-            delete_bin_tiff_s2p_intermediate(session)
+            session.load_corr_matrix(generate_corr=True, regenerate=False, unit_id="all")
+            session.load_corr_matrix(generate_corr=True, regenerate=False, unit_id="merged")
+            #delete_bin_tiff_s2p_intermediate(session)
 
 
 def do_cabincoor(session, unit="", recompute=False):

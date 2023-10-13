@@ -104,10 +104,9 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
                                               regenerate=regenerate, 
                                               compute_corrs=True,
                                               delete_used_subsessions=delete_used_subsessions)
-            #c = merged_unit.get_c(compute_corrs=True, regenerate=regenerate)
             print(f"-----------------------------------Creating correlations matrices-----------------------------------")
-            session.load_corr_matrix(generate=True, regenerate=True, unit_id="all")
-            session.load_corr_matrix(generate=True, regenerate=True, unit_id="merged")
+            session.load_corr_matrix(generate=True, regenerate=regenerate, unit_id="all")
+            session.load_corr_matrix(generate=True, regenerate=regenerate, unit_id="merged")
             
             #delete_bin_tiff_s2p_intermediate(session)#FIXME:
             dir_exist_create(os.path.join(viz.save_dir, animal_id))

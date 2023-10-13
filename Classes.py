@@ -90,7 +90,7 @@ class Animal:
         self.session_names = animal_metadata_dict["session_names"]
         self.sex = animal_metadata_dict["sex"]
         self.mesc_munit_pairs = animal_metadata_dict["UseMUnits"] if "UseMUnits" in animal_metadata_dict.keys() else None
-        self.funcional_channels = animal_metadata_dict["functional_channels"] if "functional_channels" in animal_metadata_dict.keys() else [0]*len(self.session_dates)
+        self.funcional_channels = animal_metadata_dict["functional_channels"] if "functional_channels" in animal_metadata_dict.keys() else [1]*len(self.session_dates)
             
     def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", print_loading=True, delete=False):
         yaml_file_index = self.session_names.index(session_id)
@@ -151,23 +151,31 @@ class Session:
         self.cells = None
 
         # load session information
-        self.mesc_data_paths = self.get_data_paths(ending="mesc")
-        self.mesc_munit_pairs = self.define_mesc_munit_pairs(mesc_munit_pairs)
-        self.tiff_data_paths = self.get_data_paths(ending="tiff")
-        self.session_parts = self.get_session_parts() 
-        self.suite2p_paths = self.get_data_paths(regex_search="suite2p", folder=True)
+        self.mesc_data_paths      = self.get_data_paths(ending="mesc")
+        self.mesc_munit_pairs     = self.define_mesc_munit_pairs(mesc_munit_pairs)
+        self.tiff_data_paths      = self.get_data_paths(ending="tiff")
+        self.session_parts        = self.get_session_parts() 
+        self.suite2p_paths        = self.get_data_paths(regex_search="suite2p", folder=True)
         self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.suite2p_paths] if self.suite2p_paths else None
         self.cabincorr_data_paths = self.get_data_paths(directories=self.suite2p_plane0_paths, regex_search=Session.cabincorr_fname)
         
         # Merging, generating cabincorr. suite2p, tiff from mesc
-        self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, delete=delete)
-        self.generate_suite2p(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
-        self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
+        if generate:
+            self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, delete=delete)
+            self.generate_suite2p(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
+            self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
         
         # generate top down pricipal
         #self.self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
-        
-        print(f"Finished {animal_id}: {session_id}")
+        if print_loading:
+            print(f"Finished {animal_id}: {session_id}")
+
+    def update_paths(self):
+        self.mesc_data_paths      = self.get_data_paths(ending="mesc")
+        self.tiff_data_paths      = self.get_data_paths(ending="tiff")
+        self.suite2p_paths        = self.get_data_paths(regex_search="suite2p", folder=True)
+        self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.suite2p_paths] if self.suite2p_paths else None
+        self.cabincorr_data_paths = self.get_data_paths(directories=self.suite2p_plane0_paths, regex_search=Session.cabincorr_fname)
 
     def get_data_paths(self, directories=None, ending="", regex_search=None, folder=False):
         # Search for file names with specific ending and naming content
@@ -474,18 +482,19 @@ class Session:
                                 animal_id=self.animal_id, session_id=self.session_id, 
                                 compute_corrs=compute_corrs, parallel=parallel)
         
-        self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
+        self.update_paths()
         return self.cabincorr_data_paths
 
-    def load_cabincorr_data(self, unique_fname="all"):
+    def load_cabincorr_data(self, unit_id="all"):
         bin_traces_zip = None
-        for path in self.cabincorr_data_paths:
-            path_unit = path.split("suite2p")[-1].split("\plane0")[0]
-            if path_unit == "_"+unique_fname or unique_fname == "all" and len(path_unit)==0:
-                if os.path.exists(path): #pathnames changed
-                    bin_traces_zip = np.load(path, allow_pickle=True)
-                else:
-                    print("No CaBincorrPath found")
+        if self.cabincorr_data_paths:
+            for path in self.cabincorr_data_paths:
+                path_unit = path.split("suite2p")[-1].split("\plane0")[0]
+                if path_unit == "_"+unit_id or unit_id == "all" and len(path_unit)==0:
+                    if os.path.exists(path): #pathnames changed
+                        bin_traces_zip = np.load(path, allow_pickle=True)
+                    else:
+                        print("No CaBincorrPath found")
         return bin_traces_zip
     
     def get_cells(self, merged=True, generate=False, regenerate=False):
@@ -608,7 +617,9 @@ class Session:
             pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
             z_score_matrix = remove_rows_cols(z_score_matrix, geldrying_indexes, geldrying_indexes)
             print("removed gelddrying cells")
-            if not os.path.exists(cleaned_corr_matrix_path) or regenerate:
+            if not os.path.exists(cleaned_corr_matrix_path):
+                np.save(cleaned_corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
+            elif os.path.getmtime(cleaned_corr_matrix_path) < os.path.getmtime(corr_matrix_path):
                 np.save(cleaned_corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
         return corr_matrix, pval_matrix, z_score_matrix
 
@@ -692,7 +703,7 @@ class Session:
         self.units = units
         return self.units
     
-    def get_Unit(self, unit_id, s2p_path=None, data_path=None, unit_type=None, restore=False):
+    def get_Unit(self, unit_id, s2p_paths=None, data_path=None, unit_type=None, restore=False):
         #create Unit for whole session with standard suite2p output
         correct_path = False
         data_path = None
@@ -856,8 +867,7 @@ class Session:
                 for path in units_s2p_paths:
                     del_file_dir(path)
                     
-            self.suite2p_paths = self.get_data_paths(regex_search="suite2p", folder=True)
-            self.cabincorr_data_paths = self.get_data_paths(regex_search=Session.cabincorr_fname)
+            self.update_paths()
             self.merged_unit = merged_unit
         return merged_unit
 
@@ -927,7 +937,7 @@ class Unit:
     def get_reference_image(self, n_frames_to_be_acquired=1000, image_x_size=512, image_y_size=512):
         if self.refImg is None:
             b_loader = Binary_loader()
-            frames = b_loader.load_binary(self.suite2p_path, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
+            frames = b_loader.load_binary(self.binary_path, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
             self.refImg = register.compute_reference(frames, ops=self.ops)
         return self.refImg
     
@@ -939,7 +949,7 @@ class Unit:
     def calc_yx_shift(self, refAndMasks, num_align_frames=1000, image_x_size=512, image_y_size=512):
         if self.yx_shift == [0, 0]:
             b_loader = Binary_loader()
-            frames = b_loader.load_binary(self.suite2p_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
+            frames = b_loader.load_binary(self.binary_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
             frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
             self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
         return self.yx_shift
@@ -1076,26 +1086,6 @@ class Analyzer:
 
     def good_mean_std(self, mean, std):
         return True if mean < Analyzer.mean_threshold or std > Analyzer.std_threshold else False
-
-    def evaluate_datasets_count(self, animals=None, generate_corr=False, remove_geldrying=True):
-        good = 0
-        bad = 0
-        if animals == None:
-            animals = self.animals
-        for animal_id, animal in animals.items():
-            try:
-                for session_id, session in animal.sessions.items():
-                    corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(generate=generate_corr, 
-                                                                                        remove_geldrying=remove_geldrying)
-                    mean = np.mean(corr_matrix.flatten())
-                    std = np.std(corr_matrix.flatten())
-                    if self.good_mean_std(mean, std):
-                        good += 1
-                    else:
-                        bad += 1
-            except:
-                print(f"Error while evaluating dataset: {animal_id} {session_id}")
-        return good, bad
 
     def lin_reg(self, data):
         length = np.arange(len(data))
@@ -1478,23 +1468,23 @@ class Vizualizer:
         
         sum_corrs_by_pday = {}
         num_corrs = {}
-        for animal_id, animal in filtered_animals.items():
-            for session_id, session in animal.sessions.items():
-                age = session.age
-                corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
-                                                                                    generate=generate_corr, 
-                                                                                    remove_geldrying=remove_geldrying)
-                if type(corr_matrix) != np.ndarray:
-                    continue
-                if not average_by_pday:
-                    sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
+
+        for animal_id, session_id, session in yield_animal_session(filtered_animals):
+            age = session.age
+            corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
+                                                                                generate=generate_corr, 
+                                                                                remove_geldrying=remove_geldrying)
+            if type(corr_matrix) != np.ndarray:
+                continue
+            if not average_by_pday:
+                sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
+            else:
+                if age not in sum_corrs_by_pday:
+                    sum_corrs_by_pday[age] = corr_matrix.flatten()
+                    num_corrs[age] = 1
                 else:
-                    if age not in sum_corrs_by_pday:
-                        sum_corrs_by_pday[age] = corr_matrix.flatten()
-                        num_corrs[age] = 1
-                    else:
-                        sum_corrs_by_pday[age] = np.append(sum_corrs_by_pday[age], corr_matrix)
-                        num_corrs[age] += 1
+                    sum_corrs_by_pday[age] = np.append(sum_corrs_by_pday[age], corr_matrix)
+                    num_corrs[age] += 1
         if average_by_pday:
             for age, sum_corrs in sum_corrs_by_pday.items():
                 corr_matrix = sum_corrs/num_corrs[age]
@@ -1906,7 +1896,7 @@ class Binary_loader:
     Attributes:
         None
     """
-    def load_binary(self, data_path, n_frames_to_be_acquired, fname="data.bin", image_x_size=512, image_y_size=512):
+    def load_binary(self, fpath, n_frames_to_be_acquired, image_x_size=512, image_y_size=512):
         """
         Loads binary data from a file.
 
@@ -1923,8 +1913,6 @@ class Binary_loader:
             np.ndarray: A NumPy array containing the loaded binary data.
         """
         # load binary file from suite2p_folder from unit
-        image_size=image_x_size*image_y_size
-        fpath = search_file(data_path, fname)
         binary = np.memmap(fpath,
                             dtype='uint16',
                             mode='r',

@@ -71,6 +71,20 @@ def show_mesc_units(path):
         print(munit_id)
         print(MUnits['Channel_0'])
 
+def yield_animal_session(animal_dict):
+    """
+    Yield animal_id, session_id, and session.
+
+    Args:
+        animal_dict (dict): A dictionary containing animal data.
+
+    Yields:
+        tuple: A tuple containing animal_id, session_id, and session.
+    """
+    for animal_id, animal in animal_dict.items():
+        for session_id, session in animal.sessions.items():
+            yield animal_id, session_id, session
+
 def timer(func):
     def wrapper(*args, **kwargs):
         start_time = time.time()
@@ -97,6 +111,15 @@ def get_num_batches_based_on_available_ram():
 
 def make_list_ifnot(string_or_list):
     return [string_or_list] if type(string_or_list) != list else string_or_list
+
+def save_file_present(file_path):
+    fname = file_path.split("\\")[-1]
+    file_present = False
+    if os.path.exists(file_path):
+        print(f"File already present {file_path}")
+    else:
+        print(f"Saving {fname} to {file_path}")
+    return file_present
 
 def find_binary_fpath(data_path, subdirectories=["data"], possible_binary_fnames=["data.bin", "Image_001_001.raw"]):
     """
@@ -145,7 +168,10 @@ def extract_cell_numbers(animals):
             cell_numbers["not_geldrying"] = -1
             cell_numbers["corr"] = False
             cell_numbers["gel_corr"] = False
-            for path in session.s2p_folder_paths:
+            if not session.suite2p_paths:
+                print(f"No suite2p paths: {animal_id} {session_id}")
+                continue
+            for path in session.suite2p_paths:
                 path_ending = path.split("suite2p")[-1]
                 path = os.path.join(path, "plane0")
                 iscell_path = os.path.join(path, "iscell.npy")
@@ -410,6 +436,22 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
                 os.rename(fpath, fpath_new)
         else:
             del_file_dir(fpath)
+
+def create_dirs(dirs):
+    """
+    Create a new directory hierarchy.
+
+    Args:
+        dirs (list): A list of strings representing the path to the new directory.
+
+    Returns:
+        str: The path to the newly created directory.
+    """
+    new_path = dirs[0]
+    for path_part in dirs[1:]:
+        new_path = os.path.join(new_path, path_part)
+        dir_exist_create(new_path)
+    return new_path
 
 #reset files S2P files to original ones
 def reset_s2p_files(data_path):
