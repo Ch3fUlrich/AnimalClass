@@ -798,6 +798,53 @@ class Merger:
             cell_stat["med"] = med_shifted
         return new_stat
 
+    def rotate_stat_cells(self, stat: list, rot_center_yx: [int, int], rot_angel: int, image_x_size=512, image_y_size=512):
+        #FIXME: do funciton
+
+        #TODO: points should be stat
+        points = stat #FIXME: tis is false
+        # stat files first value ist y-value second is x-value
+        new_stat = copy.deepcopy(stat)
+        
+        rot_x, rot_y = rot_center_yx
+        # Convert the angle to radians
+        rot_angel = np.radians(rot_angel)
+        
+        # Create a rotation matrix
+        rotation_matrix = np.array([
+            [np.cos(rot_angel), -np.sin(rot_angel)],
+            [np.sin(rot_angel), np.cos(rot_angel)]])
+
+        # Create a matrix of points
+        points_matrix = np.column_stack((points[:, 0] - rot_x, points[:, 1] - rot_y))
+        
+        # Apply the rotation matrix to the points
+        rotated_points_matrix = np.dot(points_matrix, rotation_matrix.T)
+        
+        # Translate the points back to the original coordinate system
+        rotated_points = rotated_points_matrix + np.array([rot_x, rot_y])
+        #FIXME: check method
+
+        """
+        for num, cell_stat in enumerate(new_stat):
+            y_shifted = []
+            for y in cell_stat["ypix"]:
+                y_shifted.append(y-yx_shift[0])
+            cell_stat["ypix"] = np.array(y_shifted)
+            
+            x_shifted = []
+            for x in cell_stat["xpix"]:
+                x_shifted.append(x-yx_shift[1])
+            cell_stat["xpix"] = np.array(x_shifted)
+
+            #center of cell_stat
+            med = cell_stat["med"]
+            med_shifted = [med[0]-yx_shift[0], med[1]-yx_shift[1]]
+            cell_stat["med"] = med_shifted
+        """    
+        return new_stat
+
+
     def remove_abroad_cells(self, stat: list, sessions: dict, image_x_size=512, image_y_size=512):
         """
         Removes cells that are out of bounds.
@@ -890,6 +937,13 @@ class Merger:
             if session_id == reference_session.session_id:
                 continue    
             shifted_session_stat = self.shift_stat_cells(session.c.stat, yx_shift=session.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
+            
+            rotate_session_stat = self.rotate_stat_cells(shifted_session_stat, 
+                                                         rot_center=session.rot_center, 
+                                                         rot_angel=session.rot_angel, 
+                                                         image_x_size=image_x_size, 
+                                                         image_y_size=image_y_size)
+            
             shifted_session_stat_no_abroad = self.remove_abroad_cells(shifted_session_stat, sessions, image_x_size=image_x_size, image_y_size=image_y_size)
             shifted_footprints = self.stat_to_footprints(shifted_session_stat_no_abroad)
             clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints, parallel=parallel, num_batches=num_batches)
@@ -1109,9 +1163,16 @@ class Merger:
         # shift merged mask
         shift_to_session = np.array([-1]) * session.yx_shift
         shifted_session_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_session, image_x_size=image_x_size, image_y_size=image_y_size)
+        
+        rotate_to_angel = np.array([-1]) * session.rot_angel
+        rotate_session_stat = self.rotate_stat_cells(shifted_session_stat, 
+                                                         rot_center=session.rot_center, 
+                                                         rot_angel=rotate_to_angel, 
+                                                         image_x_size=image_x_size, 
+                                                         image_y_size=image_y_size)
 
         backup_path_files(suite2p_data_path)
-        session.update_s2p_files(shifted_session_stat)
+        session.update_s2p_files(rotate_session_stat)
 
     def merge_s2p_files(self, sessions, stat, first_session="day0"):
         """
