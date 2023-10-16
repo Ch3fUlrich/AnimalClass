@@ -2140,8 +2140,22 @@ class Merger:
         df = make_overlap_database(res)
         return df
 
-    def find_candidate_neurons_overlaps(self, df_overlaps, corr_array=None, deduplication_use_correlations=False, corr_max_percent_overlap=0.25, corr_threshold=0.3):
+    def find_candidate_neurons_overlaps(self, df_overlaps: pd.DataFrame, 
+                                        corr_array=None, deduplication_use_correlations=False, 
+                                        corr_max_percent_overlap=0.25, corr_threshold=0.3):
+        """
+        This function finds candidate neurons based on overlaps and correlations.
+        
+        Parameters:
+        df_overlaps (DataFrame): DataFrame containing overlap information.
+        corr_array (numpy array): Array containing correlation information. Default is None.
+        deduplication_use_correlations (bool): If True, use correlations for deduplication. Default is False.
+        corr_max_percent_overlap (float): Maximum percent overlap for correlation. Default is 0.25.
+        corr_threshold (float): Threshold for correlation. Default is 0.3.
 
+        Returns:
+        candidate_neurons (numpy array): Array of candidate neurons based on overlaps and correlations.
+        """
         dist_corr_matrix = []
         for index, row in df_overlaps.iterrows():
             cell1 = int(row['cell1'])
@@ -2157,11 +2171,8 @@ class Merger:
                     corr = corr_array[cell2, cell1, 0]
             else:
                 corr = 0
-
             dist_corr_matrix.append([cell1, cell2, corr, max(percent1, percent2)])
-
         dist_corr_matrix = np.vstack(dist_corr_matrix)
-
         #####################################################
         # check max overlap
         idx1 = np.where(dist_corr_matrix[:, 3] >= corr_max_percent_overlap)[0]
@@ -2173,13 +2184,21 @@ class Merger:
             idx3 = idx1[idx2]
         else:
             idx3 = idx1
-
         #
         candidate_neurons = dist_corr_matrix[idx3][:, :2]
-
         return candidate_neurons
 
-    def make_correlated_neuron_graph(self, num_cells, candidate_neurons):
+    def make_correlated_neuron_graph(self, num_cells: int, candidate_neurons: np.ndarray):
+        """
+        This function creates a graph of correlated neurons.
+
+        Parameters:
+        num_cells (int): Number of cells.
+        candidate_neurons (numpy array): Array of candidate neurons.
+
+        Returns:
+        G (networkx.Graph): Graph of correlated neurons.
+        """
         adjacency = np.zeros((num_cells, num_cells))
         for i in candidate_neurons:
             adjacency[int(i[0]), int(i[1])] = 1
@@ -2188,13 +2207,24 @@ class Merger:
         G.remove_nodes_from(list(nx.isolates(G)))
         return G
 
-    def delete_duplicate_cells(self, num_cells, G, corr_delete_method='highest_connected_no_corr'):
+    def delete_duplicate_cells(self, num_cells: int, G, corr_delete_method='highest_connected_no_corr'):
+        """
+        This function deletes duplicate cells from the graph.
+
+        Parameters:
+        num_cells (int): Number of cells.
+        G (networkx.Graph): Graph of correlated neurons.
+        corr_delete_method (str): Method to delete duplicate cells. Default is 'highest_connected_no_corr'.
+
+        Returns:
+        clean_cell_ids (numpy array): Array of clean cell IDs after deleting duplicates.
+        """
         # delete multi node networks
         #
         if corr_delete_method=='highest_connected_no_corr':
             connected_cells, removed_cells = del_highest_connected_nodes_without_corr(G)
         # 
-        print ("Removed cells: ", len(removed_cells))
+        print ("Removed duplicated cells: ", len(removed_cells))
         clean_cells = np.delete(np.arange(num_cells),
                                 removed_cells)
 
@@ -2204,7 +2234,20 @@ class Merger:
         connected_cell_ids = connected_cells
         return clean_cell_ids
 
-    def merge_deduplicate_footprints(self, footprints1, footprints2, parallel=True, num_batches=4):
+    def merge_deduplicate_footprints(self, footprints1: np.ndarray, footprints2: np.ndarray,
+                                      parallel=True, num_batches=4):
+        """
+        This function merges and deduplicates footprints.
+
+        Parameters:
+        footprints1, footprints2 (numpy arrays): Arrays of footprints to be merged and deduplicated.
+        parallel (bool): If True, use parallel processing. Default is True.
+        num_batches (int): Number of batches for parallel processing. Default is 4.
+
+        Returns:
+        clean_cell_ids (numpy array): Array of clean cell IDs after merging and deduplicating footprints.
+        cleaned_merged_footprints (numpy array): Array of cleaned merged footprints.
+        """
         merged_footprints = np.concatenate([footprints1, footprints2])
         num_cells = len(merged_footprints)
 
@@ -2214,15 +2257,6 @@ class Merger:
         clean_cell_ids = self.delete_duplicate_cells(num_cells, G)
         cleaned_merged_footprints = merged_footprints[clean_cell_ids]
         return clean_cell_ids, cleaned_merged_footprints
-    
-    def shift_update_unit_s2p_files(self, unit, new_stat, image_x_size=512, image_y_size=512):
-        data_path = unit.suite2p_path
-        # shift merged mask
-        shift_to_unit = np.array([-1]) * unit.yx_shift
-        shifted_unit_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_unit, image_x_size=image_x_size, image_y_size=image_y_size)
-
-        backup_path_files(data_path)
-        unit.update_s2p_files(shifted_unit_stat)
 
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], 
              generate=False, regenerate=False, unit_ids="all", delete=False, print_loading=True):

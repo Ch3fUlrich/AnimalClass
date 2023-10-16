@@ -765,6 +765,11 @@ class Merger:
             session.set_yx_shift(refAndMasks, num_align_frames=num_align_frames)
         return sessions
     
+    def shift_points(self, points, x_shift, y_shift):
+        #FIXME: write function
+        shifted_points = None
+        return shifted_points
+
     def shift_stat_cells(self, stat: list, yx_shift: list, image_x_size=512, image_y_size=512):
         """
         Shifts the cells in the stat array based on the given yx_shift.
@@ -783,6 +788,7 @@ class Merger:
 
         for num, cell_stat in enumerate(new_stat):
             y_shifted = []
+            #FIXME: improve code by creating points, shifting points and saving pixel back 
             for y in cell_stat["ypix"]:
                 y_shifted.append(y-yx_shift[0])
             cell_stat["ypix"] = np.array(y_shifted)
@@ -798,52 +804,53 @@ class Merger:
             cell_stat["med"] = med_shifted
         return new_stat
 
-    def rotate_stat_cells(self, stat: list, rot_center_yx: [int, int], rot_angel: int, image_x_size=512, image_y_size=512):
-        #FIXME: do funciton
-
-        #TODO: points should be stat
-        points = stat #FIXME: tis is false
-        # stat files first value ist y-value second is x-value
-        new_stat = copy.deepcopy(stat)
-        
-        rot_x, rot_y = rot_center_yx
+    def rotate_points(self, points, cx, cy, theta):
         # Convert the angle to radians
-        rot_angel = np.radians(rot_angel)
+        theta = np.radians(theta)
         
         # Create a rotation matrix
         rotation_matrix = np.array([
-            [np.cos(rot_angel), -np.sin(rot_angel)],
-            [np.sin(rot_angel), np.cos(rot_angel)]])
-
+            [np.cos(theta), -np.sin(theta)],
+            [np.sin(theta), np.cos(theta)]
+        ])
+        
         # Create a matrix of points
-        points_matrix = np.column_stack((points[:, 0] - rot_x, points[:, 1] - rot_y))
+        points_matrix = np.column_stack((points[:, 0] - cx, points[:, 1] - cy))
         
         # Apply the rotation matrix to the points
         rotated_points_matrix = np.dot(points_matrix, rotation_matrix.T)
         
         # Translate the points back to the original coordinate system
-        rotated_points = rotated_points_matrix + np.array([rot_x, rot_y])
-        #FIXME: check method
+        rotated_points = rotated_points_matrix + np.array([cx, cy])
+        return rotated_points
 
-        """
+    def rotate_stat_cells(self, stat: list, rot_center_yx: [int, int], rot_angel: int, image_x_size=512, image_y_size=512):
+        #FIXME: do funciton
+
+        #TODO: points should be stat
+        # stat files first value ist y-value second is x-value
+        new_stat = copy.deepcopy(stat)
+
+        # rotate contour of every cell at cell center
         for num, cell_stat in enumerate(new_stat):
-            y_shifted = []
-            for y in cell_stat["ypix"]:
-                y_shifted.append(y-yx_shift[0])
-            cell_stat["ypix"] = np.array(y_shifted)
-            
-            x_shifted = []
-            for x in cell_stat["xpix"]:
-                x_shifted.append(x-yx_shift[1])
-            cell_stat["xpix"] = np.array(x_shifted)
+            y_pix = cell_stat["ypix"]
+            x_pix = cell_stat["xpix"]
+            points = None #FIXME: concatenate y,xpix correctly
+            cell_rot_center = np.mean(points) #FIXME: correct?
+            cell_rot_x, cell_rot_y = cell_rot_center
+            rotated_points = self.rotated_points(points, cell_rot_x, cell_rot_y, rot_angel)
+            cell_stat["ypix"] = rotated_points[:, 0] #FIXME: correct?
+            cell_stat["xpix"] = rotated_points[:, 1] #FIXME: correct?
 
-            #center of cell_stat
-            med = cell_stat["med"]
-            med_shifted = [med[0]-yx_shift[0], med[1]-yx_shift[1]]
-            cell_stat["med"] = med_shifted
-        """    
+        # rotate center of every cell at rotation center rot_center_yx
+        center_points = [cell_stat["med"] for cell_stat in new_stat]
+        center_rot_y, center_rot_x = rot_center_yx #FIXME: correct?
+        rotated_center_points = self.rotated_points(center_points, center_rot_x, center_rot_y, rot_angel)
+        for cell_stat, center_point in zip(new_stat, rotated_center_points):
+            cell_stat["med"] = center_point
+        #FIXME: everything correct?
+        #FIXME: check if every array is numpy
         return new_stat
-
 
     def remove_abroad_cells(self, stat: list, sessions: dict, image_x_size=512, image_y_size=512):
         """
