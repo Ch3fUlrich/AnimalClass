@@ -144,7 +144,7 @@ class Session:
         self.session_date = session_date
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id, Animal.dir_)
         self.functional_chan = functional_chan
-        self.fps = 30
+        self.fps = None
         self.age = age
         self.units = None
         self.merged_unit = None
@@ -225,11 +225,27 @@ class Session:
         self.session_parts = np.unique(session_parts).tolist()
         return self.session_parts
 
-    def get_mesc_fps(self):
-        with h5py.File(mesc_fpath, 'r') as file:
-            #FIXME: how to get????
-            pass
-
+    def get_mesc_fps(self, mesc_fpath=None):
+        if self.fps:
+            return self.fps
+        self.fps = None
+        if not mesc_fpath:
+            mesc_fpath = self.mesc_data_paths[0]
+        if mesc_fpath:
+            with h5py.File(mesc_fpath, 'r') as file:
+                msessions = [msession_data for name, msession_data in file.items() if "MSession" in name]
+                msession = msessions[0]
+                #msession_attribute_names = list(msession.attrs.keys())
+                munits = [munit_data for name, munit_data in msession.items() if "MUnit" in name] if len(msessions)>0 else []
+                #munit_attribute_names = list(munit.attrs.keys())
+                frTimes = [munit.attrs["ZAxisConversionConversionLinearScale"] for munit in munits] if len(munits)>0 else None
+                if frTimes:
+                    frTime = max(frTimes) #in milliseconds
+                    self.fps = 1000/frTime 
+        else:
+                print(f"No mesc path found in {self.session_dir}")
+        return self.fps
+    
     def get_recording_munits(self, mesc_fpath, fps = 30, at_least_minutes_of_recording=5):
         # Get MUnit number list of first Mescfile session MSession_0
         with h5py.File(mesc_fpath, 'r') as file:
