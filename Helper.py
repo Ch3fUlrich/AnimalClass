@@ -141,7 +141,10 @@ def find_binary_fpath(data_path, subdirectories=["data"], possible_binary_fnames
         for possible_binary_fname in possible_binary_fnames:
             binary_file_path = os.path.join(possible_binary_data_path, possible_binary_fname)
             if os.path.exists(binary_file_path):
+                binary_fpath = binary_file_path
                 break
+        if binary_fpath:
+            break
     if not binary_fpath:
         print(f"No binary path to {possible_binary_fnames} found in {possible_binary_data_paths}")
     return binary_fpath
@@ -469,6 +472,7 @@ def backup_path_files(data_path, backup_folder_name="backup",
     backup_path = os.path.join(data_path, backup_folder_name)
     if restore:
         shutil.copytree(backup_path, data_path, dirs_exist_ok=True)
+        print("Files restored from Backup.")
     else:
         if not os.path.exists(backup_path):
             shutil.copytree(data_path, backup_path)

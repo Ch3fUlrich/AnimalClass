@@ -144,6 +144,7 @@ class Session:
         self.session_date = session_date
         self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id, Animal.dir_)
         self.functional_chan = functional_chan
+        self.fps = None
         self.age = age
         self.units = None
         self.merged_unit = None
@@ -212,25 +213,39 @@ class Session:
                 fpaths += directory_fpaths
         return fpaths
 
-    def get_list_of_session_parts(self, file_names):
+    def get_session_parts(self, file_names = None):
+        # get session parts from MESC file name if available
+        file_names = file_names if file_names else self.mesc_data_paths
         file_names = make_list_ifnot(file_names)
         session_parts = []
         for file_name in file_names:
             last_fname_part = file_name.split("\\")[-1].split("_")[-1].split(".")[0]
             session_parts += re.findall("S[0-9]", last_fname_part)
-        return np.unique(session_parts).tolist()
-    
-    def get_session_parts(self, file_names = None):
-        session_parts = []
-        # get session parts from MESC file name if available
-        if file_names == None:
-            if self.mesc_data_paths:
-                session_parts = self.get_list_of_session_parts(self.mesc_data_paths)
-        else:
-            session_parts = self.get_list_of_session_parts(file_names)
-        self.session_parts = session_parts
+
+        self.session_parts = np.unique(session_parts).tolist()
         return self.session_parts
 
+    def get_mesc_fps(self, mesc_fpath=None):
+        if self.fps:
+            return self.fps
+        self.fps = None
+        if not mesc_fpath:
+            mesc_fpath = self.mesc_data_paths[0]
+        if mesc_fpath:
+            with h5py.File(mesc_fpath, 'r') as file:
+                msessions = [msession_data for name, msession_data in file.items() if "MSession" in name]
+                msession = msessions[0]
+                #msession_attribute_names = list(msession.attrs.keys())
+                munits = [munit_data for name, munit_data in msession.items() if "MUnit" in name] if len(msessions)>0 else []
+                #munit_attribute_names = list(munit.attrs.keys())
+                frTimes = [munit.attrs["ZAxisConversionConversionLinearScale"] for munit in munits] if len(munits)>0 else None
+                if frTimes:
+                    frTime = max(frTimes) #in milliseconds
+                    self.fps = 1000/frTime 
+        else:
+                print(f"No mesc path found in {self.session_dir}")
+        return self.fps
+    
     def get_recording_munits(self, mesc_fpath, fps = 30, at_least_minutes_of_recording=5):
         # Get MUnit number list of first Mescfile session MSession_0
         with h5py.File(mesc_fpath, 'r') as file:
@@ -487,9 +502,11 @@ class Session:
 
     def load_cabincorr_data(self, unit_id="all"):
         bin_traces_zip = None
+        #print(self.cabincorr_data_paths)
         if self.cabincorr_data_paths:
             for path in self.cabincorr_data_paths:
-                path_unit = path.split("suite2p")[-1].split("\plane0")[0]
+                slash_type = "\\" if "\\" in path else "/"
+                path_unit = path.split("suite2p")[-1].split(slash_type)[0]
                 if path_unit == "_"+unit_id or unit_id == "all" and len(path_unit)==0:
                     if os.path.exists(path): #pathnames changed
                         bin_traces_zip = np.load(path, allow_pickle=True)
@@ -498,7 +515,7 @@ class Session:
         return bin_traces_zip
     
     def get_cells(self, merged=True, generate=False, regenerate=False):
-        if self.cells:
+        if self.cells and not regenerate:
             return self.cells
         
         found = False
@@ -602,7 +619,7 @@ class Session:
                 print("No correlation data. Returning None, None")
         else:
             if regenerate:
-                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(self, corr_matrix_path, merged=merged, 
+                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(corr_matrix_path, merged=merged, 
                                                                                    generate=generate,
                                                                                    regenerate=regenerate)
             else:
@@ -688,7 +705,8 @@ class Session:
                 
             data_path = os.path.join(s2p_path, "plane0")
             backup_path_files(data_path, restore=False)
-            unit = self.get_Unit(s2p_path=s2p_path, unit_id=unit_id, unit_type=unit_type, restore=restore)
+            backup_path_files(data_path, restore=restore)
+            unit = Unit(data_path, session=self, unit_id=unit_id, unit_type=unit_type)
             num_good_cells = unit.print_s2p_iscell()
             if num_good_cells < min_needed_cells_per_unit: #If less than 100 good cells
                 print(f"Skipping Unit {unit.unit_id} (<{min_needed_cells_per_unit} cells)")    
@@ -702,34 +720,10 @@ class Session:
                     print(f"Autodetection Cells: {good+bad}    Good: {good}   gel drying:{bad} ")
         self.units = units
         return self.units
-    
-    def get_Unit(self, unit_id, s2p_paths=None, data_path=None, unit_type=None, restore=False):
-        #create Unit for whole session with standard suite2p output
-        correct_path = False
-        data_path = None
-        unit = None
-        if not s2p_path:
-            s2p_paths = self.suite2p_paths
-        else:
-            s2p_paths = make_list_ifnot(s2p_paths)
-            
-        for s2p_path in s2p_paths:
-            s2p_path_ending = s2p_path.split("suite2p")[-1]
-            ending = unit_id if s2p_path_ending == "" else "_"+unit_id
-            if s2p_path_ending == ending:
-                correct_path = True
-                break
-        data_path = os.path.join(s2p_path, "plane0") if correct_path else None
-        if data_path:
-            #FIXME: why permissen denied???
-            #backup_path_files(data_path, restore=restore)
-            unit = Unit(data_path, session=self, unit_id=unit_id, unit_type=unit_type)
-        else:
-            print(f"No s2p folder found {s2p_path}      unit_id: {unit_id}")
-        return unit
 
     def get_most_good_cell_unit(self, unit_type="single"):
         most_good_cells = 0
+        best_unit = None
         for unit_id, unit in self.units.items():
             if unit.unit_type != unit_type:
                 continue
@@ -737,7 +731,10 @@ class Session:
             if num_good_cells >= most_good_cells:
                 most_good_cells = num_good_cells 
                 best_unit = unit
-        print(f"Best Mask has {most_good_cells} cells and is from {best_unit.unit_id}")
+        if best_unit:
+            print(f"Best Mask has {most_good_cells} cells and is from {best_unit.unit_id}")
+        else: 
+            raise ValueError(f"No unit found with enough good cells and unit_type: {unit_type}.")
         return best_unit
 
     def get_usefull_units(self, min_num_usefull_cells, unit_type="single"):
@@ -878,7 +875,7 @@ class Unit:
         self.animal_id = session.animal_id
         self.session_id = session.session_id
         self.session_dir = session.session_dir
-        self.binary_path = find_binary_fpath(self.session_dir)
+        self.binary_path = find_binary_fpath(self.suite2p_path)
         self.unit_id = unit_id
         self.unit_type = unit_type
         if print_loading:
@@ -1411,7 +1408,7 @@ class Vizualizer:
         session = self.animals[animal_id].sessions[session_id]
         corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
                                                                             generate=generate_corr, 
-                                                                            remove_geldrying=True)
+                                                                            remove_geldrying=remove_geldrying)
         if type(corr_matrix) == np.ndarray:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
             # First subplot
