@@ -96,7 +96,8 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             session.generate_cabincorr(generate=True, regenerate=regenerate, 
                                        unit_ids="all", compute_corrs=True)
             print(f"-----------------------------------Loading Units-----------------------------------")
-            units = session.get_units(restore=True, get_geldrying=True, 
+            #FIXME: uncomment
+            """units = session.get_units(restore=True, get_geldrying=True, 
                                       unit_type="single", generate=True, 
                                       regenerate=regenerate)
             print(f"-----------------------------------Merging Units-----------------------------------")
@@ -111,7 +112,7 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             #delete_bin_tiff_s2p_intermediate(session)#FIXME:
             dir_exist_create(os.path.join(viz.save_dir, animal_id))
             dir_exist_create(os.path.join(viz.save_dir, animal_id, session_id))
-            viz.save_dir = os.path.join(viz.save_dir, animal_id, session_id)
+            viz.save_dir = os.path.join(viz.save_dir, animal_id, session_id)"""
 
             if plotting:
                 mlp.use('Agg')

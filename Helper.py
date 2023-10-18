@@ -117,6 +117,7 @@ def save_file_present(file_path):
     file_present = False
     if os.path.exists(file_path):
         print(f"File already present {file_path}")
+        file_present = True
     else:
         print(f"Saving {fname} to {file_path}")
     return file_present
@@ -288,6 +289,16 @@ def get_sorted_cells_notgeldyring_lists(cell_numbers_dict):
         gel_corrs.append(cell_numbers_dict[sessiondate]["gel_corr"])
     return np.array(sorted_ages), np.array(iscells), np.array(notgeldrying), np.array(corrs), np.array(gel_corrs)
     
+def show_prints(show=True):
+    if show:
+        # Restore
+        sys.stdout = old_stdout
+    else:
+        # Disable
+        if old_stdout not in globals():
+            global old_stdout 
+            old_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
 
 def filter_animals(animal_dict, filters = []):
     """
@@ -307,7 +318,7 @@ def filter_animals(animal_dict, filters = []):
             if filter == animal_id:
                 tmp_animal_dict[animal_id] = animal
                 continue
-            if animal.year == filter: # cohort_year
+            if animal.cohort_year == filter: 
                 tmp_animal_dict[animal_id] = animal
                 continue
             if filter == "male" or filter == "female":
