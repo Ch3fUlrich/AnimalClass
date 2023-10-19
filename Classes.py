@@ -600,7 +600,6 @@ class Session:
 
     def load_cabincorr_data(self, unit_id="all"):
         bin_traces_zip = None
-        #print(self.cabincorr_data_paths)
         if self.cabincorr_data_paths:
             for path in self.cabincorr_data_paths:
                 slash_type = "\\" if "\\" in path else "/"
@@ -688,7 +687,8 @@ class Session:
         return corr_matrix, pval_matrix, z_score_matrix
 
     def load_corr_matrix(self, unit_id="merged", 
-                         generate=False, regenerate=False, remove_geldrying=True):
+                         generate=False, regenerate=False, 
+                         remove_geldrying=True):
         """
         Loads the correlation matrix for the specified unit ID.
 
@@ -703,11 +703,18 @@ class Session:
         merged = True if unit_id == "merged" else False
         s2p_folder_ending = "merged" if merged else unit_id
         s2p_folder_ending = "" if s2p_folder_ending == "all" else s2p_folder_ending
-        for path in self.suite2p_paths:
-            if path.split("suite2p")[-1] == s2p_folder_ending or path.split("suite2p")[-1] == "_"+s2p_folder_ending:
-                break
-        corr_matrix_path = os.path.join(path, "plane0", f"allcell_corr_pval_zscore.npy")
-        cleaned_corr_matrix_path = os.path.join(path, "plane0", f"allcell_clean_corr_pval_zscore.npy")
+        suite2p_unit_path = None
+        if self.suite2p_paths:
+            for path in self.suite2p_paths:
+                if path.split("suite2p")[-1] == s2p_folder_ending or path.split("suite2p")[-1] == "_"+s2p_folder_ending:
+                    suite2p_unit_path = path
+                    break
+        if not suite2p_unit_path:
+            print(f"No suite2p path found for unit {unit_id}")
+            return corr_matrix, pval_matrix, z_score_matrix
+        
+        corr_matrix_path = os.path.join(suite2p_unit_path, "plane0", f"allcell_corr_pval_zscore.npy")
+        cleaned_corr_matrix_path = os.path.join(suite2p_unit_path, "plane0", f"allcell_clean_corr_pval_zscore.npy")
 
         if not os.path.exists(corr_matrix_path):
             if generate:
@@ -727,26 +734,28 @@ class Session:
         if remove_geldrying and unit_id == "merged" and type(corr_matrix)==np.ndarray:
             # removes geldrying cells in matrix with shape (#cell x #cells)
             geldrying = self.load_geldrying()
-            geldrying_indexes = np.argwhere(geldrying==True).flatten()
-            corr_matrix = remove_rows_cols(corr_matrix, geldrying_indexes, geldrying_indexes)
-            pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
-            z_score_matrix = remove_rows_cols(z_score_matrix, geldrying_indexes, geldrying_indexes)
-            print("removed gelddrying cells")
-            if not os.path.exists(cleaned_corr_matrix_path):
-                np.save(cleaned_corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
-            elif os.path.getmtime(cleaned_corr_matrix_path) < os.path.getmtime(corr_matrix_path):
-                np.save(cleaned_corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
+            if type(geldrying) == np.ndarray:
+                geldrying_indexes = np.argwhere(geldrying==True).flatten()
+                corr_matrix = remove_rows_cols(corr_matrix, geldrying_indexes, geldrying_indexes)
+                pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
+                z_score_matrix = remove_rows_cols(z_score_matrix, geldrying_indexes, geldrying_indexes)
+                if not os.path.exists(cleaned_corr_matrix_path):
+                    np.save(cleaned_corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
+                elif os.path.getmtime(cleaned_corr_matrix_path) < os.path.getmtime(corr_matrix_path):
+                    np.save(cleaned_corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
+                print("removed gelddrying cells")
         return corr_matrix, pval_matrix, z_score_matrix
 
     def load_geldrying(self):
         self.cell_geldrying = None
+        cells_geldrying_fpath = None
         for s2p_path in self.suite2p_paths:
             if "merged" in s2p_path:
-                fpath = os.path.join(s2p_path, "plane0", Session.cell_geldrying_fname)
-        if os.path.exists(fpath):
-            self.cell_geldrying = np.load(fpath)
-        else:
-            print(f"File not found: {fpath}")
+                cells_geldrying_fpath = os.path.join(s2p_path, "plane0", Session.cell_geldrying_fname)
+                if os.path.exists(cells_geldrying_fpath):
+                    self.cell_geldrying = np.load(cells_geldrying_fpath)
+        if type(self.cell_geldrying) != np.ndarray:
+            print(f"File {Session.cell_geldrying_fname} not found suite2p paths")
         return self.cell_geldrying
 
     def get_units(self, generate=False, regenerate=False, 
@@ -802,8 +811,9 @@ class Session:
                                       regenerate=regenerate, unit_ids=unit_type, delete=delete)
                 
             data_path = os.path.join(s2p_path, "plane0")
-            backup_path_files(data_path, restore=False)
-            backup_path_files(data_path, restore=restore)
+            if unit_type != "summary":
+                backup_path_files(data_path, restore=False)
+                backup_path_files(data_path, restore=restore)
             unit = Unit(data_path, session=self, unit_id=unit_id, unit_type=unit_type)
             num_good_cells = unit.print_s2p_iscell()
             if num_good_cells < min_needed_cells_per_unit: #If less than 100 good cells
@@ -811,7 +821,7 @@ class Session:
             else:
                 units[unit_id] = unit
                 #single cells sliding mean detector for gel detection
-                if get_geldrying:
+                if get_geldrying and unit_id != "":
                     cell_drying = unit.get_geldrying_cells()
                     bad = sum(unit.cell_geldrying)
                     good = len(unit.cell_geldrying)-bad
@@ -991,7 +1001,7 @@ class Unit:
         self.refImg = None
         self.yx_shift = [0, 0]
         self.usefull = None
-        
+
     def get_c(self, compute_corrs=False, regenerate=False, parallel=True):
         #Merging cell footprints
         c = run_cabin_corr(Animal.root_dir, data_dir=self.suite2p_path,
@@ -1417,7 +1427,8 @@ class Vizualizer:
 
         #### save figures
     
-    def bursts(self, animal_id, session_id, fluorescence_type="F_raw", num_cells="all", unit_id="all", remove_geldrying=True, dpi=300, fps="30"):
+    def bursts(self, animal_id, session_id, fluorescence_type="F_raw", num_cells="all", unit_id="all", 
+               remove_geldrying=True, dpi=300, fps="30"):
         #for s2p_folder in self.animals[animal_id].sessions[session].suite2p_paths:
         session = self.animals[animal_id].sessions[session_id]
         bin_traces_zip = session.load_cabincorr_data(unit_id=unit_id)
@@ -1429,7 +1440,6 @@ class Vizualizer:
                 print(f"{animal_id} {session_id} No fluorescence data of type {fluorescence_type} in binarized_traces.npz")
         else:
             print(f"{animal_id} {session_id} no binarized_traces.npz found")
-
         if remove_geldrying and unit_id == "merged" and type(fluorescence)==np.ndarray:
             geldrying = session.load_geldrying()
             geldrying_indexes = np.argwhere(geldrying==True).flatten()
@@ -1547,7 +1557,9 @@ class Vizualizer:
             print(f"No correlation data to be plotted")
         return corr_matrix, pval_matrix
 
-    def pearson_kde(self, filters=[], unit_id="all", x_axes_range=[-0.5, 0.5], generate_corr=False, remove_geldrying=True, average_by_pday=False, dpi=300):
+    def pearson_kde(self, filters=[], unit_id="all", x_axes_range=[-0.5, 0.5], 
+                    generate_corr=False, remove_geldrying=True, 
+                    average_by_pday=False, dpi=300, show_print=False):
         filters = make_list_ifnot(filters)
         title_unit_text = "Suite2P" if unit_id == "all" else unit_id  
         title = f"All correlation coefficient KDE {filters} {title_unit_text} {x_axes_range}"
@@ -1566,9 +1578,12 @@ class Vizualizer:
 
         for animal_id, session_id, session in yield_animal_session(filtered_animals):
             age = session.age
+            show_prints(show=show_print)
+            print(animal_id, session_id)
             corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
                                                                                 generate=generate_corr, 
                                                                                 remove_geldrying=remove_geldrying)
+            show_prints(show=True)
             if type(corr_matrix) != np.ndarray:
                 continue
             if not average_by_pday:
@@ -1600,7 +1615,9 @@ class Vizualizer:
         plt.savefig(os.path.join(self.save_dir,title.replace(" ", "_")+".png"), dpi=300)
         plt.show()
 
-    def plot_means_stds(self, filters=[], unit_id="", dpi=300, x_tick_jumps = 4, generate_corr=False, remove_geldrying=True):
+    def plot_means_stds(self, filters=[], unit_id="", dpi=300, 
+                        x_tick_jumps = 4, generate_corr=False, 
+                        remove_geldrying=True, show_print=False):
         filters = make_list_ifnot(filters)
         
         mean_threshold = Analyzer.mean_threshold
@@ -1616,9 +1633,11 @@ class Vizualizer:
             means = []
             stds = []
             for session_id, session in animal.sessions.items():
+                show_prints(show=show_print)
                 corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
                                                                                     generate=generate_corr, 
                                                                                     remove_geldrying=remove_geldrying)
+                show_prints(show=True)
                 if type(corr_matrix) != np.ndarray:
                     continue
                 ages.append(session.age)
@@ -1626,9 +1645,13 @@ class Vizualizer:
                 stds.append(np.nanstd(corr_matrix))
           
                 drawn_animal_ids.append(animal_id)
+            sort_ages_ids = np.argsort(ages)
+            sorted_ages = np.array(ages)[sort_ages_ids]
+            sorted_means = np.array(means)[sort_ages_ids]
+            sorted_stds = np.array(stds)[sort_ages_ids]
             if animal_id in drawn_animal_ids:
-                ax1.plot(ages, means, color=self.colors[number*colorsteps], marker=".")
-                ax2.plot(ages, stds, color=self.colors[number*colorsteps], marker=".")
+                ax1.plot(sorted_ages, sorted_means, color=self.colors[number*colorsteps], marker=".")
+                ax2.plot(sorted_ages, sorted_stds, color=self.colors[number*colorsteps], marker=".")
 
         age_labels = [str(age) if num%x_tick_jumps==0 else "" for num, age in enumerate(unique_sorted_ages)]
         unique_draws_animal_ids = np.unique(drawn_animal_ids)
@@ -1683,30 +1706,44 @@ class Vizualizer:
         fig.show()
         pass
 
-    def unit_footprints(self, unit, cmap=None):
+    def unit_footprints(self, unit, rot90_times=1, 
+                        remove_geldrying=False, cmap=None):
         # plot footprints of a unit
         plt.figure()
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
-        footprints = unit.footprints
+        
+        if remove_geldrying and unit.unit_id=="merged":
+            geldrying = unit.cell_geldrying
+            footprints = np.array(unit.footprints)[geldrying==False]
+        else:
+            footprints = unit.footprints
         plt.title(f"{len(footprints)} footprints {title}")
-        self.footprints(footprints, cmap=cmap)
+        self.footprints(footprints, rot90_times=rot90_times, cmap=cmap)
         plt.savefig(os.path.join(self.save_dir, f"Footprints_{title}.png"), dpi=300)
 
-    def footprints(self, footprints, cmap=None):
+    def footprints(self, footprints, rot90_times=1, cmap=None):
         # plot all footprints
         for footprint in footprints:
             idx = np.where(footprint==0)
             footprint[idx] = np.nan
-            plt.imshow(footprint, cmap=cmap)
-        plt.gca().invert_yaxis()
+            plt.imshow(np.rot90(footprint, k=rot90_times), cmap=cmap)
 
-    def unit_contours(self, unit, figsize=(10,10), color=None, plot_center=False, comment=""):
+    def unit_contours(self, unit, figsize=(10,10), 
+                      color=None, plot_center=False, 
+                      remove_geldrying=False,
+                      comment=""):
         # Plot Contours
         plt.figure(figsize=(10,10))
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
-        contours = unit.contours
-        self.contours(contours, color, plot_center, comment)
-        plt.title(f"{len(contours)} contours {title}")
+
+        geldrying = None
+        contours = unit.contours 
+        drawn_cells = len(contours)
+        if remove_geldrying and unit.unit_id=="merged":
+            geldrying = unit.cell_geldrying
+            drawn_cells = sum(geldrying==False)
+        self.contours(contours, geldrying, color, plot_center, comment)
+        plt.title(f"{drawn_cells} contours {title}")
         plt.savefig(os.path.join(self.save_dir, f"Contours_{title}.png"), dpi=300)
 
     def contour_to_point(self, contour):
@@ -1714,15 +1751,20 @@ class Vizualizer:
         y_mean = np.mean(contour[:, 1])
         return np.array([x_mean, y_mean])
 
-    def contours(self, contours, color=None, plot_center=False, comment=""): #plot_contours_points
-        for contour in contours:
+    def contours(self, contours, geldrying=None, color=None, plot_center=False, comment=""): #plot_contours_points
+        geldrying = [False]*len(contours) if type(geldrying)!=np.ndarray else geldrying
+        drawn_cells = 0
+        for contour, cell_geldrying in zip(contours, geldrying):
+            if cell_geldrying:
+                continue
+            drawn_cells += 1
             y_corr = contour[:, 0]
             x_corr = contour[:, 1]
             plt.plot(x_corr, y_corr, color = color)
             if plot_center:
                 xy_mean = self.contour_to_point(contour)
                 plt.plot(xy_mean[1], xy_mean[0], ".", color = color)
-        plt.title(f"{len(contours)} Contours{comment}")
+        plt.title(f"{drawn_cells} Contours{comment}")
 
     def multi_contours(self, multi_contours, plot_center=False, colors=["red", "green", "blue", "yellow", "purple", "orange", "cyan"]):
         for contours, col in zip(multi_contours, colors):
@@ -1939,7 +1981,9 @@ class Vizualizer:
         ax2.grid(color='gray', linestyle='-', linewidth=0.3)
         plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
 
-    def plot_usefull_session_pdays(self, animals=None, cell_numbers_dict=None, min_num_cells=200, suite2p_cells=False):
+    def plot_usefull_session_pdays(self, animals=None, cell_numbers_dict=None, 
+                                   min_num_cells=200, suite2p_cells=False,
+                                   different_color_after_k_green = None):
         if not cell_numbers_dict:
             if not animals:
                 animals = self.animals
@@ -1952,19 +1996,25 @@ class Vizualizer:
         vals = np.around(pday_cell_count_df.values,2)
         red = mlp.colors.TABLEAU_COLORS["tab:red"]
         green = mlp.colors.TABLEAU_COLORS["tab:green"]
+        blue = mlp.colors.TABLEAU_COLORS["tab:blue"]
         gray = mlp.colors.TABLEAU_COLORS["tab:gray"]
         black = mlp.colors.BASE_COLORS["k"]
         colours = []
         for animal_values in vals:
             colours.append([])
+            num_green = 0
             for val in animal_values:
                 col = gray
                 if val < min_num_cells and val > -1:
                     col = red
                 elif val >= min_num_cells:
-                    col = green
+                    num_green += 1
+                    col = blue if num_green > different_color_after_k_green and different_color_after_k_green!=None else green
                 col = mlp.colors.to_rgba(col)
                 colours[-1].append(col)
+            # color all green cells in blue if the number of blue cells is above 15
+            #colours[-1] = colours[-1] if num_green<16 else [blue if col==mlp.colors.to_rgba(green) else col 
+            #                                                for col in colours[-1]]
 
         fig = plt.figure(figsize=(15,3))
         title = "Usefull Sessions by Animal ID and pday"
@@ -2352,6 +2402,15 @@ class Merger:
         clean_cell_ids = self.delete_duplicate_cells(num_cells, G)
         cleaned_merged_footprints = merged_footprints[clean_cell_ids]
         return clean_cell_ids, cleaned_merged_footprints
+    
+    def shift_update_unit_s2p_files(self, unit, new_stat, image_x_size=512, image_y_size=512):
+        data_path = unit.suite2p_path
+        # shift merged mask
+        shift_to_unit = np.array([-1]) * unit.yx_shift
+        shifted_unit_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_unit, image_x_size=image_x_size, image_y_size=image_y_size)
+
+        backup_path_files(data_path)
+        unit.update_s2p_files(shifted_unit_stat)
 
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], 
              generate=False, regenerate=False, unit_ids="all", delete=False, print_loading=True):
