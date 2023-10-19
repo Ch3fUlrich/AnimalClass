@@ -150,6 +150,86 @@ class Session:
         self.merged_unit = None
         self.cell_geldrying = None
         self.cells = None
+        self.updated = None
+
+        #TODO: upodate to session yaml_file loding
+        """
+        class Animal:
+            def __init__():
+                #self.pdays = None 
+                #self.session_dates = None 
+                #self.session_names = None 
+                #self.session_shifts = None
+                self.load_metadata(yaml_file_path)
+            def load_metadata(self, yaml_path):
+                with open(yaml_path, "r") as yaml_file:
+                    animal_metadata_dict = yaml.safe_load(yaml_file)
+                cohort_year = animal_metadata_dict["cohort_year"]
+                self.cohort_year = int(cohort_year) if type(cohort_year)==str else int(cohort_year[0]) if type(cohort_year)==list else cohort_year
+                self.dob = animal_metadata_dict["dob"]
+                self.animal_id = animal_metadata_dict["name"]
+                self.sex = animal_metadata_dict["sex"]
+                return animal_metadata_dict
+            
+            def get_session_data(self, path,
+                                restore=False,
+                                regenerate=False,
+                                print_loading=True):
+                session_yaml_fnames = get_files(path, ending=".yaml", regex_search=self.animal_id)
+                if session_yaml_fnames:
+                    for session_yaml_fname in session_yaml_fnames:
+                        match = True
+                        session_yaml_path = os.path.join(path, session_yaml_fname)
+                        session = Session(session_yaml_path,
+                                        animal_id=self.animal_id,
+                                        print_loading=print_loading)
+                        if str(session.date) not in session_yaml_fname:
+                            print(f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}")
+                            match = False
+                        if self.animal_id != session.animal_id:
+                            print(f"Yaml file does not match animal_id: {self.animal_id} != {session.animal_id}")
+                            match = False
+                        if match:
+                            session.pday = session.date - self.dob
+                            session.load_data(restore=restore, regenerate=regenerate)
+                            break
+                        else:
+                            print(f"Reading next yaml file")
+                if match:
+                    self.sessions[session.session_id] = session
+                else:
+                    print(f"No matching yaml file found. Skipping session path {path}")
+
+        class Session:
+            def __init__():
+                self.load_metadata(yaml_file_path)
+
+            def load_metadata(self, yaml_path):
+                with open(yaml_path, "r") as yaml_file:
+                    session_metadata_dict = yaml.safe_load(yaml_file)
+
+                for variable_name, value in session_metadata_dict.items():
+                    setattr(self, variable_name, value)
+
+                self.day0 = self.day0 if self.day0 else False
+                self.yx_shift = [0, 0] if self.day0 else self.yx_shift
+                self.rot_angle = 0 if self.day0 else self.rot_angle
+                self.rot_center_yx = [0, 0] if self.day0 else self.rot_center_yx
+                self.session_id = "day0" if self.day0 else self.date
+
+                needed_variables = ["animal_id", "date", "yx_shift", "rot_center_yx", "rot_angle"]
+                for needed_variable in needed_variables:
+                    defined_variable = getattr(self, needed_variable)
+                    if defined_variable == None:
+                        raise NameError(f"Variable {needed_variable} is not defined in yaml file {yaml_path}")
+
+            def load_data(self, restore=True, regenerate=False):
+                self.update_paths()
+                self.ops = self.set_ops()
+                if restore and self.updated:
+                    backup_path_files(self.suite2p_path, restore=restore)
+                self.c, self.contours, self.footprints = self.get_c_contours_footprints(regenerate=regenerate)
+        """
 
         # load session information
         self.mesc_data_paths      = self.get_data_paths(ending="mesc")
@@ -159,7 +239,8 @@ class Session:
         self.suite2p_paths        = self.get_data_paths(regex_search="suite2p", folder=True)
         self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.suite2p_paths] if self.suite2p_paths else None
         self.cabincorr_data_paths = self.get_data_paths(directories=self.suite2p_plane0_paths, regex_search=Session.cabincorr_fname)
-        
+        self.updated = None 
+
         # Merging, generating cabincorr. suite2p, tiff from mesc
         if generate:
             self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, delete=delete)
@@ -177,6 +258,23 @@ class Session:
         self.suite2p_paths        = self.get_data_paths(regex_search="suite2p", folder=True)
         self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.suite2p_paths] if self.suite2p_paths else None
         self.cabincorr_data_paths = self.get_data_paths(directories=self.suite2p_plane0_paths, regex_search=Session.cabincorr_fname)
+        self.updated = self.old_backup_files(self.suite2p_path)
+
+    def old_backup_files(self, path):
+        old_backup = False
+        backup_path = os.path.join(path, "backup")
+        if os.path.exists(backup_path):
+            suite2p_folder_files_size = 0
+            backup_files_size = 0
+            for file_path in os.listdir(backup_path):
+                if os.path.isfile(file_path):
+                    backup_files_size += os.path.getsize(file_path)
+            for file_path in os.listdir(path):
+                if os.path.isfile(file_path):
+                    suite2p_folder_files_size += os.path.getsize(file_path)
+            if backup_files_size != suite2p_folder_files_size:
+                old_backup = True
+        return old_backup
 
     def get_data_paths(self, directories=None, ending="", regex_search=None, folder=False):
         # Search for file names with specific ending and naming content
@@ -2054,10 +2152,7 @@ class Merger:
         merged_iscell[:, 0] = np.ceil(merged_iscell[:, 0])
         
         root = path.split("suite2p")[0]
-        merged_s2p_path = os.path.join(root, "suite2p_merged")
-        dir_exist_create(merged_s2p_path)
-        merged_s2p_path = os.path.join(root, "suite2p_merged", "plane0")
-        dir_exist_create(merged_s2p_path)
+        merged_s2p_path = create_dirs([root, "suite2p_merged", "plane0"])
 
         np.save(os.path.join(merged_s2p_path, "F.npy"), merged_F)
         np.save(os.path.join(merged_s2p_path, "Fneu.npy"), merged_Fneu)

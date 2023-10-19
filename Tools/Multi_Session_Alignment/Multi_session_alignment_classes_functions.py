@@ -54,6 +54,28 @@ def search_file(directory, filename):
             return os.path.join(root, filename)
     return None
 
+def get_files(directory, ending="", regex_search=""):
+    """
+    This function returns a list of files from the specified directory that match the regular expression search pattern and have the specified file ending.
+    
+    Parameters:
+    directory (str): The directory path where to look for files.
+    ending (str, optional): The file ending to match. Default is '', which means all file endings are included.
+    regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all files are included.
+    
+    Returns:
+    list: A list of file names that match the regular expression search pattern and have the specified file ending.
+    """
+    files_list = None
+    if os.path.exists(directory):
+        files_list = [name for name in os.listdir(directory) 
+                      if os.path.isfile(os.path.join(directory, name)) 
+                      and len(re.findall(regex_search, name))>0 
+                      and name.endswith(ending)]
+    else:
+        print(f"Directory does not exist: {directory}")
+    return files_list
+
 def get_directories(directory, regex_search=""):
     """
     This function returns a list of directories from the specified directory that match the regular expression search pattern.
@@ -90,6 +112,22 @@ def del_file_dir(fpath):
         else:
             shutil.rmtree(fpath)
 
+def create_dirs(dirs):
+    """
+    Create a new directory hierarchy.
+
+    Args:
+        dirs (list): A list of strings representing the path to the new directory.
+
+    Returns:
+        str: The path to the newly created directory.
+    """
+    new_path = dirs[0]
+    for path_part in dirs[1:]:
+        new_path = os.path.join(new_path, path_part)
+        dir_exist_create(new_path)
+    return new_path
+
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], restore=False, print_loading=True):
     """
     Loads animal data from the specified root directory for the given animal IDs.
@@ -111,17 +149,16 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], re
     # Search for animal_ids
     for animal_id in present_animal_ids:
         if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
-            sessions_path = os.path.join(root_dir, animal_id)
-            present_sessions = get_directories(sessions_path)
+            sessions_root_path = os.path.join(root_dir, animal_id)
+            present_sessions = get_directories(sessions_root_path)
             yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
             animal = Animal(yaml_file_name, print_loading=print_loading)
             Animal.root_dir = root_dir
             # Search for 2P Sessions
             for session in present_sessions:
                 if session in wanted_session_ids or "all" in wanted_session_ids:
-                    animal.get_session_data(session, image_x_size=512, 
-                                            image_y_size=512, 
-                                            restore=restore,
+                    session_path = os.path.join(sessions_root_path, session)
+                    animal.get_session_data(session_path, restore=restore,
                                             print_loading=print_loading)
             animals_dict[animal_id] = animal
     return animals_dict
@@ -197,6 +234,7 @@ def find_binary_fpath(data_path, subdirectories=["data"], possible_binary_fnames
         for possible_binary_fname in possible_binary_fnames:
             binary_file_path = os.path.join(possible_binary_data_path, possible_binary_fname)
             if os.path.exists(binary_file_path):
+                binary_fpath = binary_file_path
                 break
     if not binary_fpath:
         print(f"No binary path to {possible_binary_fnames} found in {possible_binary_data_paths}")
@@ -218,66 +256,65 @@ class Animal:
     sex (str): The sex of the animal.
 
     Methods:
-    load_data(yaml_path): Loads metadata for the animal from a YAML file.
+    load_metadata(yaml_path): Loads metadata for the animal from a YAML file.
     get_session_data(session_id, print_loading=True): Loads data for a specific session.
     """
     root_dir = "D:\\Animals" 
+    reference_session_id = "day0"
 
     def __init__(self, yaml_file_path, print_loading=True) -> None:
         self.sessions = {}
         self.cohort_year = None
         self.dob = None
         self.animal_id = None 
-        self.pdays = None 
-        self.session_dates = None 
-        self.session_names = None 
         self.sex = None 
-        self.session_shifts = None
-        self.load_data(yaml_file_path)
+        #self.pdays = None 
+        #self.session_dates = None 
+        #self.session_names = None 
+        #self.session_shifts = None
+        self.load_metadata(yaml_file_path)
         self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
         if print_loading:
             print(f"Added animal: {self.animal_id}")
 
-    def load_data(self, yaml_path):
+    def load_metadata(self, yaml_path):
         with open(yaml_path, "r") as yaml_file:
             animal_metadata_dict = yaml.safe_load(yaml_file)
         cohort_year = animal_metadata_dict["cohort_year"]
-        self.cohort_year = int(cohort_year) if type(cohort_year)==str else int(cohort_year[0])
+        self.cohort_year = int(cohort_year) if type(cohort_year)==str else int(cohort_year[0]) if type(cohort_year)==list else cohort_year
         self.dob = animal_metadata_dict["dob"]
         self.animal_id = animal_metadata_dict["name"]
-        self.pdays = animal_metadata_dict["pdays"]
-        self.session_dates = animal_metadata_dict["session_dates"]
-        session_name_list = animal_metadata_dict["session_names"]
-        self.session_names = [str(session_name) if type(session_name)!=str else session_name for session_name in session_name_list]
         self.sex = animal_metadata_dict["sex"]
-        self.session_shifts = animal_metadata_dict["shifts"]
+        return animal_metadata_dict
     
-    def get_session_data(self, session_id, 
-                         image_x_size=512, image_y_size=512, 
-                         reference_session_id="day0",
+    def get_session_data(self, path,
                          restore=False,
                          regenerate=False,
                          print_loading=True):
-        if session_id != "merged":
-            yaml_file_index = self.session_names.index(session_id)
-            session_date = None if len(self.session_dates) != len(self.session_names) else self.session_dates[yaml_file_index]
-            pday = None if len(self.pdays) != len(self.session_names) else self.pdays[yaml_file_index]
-            session = Session(self.animal_id, session_id, pday=pday, 
-                            session_date=session_date, 
-                            human_shift=self.session_shifts[yaml_file_index],
-                            image_x_size=image_x_size, image_y_size=image_y_size,
-                            restore=restore,
-                            print_loading=print_loading)
+        session_yaml_fnames = get_files(path, ending=".yaml", regex_search=self.animal_id)
+        if session_yaml_fnames:
+            for session_yaml_fname in session_yaml_fnames:
+                match = True
+                session_yaml_path = os.path.join(path, session_yaml_fname)
+                session = Session(session_yaml_path,
+                                animal_id=self.animal_id,
+                                print_loading=print_loading)
+                if str(session.date) not in session_yaml_fname:
+                    print(f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}")
+                    match = False
+                if self.animal_id != session.animal_id:
+                    print(f"Yaml file does not match animal_id: {self.animal_id} != {session.animal_id}")
+                    match = False
+                if match:
+                    session.pday = session.date - self.dob
+                    session.load_data(restore=restore, regenerate=regenerate)
+                    break
+                else:
+                    print(f"Reading next yaml file")
+        if match:
+            self.sessions[session.session_id] = session
         else:
-            reference_image_x_size = self.sessions[reference_session_id].image_x_size
-            reference_image_y_size = self.sessions[reference_session_id].image_y_size
-            session = Session(animal_id=self.animal_id, session_id=session_id,
-                      pday=None, session_date=None, human_shift=None,
-                      image_x_size=reference_image_x_size, 
-                      image_y_size=reference_image_y_size,
-                      regenerate=regenerate,
-                      print_loading=True)
-        self.sessions[session_id] = session
+            print(f"No matching yaml file found. Skipping session path {path}")
 
     def merge_sessions(self, reference_session_id="day0", restore=False, 
                        regenerate=False, n_frames_to_be_acquired=1000, num_align_frames=1000):
@@ -293,20 +330,28 @@ class Animal:
                 merged_s2p_path = None
                 break 
 
-        merger = Merger()
         print(f"Generating yx-shifts based on reference session {reference_session_id}")
-        merger.set_yx_shifts(reference_session, sessions, n_frames_to_be_acquired, num_align_frames)
+        for session_id, session in sessions.items():
+            if session_id == reference_session.session_id:
+                continue 
+            session.set_yx_shift(reference_session=reference_session, 
+                                  n_frames_to_be_acquired=n_frames_to_be_acquired,
+                                  num_align_frames=num_align_frames)
 
         # merge masks, updated sessions based on merged masks
         if regenerate or not merged_s2p_path:
+            merger = Merger()
             if merged_s2p_path:
                 print(f"removing old merged suite2p files from {merged_s2p_path}")
                 shutil.rmtree(merged_s2p_path)
+
             # reload original session files
             for session_id, session in sessions.items():
                 if restore:
-                    backup_path_files(session.suite2p_path, restore=True) 
-                    session.c, session.contours, session.footprints = session.get_c_contours_footprints()
+                    if not session.updated:
+                        backup_path_files(session.suite2p_path, restore=True) 
+                        session.c, session.contours, session.footprints = session.get_c_contours_footprints()
+            
             # create a master mask by
             # merging masks of every session, remove abroad cells and deduplicate
             print("Creating master mask...")
@@ -338,51 +383,96 @@ class Session:
     corr_fname = "allcell_clean_corr_pval_zscore.npy"
     cabincorr_fname = "binarized_traces.npz"
 
-    def __init__(self, animal_id, session_id, pday, session_date, 
-                 human_shift, image_x_size=512, image_y_size=512, 
-                 restore=False, 
-                 regenerate=False, print_loading=True):
-        if print_loading:
-            print(f"Loading session: {animal_id} {session_id}")
+    def __init__(self, yaml_file_path, animal_id, image_x_size=512, image_y_size=512, print_loading=True):
+        
         self.animal_id = animal_id
-        self.session_id = session_id # = session_name
-        self.session_date = session_date
-        self.human_shift = human_shift
-        self.pday = pday
-        self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id)
+        self.yaml_file_path = yaml_file_path
+        self.session_id = None # = session_name
+        self.date = None
+        self.method = None
+        self.pday = None
+        self.yx_shift = None
+        self.rot_center_yx = None
+        self.rot_angle = None
+        self.day0 = None
+        self.image_x_size = image_x_size
+        self.image_y_size = image_y_size
+        self.session_dir = None
+        self.suite2p_path = None
+        self.binary_path = None
+        self.refImg = None
+        self.refAndMasks = None
+        self.bin_traces_zip = None
+        self.ops = None
+        self.c, self.contours, self.footprints = None, None, None
+        self.updated = None
+
+        self.load_metadata(yaml_file_path)
+        updated_txt = "updated " if self.updated else ""
+        if print_loading:
+            print(f"Initialized {updated_txt}session: {animal_id} {self.session_id}")
+        
+
+    def load_metadata(self, yaml_path):
+        with open(yaml_path, "r") as yaml_file:
+            session_metadata_dict = yaml.safe_load(yaml_file)
+
+        for variable_name, value in session_metadata_dict.items():
+            setattr(self, variable_name, value)
+
+        self.day0 = self.day0 if self.day0 else False
+        self.yx_shift = [0, 0] if self.day0 else self.yx_shift
+        self.rot_angle = 0 if self.day0 else self.rot_angle
+        self.rot_center_yx = [0, 0] if self.day0 else self.rot_center_yx
+        self.session_id = "day0" if self.day0 else self.date
+
+        needed_variables = ["animal_id", "date", "yx_shift", "rot_center_yx", "rot_angle"]
+        for needed_variable in needed_variables:
+            defined_variable = getattr(self, needed_variable)
+            if defined_variable == None:
+                raise NameError(f"Variable {needed_variable} is not defined in yaml file {yaml_path}")
+
+    def update_paths(self):
+        self.session_dir = os.path.join(Animal.root_dir, self.animal_id, str(self.session_id))
         self.suite2p_path = os.path.join(self.session_dir, "plane0")
         self.binary_path = find_binary_fpath(self.session_dir)
-        if restore:
-            backup_path_files(self.suite2p_path, restore=restore)
-        self.ops = self.set_ops()
-        self.image_x_size, self.image_y_size = image_x_size, image_y_size
-        self.refImg = None
-        self.yx_shift = [0, 0] if "day0" in session_id else None
-        self.c, self.contours, self.footprints = self.get_c_contours_footprints(regenerate=regenerate)
-        self.bin_traces_zip = None
+        self.updated = self.old_backup_files(self.suite2p_path)
 
-    def load_yx_shift(yaml):
-        #FIXME: use this 
-        translation = None
-        rotation_point =  None
-        rotation_angle = None
-        return translation, rotation_point, rotation_angle
+    def old_backup_files(self, path):
+        old_backup = False
+        backup_path = os.path.join(path, "backup")
+        if os.path.exists(backup_path):
+            suite2p_folder_files_size = 0
+            backup_files_size = 0
+            for file_path in os.listdir(backup_path):
+                if os.path.isfile(file_path):
+                    backup_files_size += os.path.getsize(file_path)
+            for file_path in os.listdir(path):
+                if os.path.isfile(file_path):
+                    suite2p_folder_files_size += os.path.getsize(file_path)
+            if backup_files_size != suite2p_folder_files_size:
+                old_backup = True
+        return old_backup
+
+    def load_data(self, restore=True, regenerate=False):
+        self.update_paths()
+        self.ops = self.set_ops()
+        if restore and self.updated:
+            backup_path_files(self.suite2p_path, restore=restore)
+        self.c, self.contours, self.footprints = self.get_c_contours_footprints(regenerate=regenerate)
 
     def set_ops(self, ops=None):
         if not ops:
-            ops_path = os.path.join(self.suite2p_path, "ops.npy")
-            if os.path.exists(ops_path):
-                ops = np.load(ops_path, allow_pickle=True)
-            else:
-                ops = register.default_ops()
-            try:
-                ops["nonrigid"] = False
-            except:
-                ops = np.load(ops_path, allow_pickle=True).item()
-                ops["nonrigid"] = False
+            if not self.ops:
+                ops_path = os.path.join(self.suite2p_path, "ops.npy")
+                if os.path.exists(ops_path):
+                    ops = np.load(ops_path, allow_pickle=True).item()
+                else:
+                    ops = register.default_ops()
+                ops["nonrigid"] = False                
         else:
             self.ops = ops
-        return ops
+        return self.ops
 
     def get_reference_image(self, n_frames_to_be_acquired=1000):
         """
@@ -395,14 +485,22 @@ class Session:
         Returns:
         numpy.ndarray: The reference image.
         """
-        if self.refImg is None:
+        if not self.refImg:
             b_loader = Binary_loader()
             frames = b_loader.load_binary(self.binary_path, n_frames_to_be_acquired=n_frames_to_be_acquired, 
                                           image_x_size=self.image_x_size, image_y_size=self.image_y_size)
             self.refImg = register.compute_reference(frames, ops=self.ops)
         return self.refImg
+    
+    def get_refAndMasks(self, n_frames_to_be_acquired=1000):
+        if not self.refAndMasks:
+            refImg = self.get_reference_image(n_frames_to_be_acquired = n_frames_to_be_acquired)
+            ops = self.set_ops()
+            refAndMasks = register.compute_reference_masks(refImg, ops)
+            self.refAndMasks = refAndMasks
+        return self.refAndMasks
 
-    def set_yx_shift(self, refAndMasks, num_align_frames=1000, yx_shift=None):
+    def set_yx_shift(self, reference_session=None, num_align_frames=1000, yx_shift=None, n_frames_to_be_acquired=1000):
         """
         This function sets the yx_shift attribute. If yx_shift is not provided or not already set,
         it loads a binary file and registers the frames to compute yx_shift.
@@ -418,10 +516,17 @@ class Session:
         if yx_shift and not self.yx_shift:
             self.yx_shift = yx_shift
         if not self.yx_shift:
-            b_loader = Binary_loader()
-            frames = b_loader.load_binary(self.binary_path, n_frames_to_be_acquired=num_align_frames, image_x_size=self.image_x_size, image_y_size=self.image_y_size)
-            frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
-            self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
+            if reference_session:
+                if reference_session.session_id == self.session_id:
+                    self.yx_shift = [0, 0]
+                else:
+                    refAndMasks = reference_session.get_refAndMasks(n_frames_to_be_acquired = n_frames_to_be_acquired)
+                    b_loader = Binary_loader()
+                    frames = b_loader.load_binary(self.binary_path, n_frames_to_be_acquired=num_align_frames, image_x_size=self.image_x_size, image_y_size=self.image_y_size)
+                    frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
+                    self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
+            else:
+                print(f"A reference sessions need to be provided to compute yx_shift")
         return self.yx_shift
 
     def get_c_contours_footprints(self, regenerate=False):
@@ -742,69 +847,11 @@ class Binary_loader:
     
 class Merger:
 
-    def set_yx_shifts(self, reference_session: Session, sessions: dict, 
-                      n_frames_to_be_acquired=1000, num_align_frames=1000):
-        """
-        This function calculates the yx_shifts for all sessions relative to a reference session. 
-        It first gets the reference image from the reference session and computes the reference masks. 
-        Then it sets the yx_shift for each session in the sessions dictionary.
+    def create_points_from_stat(self, cell_stat: np.ndarray):
+        points_yx = np.array([cell_stat["ypix"], cell_stat["xpix"]]).transpose()
+        return points_yx
 
-        Parameters:
-        reference_session (Session): The session to be used as reference.
-        sessions (dict): A dictionary of sessions keyed by session_id.
-        n_frames_to_be_acquired (int): The number of frames to be acquired. Default is 1000.
-
-        Returns:
-        None
-        """
-        refImg = reference_session.get_reference_image(n_frames_to_be_acquired = n_frames_to_be_acquired)
-        refAndMasks = register.compute_reference_masks(refImg, reference_session.ops)
-        for session_id, session in sessions.items():
-            if session_id == reference_session.session_id:
-                continue   
-            session.set_yx_shift(refAndMasks, num_align_frames=num_align_frames)
-        return sessions
-    
-    def shift_points(self, points, x_shift, y_shift):
-        #FIXME: write function
-        shifted_points = None
-        return shifted_points
-
-    def shift_stat_cells(self, stat: list, yx_shift: list, image_x_size=512, image_y_size=512):
-        """
-        Shifts the cells in the stat array based on the given yx_shift.
-
-        Parameters:
-        stat (list): List of cell statistics.
-        yx_shift (list): List containing y and x shifts.
-        image_x_size (int): Size of the image in x direction. Default is 512.
-        image_y_size (int): Size of the image in y direction. Default is 512.
-
-        Returns:
-        new_stat (list): List of shifted cell statistics.
-        """
-        # stat files first value ist y-value second is x-value
-        new_stat = copy.deepcopy(stat)
-
-        for num, cell_stat in enumerate(new_stat):
-            y_shifted = []
-            #FIXME: improve code by creating points, shifting points and saving pixel back 
-            for y in cell_stat["ypix"]:
-                y_shifted.append(y-yx_shift[0])
-            cell_stat["ypix"] = np.array(y_shifted)
-            
-            x_shifted = []
-            for x in cell_stat["xpix"]:
-                x_shifted.append(x-yx_shift[1])
-            cell_stat["xpix"] = np.array(x_shifted)
-
-            #center of cell_stat
-            med = cell_stat["med"]
-            med_shifted = [med[0]-yx_shift[0], med[1]-yx_shift[1]]
-            cell_stat["med"] = med_shifted
-        return new_stat
-
-    def rotate_points(self, points, cx, cy, theta):
+    def rotate_points(self, points: [[int, int]], cx: float, cy: float, theta: float):
         # Convert the angle to radians
         theta = np.radians(theta)
         
@@ -822,37 +869,77 @@ class Merger:
         
         # Translate the points back to the original coordinate system
         rotated_points = rotated_points_matrix + np.array([cx, cy])
-        return rotated_points
+        rotated_points_int = rotated_points.astype(int)
+        return rotated_points_int
 
-    def rotate_stat_cells(self, stat: list, rot_center_yx: [int, int], rot_angel: int, image_x_size=512, image_y_size=512):
-        #FIXME: do funciton
+    def shift_rotate_yx_points(self, points_yx, 
+                                   yx_shift:[int, int], 
+                                   rot_angle:float,
+                                   rot_center_yx:[float, float]=None):
+        #shift
+        shifted_points_yx = points_yx - np.array(yx_shift)
+        # rotate points at center
+        cell_rot_center_yx = np.mean(shifted_points_yx, axis=0) if not rot_center_yx else rot_center_yx
+        cell_rot_y, cell_rot_x = cell_rot_center_yx
+        # swapping rotation center and negating rotation angle to ensure correct rotation based on swapped x-, y-coordinates from suite2p
+        shifted_rotated_contour_points = self.rotate_points(points_yx, cell_rot_y, cell_rot_x, -rot_angle)
+        return shifted_rotated_contour_points
 
-        #TODO: points should be stat
+    def shift_rotate_contour_cloud(self, stat,
+                                    yx_shift:[int, int],
+                                    rot_angle:float,
+                                    rot_center_yx:[float, float]):
+        # shift center of cells
+        center_points_yx = np.array([cell_stat["med"] for cell_stat in stat])
+        shifted_rotated_center_points_yx = self.shift_rotate_yx_points(center_points_yx, 
+                                                        yx_shift=yx_shift, 
+                                                        rot_angle=rot_angle,
+                                                        rot_center_yx=rot_center_yx)
+        # shift, rotate cell contour pixels
+        all_shifted_rotated_contour_points = []
+        
+        # calculate corrected yxshift
+        #FIXME: is this correction correct?
+        corrected_yxshifts = shifted_rotated_center_points_yx - center_points_yx
+
+        for num, (cell_stat, corrected_yxshift) in enumerate(zip(stat, corrected_yxshifts)):
+            points_yx = self.create_points_from_stat(cell_stat)
+            # shift, rotate cell contour pixels
+            shifted_rotated_contour_points = self.shift_rotate_yx_points(points_yx, 
+                                                                        yx_shift=corrected_yxshift, 
+                                                                        rot_angle=rot_angle)
+            all_shifted_rotated_contour_points.append(shifted_rotated_contour_points)
+
+        return shifted_rotated_center_points_yx, all_shifted_rotated_contour_points
+
+    def shift_rotate_stat_cells(self, session:Session=None, 
+                                stat:np.ndarray=None, 
+                                yx_shift:[int, int]=None, 
+                                rot_angle:float=None, 
+                                rot_center_yx:[float, float]=None):
+
+        
         # stat files first value ist y-value second is x-value
+        stat = session.c.stat if type(stat)!=np.ndarray else stat
+        yx_shift = session.yx_shift if not yx_shift else yx_shift
+        rot_angle = session.rot_angle if not rot_angle else rot_angle
+        rot_center_yx = session.rot_center_yx if not rot_center_yx else rot_center_yx
         new_stat = copy.deepcopy(stat)
-
-        # rotate contour of every cell at cell center
-        for num, cell_stat in enumerate(new_stat):
-            y_pix = cell_stat["ypix"]
-            x_pix = cell_stat["xpix"]
-            points = None #FIXME: concatenate y,xpix correctly
-            cell_rot_center = np.mean(points) #FIXME: correct?
-            cell_rot_x, cell_rot_y = cell_rot_center
-            rotated_points = self.rotated_points(points, cell_rot_x, cell_rot_y, rot_angel)
-            cell_stat["ypix"] = rotated_points[:, 0] #FIXME: correct?
-            cell_stat["xpix"] = rotated_points[:, 1] #FIXME: correct?
-
-        # rotate center of every cell at rotation center rot_center_yx
-        center_points = [cell_stat["med"] for cell_stat in new_stat]
-        center_rot_y, center_rot_x = rot_center_yx #FIXME: correct?
-        rotated_center_points = self.rotated_points(center_points, center_rot_x, center_rot_y, rot_angel)
-        for cell_stat, center_point in zip(new_stat, rotated_center_points):
+            
+        shifted_rotated_center_points_yx, all_shifted_rotated_contour_points = self.shift_rotate_contour_cloud(new_stat, 
+                                                                                                          yx_shift=yx_shift, 
+                                                                                                          rot_angle=rot_angle,
+                                                                                                          rot_center_yx=rot_center_yx)
+        for cell_stat, center_point, shifted_rotated_contour_points in zip(new_stat, 
+                                                                           shifted_rotated_center_points_yx, 
+                                                                           all_shifted_rotated_contour_points):
             cell_stat["med"] = center_point
-        #FIXME: everything correct?
-        #FIXME: check if every array is numpy
+            # set new cell contour pixels
+            cell_stat["ypix"] = shifted_rotated_contour_points[:, 0]
+            cell_stat["xpix"] = shifted_rotated_contour_points[:, 1]
         return new_stat
 
-    def remove_abroad_cells(self, stat: list, sessions: dict, image_x_size=512, image_y_size=512):
+    def remove_abroad_cells(self, stat: np.ndarray, sessions: dict, image_x_size=512, image_y_size=512):
         """
         Removes cells that are out of bounds.
 
@@ -865,34 +952,33 @@ class Merger:
         Returns:
         stat (list): List of cell statistics after removing out of bound cells.
         """
-        # removing out of bound cells 
         remove_cells = []
-        for cell_num, cell in enumerate(stat):
-            abroad = False
-            #check for every shift 
-            for session_id, session in sessions.items():
-                if abroad:
-                    break
-                yx_shift = session.yx_shift
-                for axis in ["ypix", "xpix"]:
-                    shift = yx_shift[0] if axis=="ypix" else yx_shift[1]
-                    shifted = cell[axis]+shift
+        #check for every shift and rotation combination if cell is in bounds
+        for session_id, session in sessions.items():
+            # negate shift and rotation angle to cover all possible cell positions
+            yx_shift = list(-np.array(session.yx_shift))
+            rot_angle = list(-np.array(session.rot_angle))
+            rot_center_yx = session.rot_center_yx
 
-                    # check if cell is out of bound
-                    max_location = image_y_size if axis=="ypix" else image_x_size
-                    if sum(shifted>=max_location)>0 or sum(shifted<0)>0:
-                        abroad = True
-                        break    
-            if abroad:
-                remove_cells.append(cell_num)
+            _, all_shifted_rotated_contour_points = self.shift_rotate_contour_cloud(stat, 
+                                                                                    yx_shift=yx_shift, 
+                                                                                    rot_angle=rot_angle,
+                                                                                    rot_center_yx=rot_center_yx)
+            
+            for cell_num, shifted_rotated_contour_points in enumerate(all_shifted_rotated_contour_points):
+                for point in shifted_rotated_contour_points:
+                    # check if point is out of bounds
+                    if point[0]>=image_y_size or point[0]<0 or point[1]>=image_x_size or point[1]<0:
+                        remove_cells.append(cell_num)                
                 
+        # removing out of bound cells 
         for abroad_cell in remove_cells[::-1]:
             stat = np.delete(stat, abroad_cell)
         if len(remove_cells)>0:
             print(f"removed abroad cells: {remove_cells}")
         return stat
 
-    def stat_to_footprints(self, stat: list, dims=[512, 512]):
+    def stat_to_footprints(self, stat: np.ndarray, dims=[512, 512]):
         """
         Converts cell statistics to footprints.
 
@@ -943,18 +1029,11 @@ class Merger:
         for session_id, session in sessions.items():
             if session_id == reference_session.session_id:
                 continue    
-            shifted_session_stat = self.shift_stat_cells(session.c.stat, yx_shift=session.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
-            
-            rotate_session_stat = self.rotate_stat_cells(shifted_session_stat, 
-                                                         rot_center=session.rot_center, 
-                                                         rot_angel=session.rot_angel, 
-                                                         image_x_size=image_x_size, 
-                                                         image_y_size=image_y_size)
-            
-            shifted_session_stat_no_abroad = self.remove_abroad_cells(shifted_session_stat, sessions, image_x_size=image_x_size, image_y_size=image_y_size)
-            shifted_footprints = self.stat_to_footprints(shifted_session_stat_no_abroad)
-            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints, parallel=parallel, num_batches=num_batches)
-            merged_stat = np.concatenate([merged_stat, shifted_session_stat_no_abroad])[clean_cell_ids]
+            moved_session_stat = self.shift_rotate_stat_cells(session)
+            moved_session_stat_no_abroad = self.remove_abroad_cells(moved_session_stat, sessions, image_x_size=image_x_size, image_y_size=image_y_size)
+            moved_footprints = self.stat_to_footprints(moved_session_stat_no_abroad)
+            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, moved_footprints, parallel=parallel, num_batches=num_batches)
+            merged_stat = np.concatenate([merged_stat, moved_session_stat_no_abroad])[clean_cell_ids]
         return merged_stat
 
     def find_overlaps1(self, ids, footprints):
@@ -1168,18 +1247,14 @@ class Merger:
         data_path = os.path.join(session.session_dir)
         suite2p_data_path = session.suite2p_path
         # shift merged mask
-        shift_to_session = np.array([-1]) * session.yx_shift
-        shifted_session_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_session, image_x_size=image_x_size, image_y_size=image_y_size)
-        
-        rotate_to_angel = np.array([-1]) * session.rot_angel
-        rotate_session_stat = self.rotate_stat_cells(shifted_session_stat, 
-                                                         rot_center=session.rot_center, 
-                                                         rot_angel=rotate_to_angel, 
-                                                         image_x_size=image_x_size, 
-                                                         image_y_size=image_y_size)
-
+        shift_to_session = list(-np.array(session.yx_shift))
+        rotate_to_angel = -session.rot_angle
+        shifted_rotated_session_stat = self.shift_rotate_stat_cells(session=session, 
+                                                                    stat=new_stat,
+                                                                    yx_shift=shift_to_session, 
+                                                                    rot_angle=rotate_to_angel)
         backup_path_files(suite2p_data_path)
-        session.update_s2p_files(rotate_session_stat)
+        session.update_s2p_files(shifted_rotated_session_stat)
 
     def merge_s2p_files(self, sessions, stat, first_session="day0"):
         """
@@ -1213,10 +1288,7 @@ class Merger:
         merged_iscell[:, 0] = np.ceil(merged_iscell[:, 0])
 
         animal_folder = os.path.join(Animal.root_dir, session.animal_id)
-        merged_s2p_path = os.path.join(animal_folder, "merged")
-        dir_exist_create(merged_s2p_path)
-        merged_s2p_path = os.path.join(animal_folder, "merged", "plane0")
-        dir_exist_create(merged_s2p_path)
+        merged_s2p_path = create_dirs([animal_folder, "merged", "plane0"])
 
         np.save(os.path.join(merged_s2p_path, "F.npy"), merged_F)
         np.save(os.path.join(merged_s2p_path, "Fneu.npy"), merged_Fneu)
