@@ -48,6 +48,8 @@ import h5py
 import time
 from multiprocessing import Pool
 
+global old_stdout 
+
 def gif_to_mp4(path):
     """
     Converts a GIF file to an MP4 file.
@@ -292,11 +294,10 @@ def get_sorted_cells_notgeldyring_lists(cell_numbers_dict):
 def show_prints(show=True):
     if show:
         # Restore
-        sys.stdout = old_stdout
+        sys.stdout = old_stdout if old_stdout else sys.stdout
     else:
         # Disable
-        if old_stdout not in globals():
-            global old_stdout 
+        if old_stdout not in globals(): 
             old_stdout = sys.stdout
         sys.stdout = open(os.devnull, 'w')
 

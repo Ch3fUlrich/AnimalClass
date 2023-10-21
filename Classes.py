@@ -1785,11 +1785,32 @@ class Vizualizer:
             if unit_id not in combination:
                 continue
             good_cell_contours = np.array(unit.contours)[unit.cell_geldrying==False] if len(unit.cell_geldrying)==len(unit.contours) else np.array(unit.contours)
+            
+            #FIXME: Integrate rotation
+            """
+            #shift, rotate contours
+            all_shifted_rotated_contour_points = []
+            if shift and session_id != "day0":
+                yx_shift = session.yx_shift if yx_shift == None else yx_shift
+                rot_angle = session.rot_angle if rot_angle == None else rot_angle
+                rot_center_yx = session.rot_center_yx if rot_center_yx == None else rot_center_yx
+                for points_yx in contours:
+                    shifted_rotated_contour_points = merger.shift_rotate_yx_points(points_yx, 
+                                                                                yx_shift=yx_shift, 
+                                                                                rot_angle=rot_angle,
+                                                                                rot_center_yx=rot_center_yx)
+                    
+                    all_shifted_rotated_contour_points.append(shifted_rotated_contour_points)
+                contours = all_shifted_rotated_contour_points
+                shift_label = f" yx_shift: {yx_shift}  yx_center: {rot_center_yx}  angle: {rot_angle}"
+            """
             #shift contours
             good_cell_contours = [good_cell_contour - unit.yx_shift for good_cell_contour in good_cell_contours] if shift else good_cell_contours
             plot_colors.append(col)
             plot_contours.append(good_cell_contours)
             shift_label = f" y: {unit.yx_shift[0]}  x: {unit.yx_shift[1]}" if shift else ""
+            
+            
             handles.append(Line2D([0], [0], color=col, linewidth=2, linestyle='-', label=f"MUnit: {unit_id}{shift_label}"))
         self.multi_contours(plot_contours, colors=plot_colors, plot_center=plot_center)
         plt.title(f"Contours for MUnits: {combination}")
@@ -2105,6 +2126,126 @@ class Merger:
     """
     Merges indiviual MUnits/Subsession of a Session
     """
+    """
+    #FIXME: add rotation
+    def create_points_from_stat(self, cell_stat: np.ndarray):
+        points_yx = np.array([cell_stat["ypix"], cell_stat["xpix"]]).transpose()
+        return points_yx
+
+    def rotate_points(self, points: [[int, int]], cx: float, cy: float, theta: float):
+        # Convert the angle to radians
+        theta = np.radians(theta)
+        
+        # Create a rotation matrix
+        rotation_matrix = np.array([
+            [np.cos(theta), -np.sin(theta)],
+            [np.sin(theta), np.cos(theta)]
+        ])
+        
+        # Create a matrix of points
+        points_matrix = np.column_stack((points[:, 0] - cx, points[:, 1] - cy))
+        
+        # Apply the rotation matrix to the points
+        rotated_points_matrix = np.dot(points_matrix, rotation_matrix.T)
+        
+        # Translate the points back to the original coordinate system
+        rotated_points = rotated_points_matrix + np.array([cx, cy])
+        rotated_points_int = rotated_points.astype(int)
+        return rotated_points_int
+
+    def shift_rotate_yx_points(self, points_yx, 
+                                   yx_shift:[int, int], 
+                                   rot_angle:float,
+                                   rot_center_yx:[float, float]=None,
+                                   roation_first=False):
+        if roation_first:
+            if rot_angle != 0:
+                # rotate points at center if no rot_center_yx is provided
+                rot_center_yx = np.mean(points_yx, axis=0) if not rot_center_yx else rot_center_yx 
+                rot_y, rot_x = rot_center_yx
+                
+                # swapping rotation center and negating rotation angle to ensure correct rotation based on swapped x-, y-coordinates from suite2p
+                rotated_contour_points = self.rotate_points(points_yx, rot_y, rot_x, -rot_angle)
+            else:
+                rotated_contour_points = points_yx
+            #shift
+            shifted_rotated_contour_points = rotated_contour_points + np.array(yx_shift)
+        else:
+            #shift
+            shifted_points_yx = points_yx + np.array(yx_shift)
+            if rot_angle != 0:
+                # rotate points at center if no rot_center_yx is provided
+                rot_center_yx = np.mean(shifted_points_yx, axis=0) if not rot_center_yx else rot_center_yx 
+                rot_y, rot_x = rot_center_yx
+                
+                # swapping rotation center and negating rotation angle to ensure correct rotation based on swapped x-, y-coordinates from suite2p
+                shifted_rotated_contour_points = self.rotate_points(shifted_points_yx, rot_y, rot_x, -rot_angle)
+            else:
+                shifted_rotated_contour_points = shifted_points_yx
+        return shifted_rotated_contour_points
+
+    def shift_rotate_contour_cloud(self, stat,
+                                    yx_shift:[int, int],
+                                    rot_angle:float,
+                                    rot_center_yx:[float, float],
+                                    roation_first=False):
+        # shift center of cells
+        center_points_yx = np.array([cell_stat["med"] for cell_stat in stat])
+        shifted_rotated_center_points_yx = self.shift_rotate_yx_points(center_points_yx, 
+                                                        yx_shift=yx_shift, 
+                                                        rot_angle=rot_angle,
+                                                        rot_center_yx=rot_center_yx,
+                                                        roation_first=roation_first)
+        # shift, rotate cell contour pixels
+        all_shifted_rotated_contour_points = []
+        
+        # calculate corrected yxshift
+        # code below can be used if roation is not affine
+        # corrected_yxshifts = shifted_rotated_center_points_yx - center_points_yx
+        # for num, (cell_stat, corrected_yxshift) in enumerate(zip(stat, corrected_yxshifts)):
+
+        for num, cell_stat in enumerate(stat):
+            points_yx = self.create_points_from_stat(cell_stat)
+            # shift, rotate cell contour pixels
+            shifted_rotated_contour_points = self.shift_rotate_yx_points(points_yx, 
+                                                                        yx_shift=yx_shift, 
+                                                                        rot_angle=rot_angle,
+                                                                        rot_center_yx=rot_center_yx,
+                                                                        roation_first=roation_first)
+            all_shifted_rotated_contour_points.append(shifted_rotated_contour_points)
+
+        return shifted_rotated_center_points_yx, all_shifted_rotated_contour_points
+
+    def shift_rotate_stat_cells(self, session:Session=None, 
+                                stat:np.ndarray=None, 
+                                yx_shift:[int, int]=None, 
+                                rot_angle:float=None, 
+                                rot_center_yx:[float, float]=None,
+                                roation_first=False):
+
+        
+        # stat files first value ist y-value second is x-value
+        stat = session.c.stat if type(stat)!=np.ndarray else stat
+        yx_shift = session.yx_shift if not yx_shift else yx_shift
+        rot_angle = session.rot_angle if rot_angle==None else rot_angle
+        rot_center_yx = session.rot_center_yx if not rot_center_yx else rot_center_yx
+        new_stat = copy.deepcopy(stat)
+            
+        shifted_rotated_center_points_yx, all_shifted_rotated_contour_points = self.shift_rotate_contour_cloud(new_stat, 
+                                                                                                          yx_shift=yx_shift, 
+                                                                                                          rot_angle=rot_angle,
+                                                                                                          rot_center_yx=rot_center_yx,
+                                                                                                          roation_first=roation_first)
+        for cell_stat, center_point, shifted_rotated_contour_points in zip(new_stat, 
+                                                                           shifted_rotated_center_points_yx, 
+                                                                           all_shifted_rotated_contour_points):
+            cell_stat["med"] = center_point
+            # set new cell contour pixels
+            cell_stat["ypix"] = shifted_rotated_contour_points[:, 0]
+            cell_stat["xpix"] = shifted_rotated_contour_points[:, 1]
+        return new_stat
+        """
+
     def shift_stat_cells(self, stat, yx_shift, image_x_size=512, image_y_size=512):
         # stat files first value ist y-value second is x-value
         new_stat = copy.deepcopy(stat)
@@ -2139,6 +2280,7 @@ class Merger:
             if unit_id == best_unit.unit_id:
                 continue    
             shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
+            #FIXME: add to code """moved_session_stat = self.shift_rotate_stat_cells(session) from bmi"""
             shifted_unit_stat_no_abroad = self.remove_abroad_cells(shifted_unit_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
             shifted_footprints = self.stat_to_footprints(shifted_unit_stat_no_abroad)
             clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints, parallel=parallel, num_batches=num_batches)
@@ -2166,7 +2308,33 @@ class Merger:
                         break    
             if abroad:
                 remove_cells.append(cell_num)
+        """
+        #FIXME: change to this version
+        remove_cells = []
+        #check for every shift and rotation combination if cell is in bounds
+        for session_id, session in sessions.items():
+            # negate shift and rotation angle to cover all possible cell positions
+            yx_shift = list(-np.array(session.yx_shift))
+            rot_angle = -session.rot_angle
+            rot_center_yx = session.rot_center_yx
+            if rot_angle == 0 and sum(abs(np.array(yx_shift)))==0:
+                continue
+            _, all_shifted_rotated_contour_points = self.shift_rotate_contour_cloud(stat=stat, 
+                                                                                    yx_shift=yx_shift, 
+                                                                                    rot_angle=rot_angle,
+                                                                                    rot_center_yx=rot_center_yx,
+                                                                                    roation_first=True)
+            
+            for cell_num, shifted_rotated_contour_points in enumerate(all_shifted_rotated_contour_points):
+                for point in shifted_rotated_contour_points:
+                    # check if point is out of bounds
+                    if point[0]>=image_y_size or point[0]<0 or point[1]>=image_x_size or point[1]<0:
+                        remove_cells.append(cell_num)
+                        break      
                 
+        # removing out of bound cells 
+        remove_cells.sort()
+        """
         for abroad_cell in remove_cells[::-1]:
             stat = np.delete(stat, abroad_cell)
             print(f"removed cell {abroad_cell}")
