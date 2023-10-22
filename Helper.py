@@ -44,11 +44,10 @@ import h5py
 #module_path = os.path.abspath(os.path.join('../'))
 #print(module_path)
 #sys.path.append(module_path)
+global old_stdout 
 
 import time
 from multiprocessing import Pool
-
-global old_stdout 
 
 def gif_to_mp4(path):
     """

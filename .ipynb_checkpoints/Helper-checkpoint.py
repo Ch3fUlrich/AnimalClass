@@ -38,21 +38,53 @@ import math
 
 # Mesc file analysis
 import pathlib
-
+import h5py
 # add root directory to be able to import packages
 # todo: make all packages installable so they can be called/imported by environment
 #module_path = os.path.abspath(os.path.join('../'))
 #print(module_path)
 #sys.path.append(module_path)
+global old_stdout 
 
 import time
 from multiprocessing import Pool
+
+def gif_to_mp4(path):
+    """
+    Converts a GIF file to an MP4 file.
+
+    This function takes the path of a GIF file as input, converts it to an MP4 file, and saves the resulting MP4 file in the same directory as the input GIF file. The name of the output MP4 file is the same as the input GIF file, with the file extension changed from `.gif` to `.mp4`.
+
+    Args:
+        path (str): The path of the input GIF file.
+
+    Returns:
+        None
+    """
+    import moviepy.editor as mp
+    clip = mp.VideoFileClip(path)
+    save_path = path.replace('.gif', '.mp4')
+    clip.write_videofile(save_path)
 
 def show_mesc_units(path):
     h5 = h5py.File(path, 'r')
     for munit_id, MUnits in h5['MSession_0'].items():
         print(munit_id)
         print(MUnits['Channel_0'])
+
+def yield_animal_session(animal_dict):
+    """
+    Yield animal_id, session_id, and session.
+
+    Args:
+        animal_dict (dict): A dictionary containing animal data.
+
+    Yields:
+        tuple: A tuple containing animal_id, session_id, and session.
+    """
+    for animal_id, animal in animal_dict.items():
+        for session_id, session in animal.sessions.items():
+            yield animal_id, session_id, session
 
 def timer(func):
     def wrapper(*args, **kwargs):
@@ -78,50 +110,195 @@ def get_num_batches_based_on_available_ram():
     print(f"Available RAM: {round(available_ram_gb)}GB setting number of batches to {num_batches}")
     return num_batches
 
-def update_s2p_files(data_path, stat):
-    # Read in existing data from a suite2p run. We will use the "ops" and registered binary.
-    ops = np.load(os.path.join(data_path, "ops.npy"), allow_pickle=True).item()
-    Lx = ops['Lx']
-    Ly = ops['Ly']
-    f_reg = suite2p.io.BinaryFile(Ly, Lx, os.path.join(data_path, "data.bin"))
+def make_list_ifnot(string_or_list):
+    return [string_or_list] if type(string_or_list) != list else string_or_list
 
-    """# Using these inputs, we will first mimic the stat array made by suite2p
-    masks = cellpose_masks['masks']
-    stat = []
-    for u_ix, u in enumerate(np.unique(masks)[1:]):
-        ypix,xpix = np.nonzero(masks==u)
-        npix = len(ypix)
-        stat.append({'ypix': ypix, 'xpix': xpix, 'npix': npix, 'lam': np.ones(npix, np.float32), 'med': [np.mean(ypix), np.mean(xpix)]})
-    stat = np.array(stat)
-    stat = roi_stats(stat, Ly, Lx)  # This function fills in remaining roi properties to make it compatible with the rest of the suite2p pipeline/GUI
+def save_file_present(file_path):
+    fname = file_path.split("\\")[-1]
+    file_present = False
+    if os.path.exists(file_path):
+        print(f"File already present {file_path}")
+        file_present = True
+    else:
+        print(f"Saving {fname} to {file_path}")
+    return file_present
+
+def find_binary_fpath(data_path, subdirectories=["data"], possible_binary_fnames=["data.bin", "Image_001_001.raw"]):
     """
-    # Feed these values into the wrapper functions
-    stat_after_extraction, F, Fneu, F_chan2, Fneu_chan2 = suite2p.extraction_wrapper(stat, f_reg, f_reg_chan2 = None, ops=ops)
-    # Do cell classification
-    classfile = suite2p.classification.builtin_classfile
-    iscell = suite2p.classify(stat=stat_after_extraction, classfile=classfile)
-    # Apply preprocessing step for deconvolution
-    dF = F.copy() - ops['neucoeff']*Fneu
-    dF = suite2p.extraction.preprocess(
-            F=dF,
-            baseline=ops['baseline'],
-            win_baseline=ops['win_baseline'],
-            sig_baseline=ops['sig_baseline'],
-            fs=ops['fs'],
-            prctile_baseline=ops['prctile_baseline']
-        )
-    # Identify spikes
-    spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
+    Searches for binary files in the specified data path and its subdirectories.
 
-    # Overwrite files in wd folder (consider backing up this folder first)
-    backup_s2p_files(data_path) 
+    Args:
+        data_path (str): The path to the data directory.
+        subdirectories (list, optional): A list of subdirectories to search for binary files. Defaults to ["data"].
+        possible_binary_fnames (list, optional): A list of possible binary file names. Defaults to ["data.bin", "Image_001_001.raw"].
 
-    np.save(os.path.join(data_path, 'F.npy'), F)
-    np.save(os.path.join(data_path, 'Fneu.npy'), Fneu)
-    np.save(os.path.join(data_path, 'iscell.npy'), iscell)
-    np.save(os.path.join(data_path, 'ops.npy'), ops)
-    np.save(os.path.join(data_path, 'spks.npy'), spks)
-    np.save(os.path.join(data_path, 'stat.npy'), stat)
+    Returns:
+        str: The path to the binary file if found, else None.
+    """
+    subdirectories = make_list_ifnot(subdirectories)
+    possible_binary_fnames = make_list_ifnot(possible_binary_fnames)
+    binary_fpath = None
+    possible_binary_data_paths = [data_path] + [os.path.join(data_path, subdirectory) for subdirectory in subdirectories]
+    for possible_binary_data_path in possible_binary_data_paths:
+        for possible_binary_fname in possible_binary_fnames:
+            binary_file_path = os.path.join(possible_binary_data_path, possible_binary_fname)
+            if os.path.exists(binary_file_path):
+                binary_fpath = binary_file_path
+                break
+        if binary_fpath:
+            break
+    if not binary_fpath:
+        print(f"No binary path to {possible_binary_fnames} found in {possible_binary_data_paths}")
+    return binary_fpath
+
+def remove_rows_cols(data, remove_rows, remove_cols):
+    data = np.delete(data, remove_rows, 0)
+    data = np.delete(data, remove_cols, 1)
+    return data
+
+def extract_cell_numbers(animals):
+    """
+    Extracts cell numbers from a dictionary of animals and their sessions.
+
+    :param animals: A dictionary of animals, where the keys are animal IDs and the values are animal objects.
+    :return: A dictionary where the keys are animal IDs and the values are dictionaries containing session IDs, ages, and cell numbers.
+    """
+    cell_numbers_dict = {}
+    for animal_id, animal in animals.items():
+        cell_numbers_dict[animal_id] = {}
+        ages = []
+        for session_id, session in animal.sessions.items():
+            cell_numbers = {}
+            cell_numbers["iscell"] = -1
+            cell_numbers["not_geldrying"] = -1
+            cell_numbers["corr"] = False
+            cell_numbers["gel_corr"] = False
+            if not session.suite2p_paths:
+                print(f"No suite2p paths: {animal_id} {session_id}")
+                continue
+            for path in session.suite2p_paths:
+                path_ending = path.split("suite2p")[-1]
+                path = os.path.join(path, "plane0")
+                iscell_path = os.path.join(path, "iscell.npy")
+                cell_drying_path = os.path.join(path, "cell_drying.npy")
+                corr_path = os.path.join(path, "allcell_corr_pval_zscore.npy")
+                if path_ending=="":
+                    cell_numbers["iscell"], cell_numbers["corr"] = get_cellnum_check_corr(iscell_path, corr_path)
+                elif path_ending == "_merged":
+                    cell_numbers["not_geldrying"], cell_numbers["gel_corr"] = get_cellnum_check_corr(cell_drying_path, corr_path, geldrying=True)
+
+            ages.append(session.age)
+            cell_numbers_dict[animal_id][session_id] = cell_numbers
+        cell_numbers_dict[animal_id]["ages"] = ages
+    return cell_numbers_dict
+
+def get_cellnum_check_corr(cell_path, corr_path, geldrying=False):
+    if os.path.exists(cell_path):
+        iscell = np.load(cell_path)
+        cell_number = sum(np.array(iscell==False, dtype="int32")) if geldrying else int(np.sum(iscell[:,0]))
+    else:
+        cell_number = -1
+    corr_present = True if os.path.exists(corr_path) else False
+    return cell_number, corr_present
+
+def summary_df_s2p_vs_geldrying(cell_numbers_dict):
+    """
+    Generates a summary DataFrame comparing Suite2p and gel drying results.
+
+    This function takes as input a dictionary containing cell numbers data for multiple animals. The dictionary keys are animal IDs and 
+    the values are data structures containing information about the cells for each animal. The function processes this data to generate a 
+    summary DataFrame comparing the results of Suite2p and gel drying for each animal. The resulting DataFrame has one row for each animal 
+    and columns for various summary statistics, including the number of cells identified by Suite2p, the number of cells not affected by gel 
+    drying, the proportion of cells that survived gel drying, and the proportion of sessions that failed for each method.
+
+    Args:
+        cell_numbers_dict (Dict[str, Any]): A dictionary containing cell numbers data for multiple animals. The keys are animal IDs and the 
+        values are data structures containing information about the cells for each animal.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing summary statistics comparing Suite2p and gel drying results for each animal.
+    """
+    data = []
+    for animal_id, animal in cell_numbers_dict.items():
+        sorted_ages, iscells, notgeldrying, corr, gel_corr = get_sorted_cells_notgeldyring_lists(animal)
+        sumiscells = sum(iscells)
+        sumnotgeldrying = sum(notgeldrying)
+        survived_cells = sumnotgeldrying/sumiscells
+        sess_count = len(iscells)
+        failed_S2P = sum(np.array(iscells)==-1)/sess_count #f"{sum(np.array(iscells)==0)/sess_count:.2%}"
+        failed_own = sum(np.array(notgeldrying)==-1)/sess_count #f"{sum(np.array(notgeldrying)==0)/sess_count:.2%}"
+        failed_corr = sum(np.array(corr)==False)/sess_count 
+        failed_gel_corr = sum(np.array(gel_corr)==False)/sess_count 
+        data.append([animal_id, sumiscells, sumnotgeldrying, survived_cells, sess_count, failed_S2P, failed_own, failed_corr, failed_gel_corr])
+
+    pipeline_stats = pd.DataFrame(data, columns=
+                                  ["animal_id", "iscells", "notgeldrying", 
+                                   "survived_cells", "sess count", 
+                                   "Failed_S2P", "Failed_Own",
+                                   "Failed_corr", "Failed_gel_corr"])
+    pipeline_stats = pipeline_stats.set_index("animal_id")
+    pipeline_stats = pipeline_stats.sort_index()
+    return pipeline_stats
+
+def get_cells_pdays_df(cell_numbers_dict, suite2p_cells = False):
+    #show tabular visualization of usefull mice
+    animal_ids = list(cell_numbers_dict.keys())
+
+    ages = []
+    for animal_id, animal in cell_numbers_dict.items():
+        sorted_ages, iscells, notgeldrying, corr, gel_corr = get_sorted_cells_notgeldyring_lists(animal)
+        ages += list(sorted_ages)
+    ages = np.unique(ages)
+
+    #create pday_cell_count_dict and set num_cells to -1 for all ages
+    pday_cell_count_dict = {}
+    for animal_id in animal_ids:
+        pday_cell_count_dict[animal_id] = {}
+        for age in ages:
+            pday_cell_count_dict[animal_id][age] = -1
+
+    #set pday_cell_count_dict[animal_id][age] to the number of not geldrdying cells
+    for animal_id, animal in cell_numbers_dict.items():
+        sorted_ages, iscells, notgeldrying, corr, gel_corr = get_sorted_cells_notgeldyring_lists(animal)
+        cell_count = iscells if suite2p_cells else notgeldrying
+        for age, session_cells in zip(sorted_ages, cell_count):
+            pday_cell_count_dict[animal_id][age] = session_cells
+
+    pday_cell_count_df = pd.DataFrame(pday_cell_count_dict).transpose()
+    return pday_cell_count_df
+
+def get_sorted_cells_notgeldyring_lists(cell_numbers_dict):
+    """
+    Sorts the cells in a dictionary of cell numbers by age.
+
+    :param cell_numbers_dict: A dictionary of cell numbers where the keys are session IDs and the values are dictionaries containing ages and cell numbers.
+    :return: A tuple containing three numpy arrays: sorted ages, sorted iscells, and sorted notgeldrying.
+    """
+    ages = np.array(cell_numbers_dict["ages"])
+    sort_ages_ids = np.argsort(ages)
+    sorted_ages = ages[sort_ages_ids]
+    sessiondates = np.array(list(cell_numbers_dict.keys())[:-1])
+    sorted_sessiondates = sessiondates[sort_ages_ids]
+    iscells = []
+    notgeldrying = []
+    corrs = []
+    gel_corrs = []
+    for sessiondate in sorted_sessiondates:
+        iscells.append(cell_numbers_dict[sessiondate]["iscell"])
+        notgeldrying.append(cell_numbers_dict[sessiondate]["not_geldrying"])
+        corrs.append(cell_numbers_dict[sessiondate]["corr"])
+        gel_corrs.append(cell_numbers_dict[sessiondate]["gel_corr"])
+    return np.array(sorted_ages), np.array(iscells), np.array(notgeldrying), np.array(corrs), np.array(gel_corrs)
+    
+def show_prints(show=True):
+    if show:
+        # Restore
+        sys.stdout = old_stdout if old_stdout else sys.stdout
+    else:
+        # Disable
+        if old_stdout not in globals(): 
+            old_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
 
 def filter_animals(animal_dict, filters = []):
     """
@@ -141,7 +318,7 @@ def filter_animals(animal_dict, filters = []):
             if filter == animal_id:
                 tmp_animal_dict[animal_id] = animal
                 continue
-            if animal.year == filter: # cohort_year
+            if animal.cohort_year == filter: 
                 tmp_animal_dict[animal_id] = animal
                 continue
             if filter == "male" or filter == "female":
@@ -165,7 +342,7 @@ def get_age_range(animal_dict):
     min_age = float('inf')
     max_age = 0
     for animal_id, animal in animal_dict.items():
-        ages_list.append(animal.pdays)
+        ages_list += animal.pdays
         min_age = min(animal.pdays) if min(animal.pdays) < min_age else min_age
         max_age = max(animal.pdays) if max(animal.pdays) > max_age else max_age
     unique_sorted_ages = np.unique(ages_list)
@@ -263,8 +440,7 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
         print(f"{fname} not exists")
     if reset:
         if os.path.exists(fpath_new):
-            if os.path.exists(fpath):
-                os.remove(fpath)
+            del_file_dir(fpath)
             shutil.copyfile(fpath_new, fpath)
         else:
             print(f"{fname_new} not exists")
@@ -273,8 +449,23 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
             if os.path.exists(fpath):
                 os.rename(fpath, fpath_new)
         else:
-            if os.path.exists(fpath):
-                os.remove(fpath)
+            del_file_dir(fpath)
+
+def create_dirs(dirs):
+    """
+    Create a new directory hierarchy.
+
+    Args:
+        dirs (list): A list of strings representing the path to the new directory.
+
+    Returns:
+        str: The path to the newly created directory.
+    """
+    new_path = dirs[0]
+    for path_part in dirs[1:]:
+        new_path = os.path.join(new_path, path_part)
+        dir_exist_create(new_path)
+    return new_path
 
 #reset files S2P files to original ones
 def reset_s2p_files(data_path):
@@ -286,69 +477,81 @@ def reset_s2p_files(data_path):
     file_exist_rename(data_path, "spks.npy", 'spks_old.npy', reset=True)
     file_exist_rename(data_path, "stat.npy", 'stat_old.npy', reset=True)
 
-def backup_s2p_files(data_path, note="backup", restore=False):
+def backup_path_files(data_path, backup_folder_name="backup", 
+                      redo_backup=False, restore=False):
     data_path = os.path.join(data_path)
-    backup_path = os.path.join(data_path, "backup")
-    dir_exist_create(backup_path)
-    for fname in ["F.npy", "Fneu.npy", "iscell.npy", "ops.npy", "spks.npy", "stat.npy", "cell_drying.npy", "binarized_traces.npz"]:
-        fpath = os.path.join(data_path, fname)
-        fpath_backup = os.path.join(backup_path, note+"_"+fname)
-        if restore:
-            fpath, fpath_backup = fpath_backup, fpath
-            if os.path.exists(fpath_backup) and os.path.exists(fpath):
-                os.remove(fpath_backup)
-        if not os.path.exists(fpath_backup) and os.path.exists(fpath):
-            shutil.copyfile(fpath, fpath_backup)
+    backup_path = os.path.join(data_path, backup_folder_name)
+    if restore:
+        shutil.copytree(backup_path, data_path, dirs_exist_ok=True)
+        print("Files restored from Backup.")
+    else:
+        if not os.path.exists(backup_path):
+            shutil.copytree(data_path, backup_path)
+        else:
+            if redo_backup:
+                if os.path.exists(backup_path):
+                    shutil.rmtree(backup_path)
+                shutil.copytree(data_path, backup_path)
+            else:
+                print("Backup path already exists. Skipping")
 
-def del_present_file(directory):
+def del_file_dir(fpath):
     """
-    Deletes a file if it exists.
+    Deletes a file or directory at the specified path.
+
+    This function checks if the given path exists. If it does, it removes the file or directory at that path.
+    If the path is a file, it uses `os.remove` to delete it.
+    If the path is a directory, it uses `shutil.rmtree` to delete it.
 
     Parameters:
-    file_location (str): Path of the file to delete.
+    fpath (str): The path of the file or directory to be deleted.
 
     Returns:
     None
     """
-    # check if the file exists
-    if os.path.exists(directory):
-        # delete the file
-        os.remove(directory)
+    # check if the file or path exists
+    if os.path.exists(fpath):
+        print(f"removing {fpath}")
+        if os.path.isfile(fpath):
+            os.remove(fpath)
+        else:
+            shutil.rmtree(fpath)
 
-def get_directories(directory):
+def get_directories(directory, regex_search=""):
     """
-    Returns a list of directories in the specified folder path.
-
-    Args:
-        folder_path (str): The path of the folder to get the directories from.
-
+    This function returns a list of directories from the specified directory that match the regular expression search pattern.
+    
+    Parameters:
+    directory (str): The directory path where to look for directories.
+    regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all directories are included.
+    
     Returns:
-        list: A list of directory names.
+    list: A list of directory names that match the regular expression search pattern.
     """
-    # Get a list of directories in the specified folder
-    # Filter the list to include only directories (excluding the "figures" directory)
-    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and name!="figures"]
+    directories = None
+    if os.path.exists(directory):
+        directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0]
+    else:
+        print(f"Directory does not exist: {directory}")
     return directories
 
-def get_files(directory, ending="all"):
+def get_files(directory, ending="", regex_search=""):
     """
-    This function returns a list of files in a given directory. 
-    If an ending is specified, it returns only the files that end with the specified ending.
+    This function returns a list of files from the specified directory that match the regular expression search pattern and have the specified file ending.
     
-    :param directory: The directory to search for files.
-    :type directory: str
-    :param ending: The file ending to filter by. Default value is "all", which returns all files.
-    :type ending: str
-    :return: A list of files in the given directory. If an ending is specified, only files that end with the specified ending are returned.
-    :rtype: list
+    Parameters:
+    directory (str): The directory path where to look for files.
+    ending (str, optional): The file ending to match. Default is '', which means all file endings are included.
+    regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all files are included.
+    
+    Returns:
+    list: A list of file names that match the regular expression search pattern and have the specified file ending.
     """
-    files_list = [name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name))]
-    if ending != "all":
-        files_list_with_ending = []
-        for file in files_list:
-            if file.endswith(ending):
-                files_list_with_ending.append(file)
-        return files_list_with_ending
+    files_list = None
+    if os.path.exists(directory):
+        files_list = [name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0 and name.endswith(ending)]
+    else:
+        print(f"Directory does not exist: {directory}")
     return files_list
 
 def search_file(directory, filename):

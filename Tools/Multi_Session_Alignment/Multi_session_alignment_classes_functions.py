@@ -162,6 +162,7 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], re
                                             regenerate=regenerate,
                                             print_loading=print_loading)
             animals_dict[animal_id] = animal
+    animals_dict = {animal_id: animal for animal_id, animal in sorted(animals_dict.items())}
     return animals_dict
 
 def run_cabin_corr(root_dir, data_dir, animal_id, session_id, 
@@ -319,6 +320,7 @@ class Animal:
                     print(f"Reading next yaml file")
         if match:
             self.sessions[session.session_id] = session
+            self.sessions = {session_id: session for session_id, session in sorted(self.sessions.items())}
         else:
             print(f"No matching yaml file found. Skipping session path {path}")
 
@@ -464,7 +466,7 @@ class Session:
         self.yx_shift = [0, 0] if self.day0 or self.merged else self.yx_shift
         self.rot_angle = 0 if self.day0 or self.merged else self.rot_angle
         self.rot_center_yx = [0, 0] if self.day0 or self.merged else self.rot_center_yx
-        self.session_id = "day0" if self.day0 else "merged" if self.merged else self.date
+        self.session_id = "day0" if self.day0 else "merged" if self.merged else str(self.date)
         self.date = "99999999" if self.merged else self.date
 
         needed_variables = ["animal_id", "date", "yx_shift", "rot_center_yx", "rot_angle"]
@@ -749,22 +751,22 @@ class Vizualizer:
         self.max_color_number = 301
         self.colors = mlp.colormaps["rainbow"](range(0, self.max_color_number))
 
-    def session_footprints(self, session, figsize=(10,10), cmap=None):
+    def session_footprints(self, session, rot90_times=1, 
+                           figsize=(10,10), cmap=None):
         # plot footprints of a session
         plt.figure(figsize=figsize)
         title = f"{session.animal_id}_{session.session_id}"
         footprints = session.footprints
         plt.title(f"{len(footprints)} footprints {title}")
-        self.footprints(footprints, cmap=cmap)
+        self.footprints(footprints, rot90_times=rot90_times, cmap=cmap)
         plt.savefig(os.path.join(self.save_dir, f"Footprints_{title}.png"), dpi=300)
 
-    def footprints(self, footprints, cmap=None):
+    def footprints(self, footprints, rot90_times=1, cmap=None):
         # plot all footprints
         for footprint in footprints:
             idx = np.where(footprint==0)
             footprint[idx] = np.nan
-            plt.imshow(footprint, cmap=cmap)
-        plt.gca().invert_yaxis()
+            plt.imshow(np.rot90(footprint, k=rot90_times), cmap=cmap)
 
     def session_contours(self, session, figsize=(10,10), color=None, plot_center=False, comment=""):
         # Plot Contours
@@ -780,23 +782,28 @@ class Vizualizer:
         y_mean = np.mean(contour[:, 1])
         return np.array([x_mean, y_mean])
 
-    def contours(self, contours, color=None, plot_center=False, comment=""): #plot_contours_points
+    def contours(self, contours, color=None, alpha=1, plot_center=False, comment=""): #plot_contours_points
         for contour in contours:
             y_corr = contour[:, 0]
             x_corr = contour[:, 1]
-            plt.plot(x_corr, y_corr, color = color)
+            plt.plot(x_corr, y_corr, color = color, alpha=alpha)
             if plot_center:
                 xy_mean = self.contour_to_point(contour)
-                plt.plot(xy_mean[1], xy_mean[0], ".", color = color)
+                plt.plot(xy_mean[1], xy_mean[0], ".", color = color, alpha=alpha)
         plt.title(f"{len(contours)} Contours{comment}")
 
-    def multi_contours(self, multi_contours, plot_center=False, colors=["white", "red", "green", "blue", "yellow", "purple", "orange", "cyan", "pink"]):
+    def multi_contours(self, multi_contours, plot_center=False, 
+                       colors=["white", "red", "green", "blue", "yellow", "purple", "orange", "cyan", "deeppink"],
+                       transparent=False):
+        alpha = 0.5 if transparent else 1
         for contours, col in zip(multi_contours, colors):
-            self.contours(contours, color=col, plot_center=plot_center)
+            self.contours(contours, color=col, alpha=alpha, plot_center=plot_center)
 
     def multi_session_contours(self, sessions, 
                                combination=None, 
-                               plot_center=False, 
+                               colors=["white", "red", "green", "blue", "yellow", "purple", "orange", "cyan", "deeppink"],
+                               plot_center=False,
+                               transparent=False, 
                                shift=False,
                                yx_shift = None,
                                rot_angle = None,
@@ -815,7 +822,6 @@ class Vizualizer:
         plot_contours = []
         plot_colors = []
         combination = list(sessions.keys()) if combination==None else combination
-        colors = ["white", "red", "green", "blue", "yellow", "purple", "orange", "cyan", "pink"]
 
         merger = Merger()
         for (session_id, session), col in zip(sessions.items(), colors):
@@ -826,29 +832,29 @@ class Vizualizer:
 
             #shift, rotate contours
             all_shifted_rotated_contour_points = []
-            if shift and session_id != "day0":
-                yx_shift = session.yx_shift if yx_shift == None else yx_shift
-                rot_angle = session.rot_angle if rot_angle == None else rot_angle
-                rot_center_yx = session.rot_center_yx if rot_center_yx == None else rot_center_yx
+            if shift and session_id != "day0" and session_id != "merged":
+                session_yx_shift = session.yx_shift if yx_shift == None else yx_shift
+                session_rot_angle = session.rot_angle if rot_angle == None else rot_angle
+                session_rot_center_yx = session.rot_center_yx if rot_center_yx == None else rot_center_yx
                 for points_yx in contours:
                     shifted_rotated_contour_points = merger.shift_rotate_yx_points(points_yx, 
-                                                                                yx_shift=yx_shift, 
-                                                                                rot_angle=rot_angle,
-                                                                                rot_center_yx=rot_center_yx)
-                    
+                                                                                yx_shift=session_yx_shift, 
+                                                                                rot_angle=session_rot_angle,
+                                                                                rot_center_yx=session_rot_center_yx)
                     all_shifted_rotated_contour_points.append(shifted_rotated_contour_points)
                 contours = all_shifted_rotated_contour_points
-                shift_label = f" yx_shift: {yx_shift}  yx_center: {rot_center_yx}  angle: {rot_angle}"
-
+                shift_label = f" yx_shift: {session_yx_shift}  yx_center: {session_rot_center_yx}  angle: {session_rot_angle}"
+            
             plot_colors.append(col)
             plot_contours.append(contours)
             handles.append(Line2D([0], [0], color=col, marker='o', label=f"Session {session_id}: {shift_label}"))
-        self.multi_contours(plot_contours, colors=plot_colors, plot_center=plot_center)
+        
+        self.multi_contours(plot_contours, colors=plot_colors, plot_center=plot_center, transparent=transparent)
         plt.title(f"Contours for : {combination} {comment}")
         plt.legend(handles=handles, fontsize=20)
         shift_label = f"_shifted" if shift else ""
         plt.savefig(os.path.join(self.save_dir, f"Contours_{combination}{shift_label}{comment}.png"), dpi=300)
-        #plt.show()
+        plt.show()
         plt.close()
 
     def multi_session_refImg(self, sessions, num_images_x=2):

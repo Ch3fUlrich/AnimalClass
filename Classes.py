@@ -114,6 +114,7 @@ class Animal:
                           functional_chan=functional_chan,
                           print_loading=print_loading)
         self.sessions[session_id] = session
+        self.sessions = {session_id: session for session_id, session in sorted(self.sessions.items())}
         return session
 
     def get_overview(self):
@@ -736,6 +737,10 @@ class Session:
             geldrying = self.load_geldrying()
             if type(geldrying) == np.ndarray:
                 geldrying_indexes = np.argwhere(geldrying==True).flatten()
+                number_cells = corr_matrix.shape[0]
+                if sum(geldrying_indexes>=number_cells) > 0:
+                    print(f"ERROR ERROR ERROR geldrying indexes do not correspond to cells in correlation matrix: {len(geldrying_indexes)} != {corr_matrix.shape[0]}")
+                    return None, None, None
                 corr_matrix = remove_rows_cols(corr_matrix, geldrying_indexes, geldrying_indexes)
                 pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
                 z_score_matrix = remove_rows_cols(z_score_matrix, geldrying_indexes, geldrying_indexes)
@@ -1557,7 +1562,9 @@ class Vizualizer:
             print(f"No correlation data to be plotted")
         return corr_matrix, pval_matrix
 
-    def pearson_kde(self, filters=[], unit_id="all", x_axes_range=[-0.5, 0.5], 
+    def pearson_kde(self, filters=[], unit_id="all", 
+                    x_axes_range=[-0.5, 0.5], 
+                    y_axes_range=None, 
                     generate_corr=False, remove_geldrying=True, 
                     average_by_pday=False, dpi=300, show_print=False):
         filters = make_list_ifnot(filters)
@@ -1578,12 +1585,12 @@ class Vizualizer:
 
         for animal_id, session_id, session in yield_animal_session(filtered_animals):
             age = session.age
-            show_prints(show=show_print)
+            # show_prints(show=show_print)  FIXME: why not working?
             print(animal_id, session_id)
             corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
                                                                                 generate=generate_corr, 
                                                                                 remove_geldrying=remove_geldrying)
-            show_prints(show=True)
+            #show_prints(show=True) FIXME: why not working?
             if type(corr_matrix) != np.ndarray:
                 continue
             if not average_by_pday:
@@ -1611,6 +1618,8 @@ class Vizualizer:
         plt.ylabel("Frequency")
         plt.title(title)
         plt.xlim(left=x_axes_range[0], right=x_axes_range[1])
+        if y_axes_range:
+            plt.ylim(bottom=y_axes_range[0], top=y_axes_range[1])
         plt.legend(handles=handles)
         plt.savefig(os.path.join(self.save_dir,title.replace(" ", "_")+".png"), dpi=300)
         plt.show()
@@ -2030,7 +2039,10 @@ class Vizualizer:
                     col = red
                 elif val >= min_num_cells:
                     num_green += 1
-                    col = blue if num_green > different_color_after_k_green and different_color_after_k_green!=None else green
+                    if different_color_after_k_green!=None:
+                        col = blue if num_green > different_color_after_k_green else green
+                    else: 
+                        col = green
                 col = mlp.colors.to_rgba(col)
                 colours[-1].append(col)
             # color all green cells in blue if the number of blue cells is above 15
@@ -2049,8 +2061,8 @@ class Vizualizer:
                         colColours=[black]*len(pday_cell_count_df.columns),
                         colWidths = [0.02]*vals.shape[1], loc='center', 
                         cellColours=colours)
-        plt.show()
         plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
+        plt.show()
         return pday_cell_count_df
         
 class Binary_loader:
@@ -2613,6 +2625,7 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"],
                     animal.get_session_data(session, generate=generate, regenerate=regenerate, 
                                             unit_ids=unit_ids, delete=delete, print_loading=print_loading)
             animals_dict[animal_id] = animal
+    animals_dict = {animal_id: animal for animal_id, animal in sorted(animals_dict.items())}
     return animals_dict
 
 def run_cabin_corr(root_dir, data_dir, animal_id, session_id, 
@@ -2673,7 +2686,7 @@ def run_compute_correlations(c, parallel=True, min_number_bursts=0):
     c.make_correlation_dirs()
     c.compute_correlations(min_number_bursts=min_number_bursts)
 
-def delete_bin_tiff_s2p_intermediate(session):
+def delete_bin_tiff_s2p_intermediate(session, binary=True, tiff=True, intermediate_s2p=True):
     #Delete binaries
     del_tiff = True
     for s2p_folder in session.suite2p_paths:
@@ -2691,20 +2704,22 @@ def delete_bin_tiff_s2p_intermediate(session):
             notgel_count = sum(notgel)
         if s2p_folder_ending == "":
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            del_file_dir(binary_path)
+            if binary:
+                del_file_dir(binary_path)
         elif iscell_count != -1 and notgel_count !=-1:
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            del_file_dir(binary_path)
+            if binary:
+                del_file_dir(binary_path)
         else:
             del_tiff = False
 
     #Delete Tiffs
-    if del_tiff:
+    if del_tiff and tiff and session.tiff_data_paths:
         for tiff_path in session.tiff_data_paths:
             del_file_dir(tiff_path)
 
     #delete not needed suite2p MUnits
-    if del_tiff:
+    if del_tiff and intermediate_s2p:
         keep_endings = ["", "_merged"]
         for s2p_path in session.suite2p_paths:
             s2p_path_ending = s2p_path.split("suite2p")[-1]
