@@ -71,7 +71,8 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
     animals = load_all(root_dir, 
                        wanted_animal_ids=wanted_animal_ids, 
                        wanted_session_ids=wanted_session_ids,  
-                       generate=generate, delete=delete) # Load all animals
+                       generate=False, #generate, 
+                       delete=delete) # Load all animals
     # delete suite2p folder for every session
     """
     for animal_id, animal in animals.items():
@@ -85,34 +86,37 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], generate=True,
     clean_animals(animals, skip_animal=skip_animal, skip_session=skip_session, delete_used_subsessions=delete)
 
 def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, delete_used_subsessions=False):
-    plotting = True
+    plotting = False #FIXME: change to True for plotting
     viz = Vizualizer(animals, save_dir = Animal.root_dir)
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
+            if len(session.mesc_data_paths)>1:
+                print(f"Skipping, has more than 2 mesc files")
+                continue
             #if animal_id in skip_animal and session_id in skip_session:
             #    continue
             print(f"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Starting {animal_id} {session_id} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
             print(f"-----------------------------------Generating standard Suite2P Files-----------------------------------")
-            session.generate_cabincorr(generate=True, regenerate=regenerate, 
-                                       unit_ids="all", compute_corrs=True)
+            """session.generate_cabincorr(generate=True, regenerate=regenerate, 
+                                       unit_ids="all", compute_corrs=True)"""
             print(f"-----------------------------------Loading Units-----------------------------------")
-            #FIXME: uncomment
-            """units = session.get_units(restore=True, get_geldrying=True, 
+            units = session.get_units(restore=True, get_geldrying=True, 
                                       unit_type="single", generate=True, 
                                       regenerate=regenerate)
-            print(f"-----------------------------------Merging Units-----------------------------------")
+            """print(f"-----------------------------------Merging Units-----------------------------------")
             merged_unit = session.merge_units(generate=True, 
                                               regenerate=regenerate, 
                                               compute_corrs=True,
                                               delete_used_subsessions=delete_used_subsessions)
             print(f"-----------------------------------Creating correlations matrices-----------------------------------")
             session.load_corr_matrix(generate=True, regenerate=regenerate, unit_id="all")
-            session.load_corr_matrix(generate=True, regenerate=regenerate, unit_id="merged")
+            session.load_corr_matrix(generate=True, regenerate=regenerate, unit_id="merged")"""
             
-            #delete_bin_tiff_s2p_intermediate(session)#FIXME:
-            dir_exist_create(os.path.join(viz.save_dir, animal_id))
+            delete_bin_tiff_s2p_intermediate(session, binary=True, tiff=True, intermediate_s2p=False)
+            """dir_exist_create(os.path.join(viz.save_dir, animal_id))
             dir_exist_create(os.path.join(viz.save_dir, animal_id, session_id))
             viz.save_dir = os.path.join(viz.save_dir, animal_id, session_id)"""
+
 
             if plotting:
                 mlp.use('Agg')
