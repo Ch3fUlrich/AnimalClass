@@ -197,14 +197,14 @@ class Animal:
                 session = Session(session_yaml_path,
                                 animal_id=self.animal_id,
                                 print_loading=print_loading)
-                if str(session.date) not in session_yaml_fname and not session.merged:
+                if str(session.date) not in session_yaml_fname and not session.session_type == "merged":
                     print(f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}")
                     match = False
                 if self.animal_id != session.animal_id:
                     print(f"Yaml file does not match animal_id: {self.animal_id} != {session.animal_id}")
                     match = False
                 if match:
-                    session.pday = session.date - self.dob if not session.merged else None
+                    session.pday = session.date - self.dob if session.session_type != "merged" else None
                     session.load_data(restore=restore, regenerate=regenerate)
                     break
                 else:
@@ -215,7 +215,7 @@ class Animal:
         else:
             print(f"No matching yaml file found. Skipping session path {path}")
 
-    def merge_sessions(self, reference_session_id="pretraining", restore=False, 
+    def merge_sessions(self, reference_session_id="day0", restore=False, 
                        regenerate=False, n_frames_to_be_acquired=1000, num_align_frames=1000):
         reference_session = self.sessions[reference_session_id]
         sessions = self.sessions
@@ -302,7 +302,8 @@ class Session:
 
     def __init__(self, yaml_file_path, animal_id, image_x_size=512, image_y_size=512, print_loading=True):
         
-        self.animal_id = animal_id
+        #Animal.root_dir = yaml_file_path.split("DON-")[0]
+        self.animal_id = animal_id 
         self.yaml_file_path = yaml_file_path
         self.image_x_size = image_x_size
         self.image_y_size = image_y_size
@@ -324,7 +325,7 @@ class Session:
         self.ops = None
         self.c, self.contours, self.footprints = None, None, None
         self.updated = None
-
+        print(yaml_file_path)
         self.load_metadata(yaml_file_path)
         updated_txt = "updated " if self.updated else ""
         if print_loading:
@@ -357,10 +358,10 @@ class Session:
                 self.yx_shift = [0, 0]
                 self.rot_angle = 0
                 self.rot_center_yx = [0, 0]
-                self.session_id = self.session_type
-                self.date = "99999999" if self.session_type=="merged" else self.date
-            else:
-                self.session_id = str(self.date)
+                self.session_id = self.session_type if self.session_type!="pretraining" else "day0"
+                self.date = "99999999" if self.session_type=="merged" else self.date    
+        if not self.session_id:
+            self.session_id = str(self.date)
 
         needed_variables = ["animal_id", "date", "yx_shift", "rot_center_yx", "rot_angle"]
         for needed_variable in needed_variables:
@@ -535,9 +536,13 @@ class Session:
 
         """
         #Merging cell footprints
+        print(self.animal_id)
+        print(self.session_id)
+        print(self.suite2p_path)
         c = run_cabin_corr(Animal.root_dir, data_dir=self.suite2p_path,
                             animal_id=self.animal_id, session_id=self.session_id, 
                             regenerate=regenerate)
+                            
         contours = c.contours
         footprints = c.footprints
         return c, contours, footprints
@@ -725,7 +730,7 @@ class Vizualizer:
 
             #shift, rotate contours
             all_shifted_rotated_contour_points = []
-            if shift and session_id != "pretraining" and session.session_type != "merged":
+            if shift and session_id != "day0" and session.session_type != "merged":
                 session_yx_shift = session.yx_shift if yx_shift == None else yx_shift
                 session_rot_angle = session.rot_angle if rot_angle == None else rot_angle
                 session_rot_center_yx = session.rot_center_yx if rot_center_yx == None else rot_center_yx
@@ -1412,7 +1417,7 @@ class Merger:
         backup_path_files(suite2p_data_path)
         session.update_s2p_files(shifted_rotated_session_stat)
 
-    def merge_s2p_files(self, sessions, stat, first_session="pretraining"):
+    def merge_s2p_files(self, sessions, stat, first_session="day0"):
         """
         Merges F, Fneu, spks, iscell from individual sessions
         Does not merge the individual corrected stat files
