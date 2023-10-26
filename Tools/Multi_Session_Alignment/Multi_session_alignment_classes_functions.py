@@ -5,7 +5,7 @@ import shutil
 
 # do Math stuff
 import numpy as np
-
+import re
 import sys
 import os
 
@@ -19,114 +19,6 @@ sys.path.append(module_path)
 from Helper import *
 from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
-
-#helper
-def gif_to_mp4(path):
-    """
-    Converts a GIF file to an MP4 file.
-
-    This function takes the path of a GIF file as input, converts it to an MP4 file, and saves the resulting MP4 file in the same directory as the input GIF file. The name of the output MP4 file is the same as the input GIF file, with the file extension changed from `.gif` to `.mp4`.
-
-    Args:
-        path (str): The path of the input GIF file.
-
-    Returns:
-        None
-    """
-    import moviepy.editor as mp
-    clip = mp.VideoFileClip(path)
-    save_path = path.replace('.gif', '.mp4')
-    clip.write_videofile(save_path)
-
-def search_file(directory, filename):
-    """
-    This function searches for a file with a given filename within a specified directory and its subdirectories.
-
-    :param directory: The directory in which to search for the file.
-    :type directory: str
-    :param filename: The name of the file to search for.
-    :type filename: str
-    :return: The full path of the file if found, otherwise returns the string "Not found".
-    :rtype: str
-    """
-    for root, dirs, files in os.walk(directory):
-        if filename in files:
-            return os.path.join(root, filename)
-    return None
-
-def get_files(directory, ending="", regex_search=""):
-    """
-    This function returns a list of files from the specified directory that match the regular expression search pattern and have the specified file ending.
-    
-    Parameters:
-    directory (str): The directory path where to look for files.
-    ending (str, optional): The file ending to match. Default is '', which means all file endings are included.
-    regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all files are included.
-    
-    Returns:
-    list: A list of file names that match the regular expression search pattern and have the specified file ending.
-    """
-    files_list = None
-    if os.path.exists(directory):
-        files_list = [name for name in os.listdir(directory) 
-                      if os.path.isfile(os.path.join(directory, name)) 
-                      and len(re.findall(regex_search, name))>0 
-                      and name.endswith(ending)]
-    else:
-        print(f"Directory does not exist: {directory}")
-    return files_list
-
-def get_directories(directory, regex_search=""):
-    """
-    This function returns a list of directories from the specified directory that match the regular expression search pattern.
-    
-    Parameters:
-    directory (str): The directory path where to look for directories.
-    regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all directories are included.
-    
-    Returns:
-    list: A list of directory names that match the regular expression search pattern.
-    """
-    directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0]
-    return directories
-
-def del_file_dir(fpath):
-    """
-    Deletes a file or directory at the specified path.
-
-    This function checks if the given path exists. If it does, it removes the file or directory at that path.
-    If the path is a file, it uses `os.remove` to delete it.
-    If the path is a directory, it uses `shutil.rmtree` to delete it.
-
-    Parameters:
-    fpath (str): The path of the file or directory to be deleted.
-
-    Returns:
-    None
-    """
-    # check if the file or path exists
-    if os.path.exists(fpath):
-        print(f"removing {fpath}")
-        if os.path.isfile(fpath):
-            os.remove(fpath)
-        else:
-            shutil.rmtree(fpath)
-
-def create_dirs(dirs):
-    """
-    Create a new directory hierarchy.
-
-    Args:
-        dirs (list): A list of strings representing the path to the new directory.
-
-    Returns:
-        str: The path to the newly created directory.
-    """
-    new_path = dirs[0]
-    for path_part in dirs[1:]:
-        new_path = os.path.join(new_path, path_part)
-        dir_exist_create(new_path)
-    return new_path
 
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], restore=False, regenerate=False, print_loading=True):
     """
@@ -262,7 +154,6 @@ class Animal:
     get_session_data(session_id, print_loading=True): Loads data for a specific session.
     """
     root_dir = "D:\\Animals" 
-    reference_session_id = "day0"
 
     def __init__(self, yaml_file_path, print_loading=True) -> None:
         self.sessions = {}
@@ -324,7 +215,7 @@ class Animal:
         else:
             print(f"No matching yaml file found. Skipping session path {path}")
 
-    def merge_sessions(self, reference_session_id="day0", restore=False, 
+    def merge_sessions(self, reference_session_id="pretraining", restore=False, 
                        regenerate=False, n_frames_to_be_acquired=1000, num_align_frames=1000):
         reference_session = self.sessions[reference_session_id]
         sessions = self.sessions
@@ -381,7 +272,7 @@ class Animal:
             updated_sessions = {} 
             for session_id, session in sessions.items():
                 # shift merged mask and redo Suite2P analysis
-                if session_id in updated_sessions or session_id=="merged":
+                if session_id in updated_sessions or session.session_type=="merged":
                     continue
                 print(f"Updating session {session_id}")
                 # shift and rotate merged mask to correct cell locations
@@ -413,6 +304,8 @@ class Session:
         
         self.animal_id = animal_id
         self.yaml_file_path = yaml_file_path
+        self.image_x_size = image_x_size
+        self.image_y_size = image_y_size
         self.session_id = None # = session_name
         self.date = None
         self.method = None
@@ -420,10 +313,8 @@ class Session:
         self.yx_shift = None
         self.rot_center_yx = None
         self.rot_angle = None
-        self.day0 = None
-        self.merged = None
-        self.image_x_size = image_x_size
-        self.image_y_size = image_y_size
+        self.session_type = None
+        self.water_deprivation = None
         self.session_dir = None
         self.suite2p_path = None
         self.binary_path = None
@@ -461,13 +352,15 @@ class Session:
         for variable_name, value in session_metadata_dict.items():
             setattr(self, variable_name, value)
 
-        self.day0 = self.day0 if self.day0 else False
-        self.merged = self.merged if self.merged else False
-        self.yx_shift = [0, 0] if self.day0 or self.merged else self.yx_shift
-        self.rot_angle = 0 if self.day0 or self.merged else self.rot_angle
-        self.rot_center_yx = [0, 0] if self.day0 or self.merged else self.rot_center_yx
-        self.session_id = "day0" if self.day0 else "merged" if self.merged else str(self.date)
-        self.date = "99999999" if self.merged else self.date
+        if self.session_type:
+            if self.session_type == "pretraining" or self.session_type == "merged":
+                self.yx_shift = [0, 0]
+                self.rot_angle = 0
+                self.rot_center_yx = [0, 0]
+                self.session_id = self.session_type
+                self.date = "99999999" if self.session_type=="merged" else self.date
+            else:
+                self.session_id = str(self.date)
 
         needed_variables = ["animal_id", "date", "yx_shift", "rot_center_yx", "rot_angle"]
         for needed_variable in needed_variables:
@@ -832,7 +725,7 @@ class Vizualizer:
 
             #shift, rotate contours
             all_shifted_rotated_contour_points = []
-            if shift and session_id != "day0" and session_id != "merged":
+            if shift and session_id != "pretraining" and session.session_type != "merged":
                 session_yx_shift = session.yx_shift if yx_shift == None else yx_shift
                 session_rot_angle = session.rot_angle if rot_angle == None else rot_angle
                 session_rot_center_yx = session.rot_center_yx if rot_center_yx == None else rot_center_yx
@@ -1288,7 +1181,7 @@ class Merger:
         merged_footprints = self.stat_to_footprints(moved_session_stat_no_abroad)
         merged_stat = moved_session_stat_no_abroad
         for session_id, session in sessions.items():
-            if session_id == reference_session.session_id or session_id=="merged":
+            if session_id == reference_session.session_id or session.session_type =="merged":
                 continue
             print(f"Working on session {session_id}...")
             moved_session_stat = self.shift_rotate_stat_cells(session)
@@ -1519,7 +1412,7 @@ class Merger:
         backup_path_files(suite2p_data_path)
         session.update_s2p_files(shifted_rotated_session_stat)
 
-    def merge_s2p_files(self, sessions, stat, first_session="day0"):
+    def merge_s2p_files(self, sessions, stat, first_session="pretraining"):
         """
         Merges F, Fneu, spks, iscell from individual sessions
         Does not merge the individual corrected stat files
@@ -1581,7 +1474,7 @@ class Merger:
         merged_metadata = {"animal_id": reference_session.animal_id,
                            "image_x_size" : reference_session.image_x_size,
                            "image_y_size" : reference_session.image_y_size,
-                           "merged" : True,
+                           "session_type" : "merged",
                            "sessions" : list(sessions.keys())}
 
         # save metadata to yaml

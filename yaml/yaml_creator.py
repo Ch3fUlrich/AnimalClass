@@ -76,13 +76,92 @@ def get_animal_dict_from_spreadsheet(fname):
     """
     org_exp_workbook = load_workbook(filename=fname)
     sheet = org_exp_workbook.active
-    animal_id_records = row_to_list(sheet, "C")
-    dob_records = row_to_list(sheet, "K")
-    sex_records = row_to_list(sheet, "D")
-    animals = create_animal_dict(animal_id_records, dob_records, sex_records)
+    animals = {}
+    for row in range(1, sheet.max_row+1):
+        #cell_obj = sheet.cell(row=row, column=j)
+        animal_id = sheet.cell(row=row, column=1).value 
+        animal_id_records = sheet.cell(row=row, column=3).value 
+        sex = sheet.cell(row=row, column=4).value 
+        dob = sheet.cell(row=row, column=10).value 
+        injected = sheet.cell(row=row, column=11).value 
+        implanted = sheet.cell(row=row, column=12).value 
+        duration = sheet.cell(row=row, column=13).value 
+        method = "2P"
+        setup = sheet.cell(row=row, column=15).value 
+        expt_pipeline = sheet.cell(row=row, column=16).value 
+        underground = sheet.cell(row=row, column=18).value 
+        cam_data = sheet.cell(row=row, column=23).value 
+        movement_data = sheet.cell(row=row, column=24).value 
+        light = sheet.cell(row=row, column=26).value 
+        laser_power = sheet.cell(row=row, column=27).value 
+        pockel_cell_bias = sheet.cell(row=row, column=28).value 
+        n_channel = sheet.cell(row=row, column=29).value 
+        fucntional_channel = sheet.cell(row=row, column=30).value 
+        ug_gain = sheet.cell(row=row, column=31).value 
+        ur_gain = sheet.cell(row=row, column=32).value 
+        lens = sheet.cell(row=row, column=38).value 
+        pixels = sheet.cell(row=row, column=39).value 
+        n_planes = sheet.cell(row=row, column=41).value 
+        session  = sheet.cell(row=row, column=46).value 
+        weight = sheet.cell(row=row, column=47).value 
+        comment = sheet.cell(row=row, column=49).value 
+
+        if animal_id not in animals:
+            #FIXME: add animal
+            asdf
+            animal_dict = {"animal_id": animal_id, "dob": dob, "sex": sex}
+            animals[animal_id] = create_animal_dict(animal_id_records, dob, sex,
+                                                    injected,
+                                                    implanted,
+                                                    duration,
+                                                    method,
+                                                    setup,
+                                                    expt_pipeline,
+                                                    underground,
+                                                    cam_data,
+                                                    movement_data,
+                                                    light,
+                                                    laser_power,
+                                                    pockel_cell_bias,
+                                                    n_channel,
+                                                    fucntional_channel,
+                                                    ug_gain,
+                                                    ur_gain,
+                                                    lens,
+                                                    pixels,
+                                                    n_planes,
+                                                    session,
+                                                    weight,
+                                                    comment)
+        else:
+            #FIXME: add session info to animal
+            return animal_dict
+        
     return animals
 
-def init_animal_dict(animal_id, cohort_year=None, dob=None, sex=None):
+def init_animal_dict(animal_id, cohort_year=None, dob=None, sex=None,
+                     injected = None,
+                     implanted = None,
+                     duration = None,
+                     method = None,
+                     setup = None,
+                     expt_pipeline = None,
+                     wheel = None,
+                     session = None,
+                     weight = None,
+                     comment = None,
+                     cam_data = None,
+                     movement_data = None,
+                     light = None,
+                     laser_power = None,
+                     pockel_cell_bias = None,
+                     lens = None,
+                     n_channel = None,
+                     fucntional_channel = None,
+                     ug_gain = None,
+                     ur_gain = None,
+                     pixels = None,
+                     n_planes = None):
     animal_dict = {
             'cohort_year': cohort_year,
             'dob': dob,
@@ -90,15 +169,64 @@ def init_animal_dict(animal_id, cohort_year=None, dob=None, sex=None):
             'pdays': [],
             'session_dates': [],
             'session_names': [],
-            'sex': "male" if sex == "m" else "female" if sex else None
+            'sex': "male" if sex == "m" else "female" if sex else None,
+            "injected" : injected,
+            "implanted" : implanted,
+            "duration" : duration,
+            "method" : method,
+            "setup" : setup,
+            "expt_pipeline" : expt_pipeline,
+            "wheel" : wheel,
+            "session" : session,
+            "weight" : weight,
+            "comment" : comment,
+            "cam_data" : cam_data,
+            "movement_data" : movement_data,
+            "light" : light,
+            "laser_power" : laser_power,
+            "pockel_cell_bias" : pockel_cell_bias,
+            "lens" : lens,
+            "n_channel" : n_channel,
+            "fucntional_channel" : fucntional_channel,
+            "ug_gain" : ug_gain,
+            "ur_gain" : ur_gain,
+            "pixels" : pixels,
+            "n_planes" : n_planes
         }
     return animal_dict
 
-def create_animal_dict(animal_id_records, dob_records, sex_records):
-    animals = {}
+def create_animal_dict(animal_id, dob, sex,
+                       injected=None,
+                       implanted=None,
+                       duration=None,
+                       method=None,
+                       setup=None,
+                       expt_pipeline=None,
+                       underground=None,
+                       cam_data=None,
+                       movement_data=None,
+                       light=None,
+                       laser_power=None,
+                       pockel_cell_bias=None,
+                       n_channel=None,
+                       fucntional_channel=None,
+                       ug_gain=None,
+                       ur_gain=None,
+                       lens=None,
+                       pixels=None,
+                       n_planes=None,
+                       session=None,
+                       weight=None,
+                       comment=None):
+    animals = {} #FIXME: change to single animal 
     print(f"Warning cohort_year if defined by dob year.")
     print(f"Warning dob year 2020 is changed to 2021.")
-    for animal_id, dob, sex in zip(animal_id_records, dob_records, sex_records):
+    for animal_id, dob, sex in zip(animal_id, dob, sex):
+        #FIXME: change this loop
+        #FIXME: create session dict
+        #FIXME: change animal dict
+        #FIXME: merge session_specific data into session dict.
+        asdf
         animal_id = "DON-00"+animal_id[3:] if len(animal_id) == 7 else "DON-0"+animal_id[3:]
         if animal_id in animals:
             continue
@@ -107,9 +235,31 @@ def create_animal_dict(animal_id_records, dob_records, sex_records):
         dob_date = num_to_date(dob)
         #WARNING dob_date.year could be wrong for other 
         cohort_year = dob_date.year if dob_date.year != 2020 else 2021 
-        animals[animal_id] = init_animal_dict(animal_id, cohort_year, dob, sex)
-    return animals
-
+        animals[animal_id] = init_animal_dict(animal_id, cohort_year, dob, sex,
+                                              injected,
+                                              implanted,
+                                              duration,
+                                              method,
+                                              setup,
+                                              expt_pipeline,
+                                              underground,
+                                              session,
+                                              weight,
+                                              comment,
+                                              cam_data,
+                                              movement_data,
+                                              light,
+                                              laser_power,
+                                              pockel_cell_bias,
+                                              lens,
+                                              n_channel,
+                                              fucntional_channel,
+                                              ug_gain,
+                                              ur_gain,
+                                              pixels,
+                                              n_planes)
+    return animals 
+ 
 def return_loaded_yaml_if_newer(used_path, may_newer_info_path):
     yaml_dict = None
     root_yaml_modification_date = os.path.getmtime(used_path) if os.path.exists(used_path) else 0

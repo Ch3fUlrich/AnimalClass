@@ -1,12 +1,4 @@
 # <ins>**Todos ordered by importants**</ins>
-- [ ] run at Scicore
-  - [ ] 2023
-  - [ ] 
-
-  projects:
-    -rodrigo: main person
-    -cecillia: needs to answer
-    -timerili (camebrige): hopfield nets
 
 - recreate the yaml file creation
 
@@ -25,9 +17,7 @@ grid cell ensemble activity during 1-D
 behavior](https://www.biorxiv.org/content/10.1101/2022.11.25.517966v1.full.pdf)
 
 - [ ] Get to know
-  - [ ] Paper from Catalin
-    - [ ] Overview
-    - [ ] Detailed
+  - [ ] Paper 
   - [ ] Paper from Andres
     - [ ] Powerpoint Summarys
     - [ ] Detailed
@@ -38,8 +28,11 @@ behavior](https://www.biorxiv.org/content/10.1101/2022.11.25.517966v1.full.pdf)
 
 # **Todos**
 ## <ins>**Intrisic Imaging Pipeline**</ins>
-- [ ] **Code Algo Autodetection** for Errors in Data + Solutions
-    - [ ] create yaml file for session data
+- [ ] projects:
+  - [x] rodrigo (graph analysis)
+  - [ ] cecillia ()
+  - [ ] timerili (camebridge): hopfield nets
+- [ ] create yaml file for session data
 
 ### **Data**
 - [x] Connect to Drives
@@ -104,6 +97,28 @@ comment:
     - [x] PCA+KNN (Done by Catalin)
 
 
+## <ins>**BMI**</ins>
+- [ ] BMI GUI
+  - [ ] Matplotlib slow &rarr; PyQT? PyQT-Graph? what is faster
+- [ ] Analysis needs to be standardized
+- If I have enough time:
+  - [ ] motions correction by
+    - [x] shifting + rotating
+    - [ ] Separate Contours for BMI into multiple blocks 
+    - [ ]  motion correct individual block (because brain moves differently, because different pressure on Brain)
+
+## <ins>**Nathalie Mouse in a Box**</ins>
+- info:
+  - [Datasets](smb:\\unibasel.ads.unibas.ch\bz\RG Donato\Microscopy\Nathalie\Test_dataset_long_tracking)
+  - 3 recording sessions from 2 animals: 
+  	- DON-007050: good expression, longitudinal tracking in Inscopix
+  	- DON-007513: less, not possible to run longitudinal tracking
+  - folders should contain footprints of all the cells + some files with their activity traces
+- solution:
+  - create mastermask and re-run inscopix (prefered)
+  or
+  - build cell-registration tables
+
 ## <ins>**Package CaBinCorr Paper (until end of summer)**</ins>
 - [ ] Ask Lukas how to programm the best way or big programm
   - [x] Which API to provide? Should be easy
@@ -156,18 +171,8 @@ comment:
   - [ ] create pypi (organization which created pip) (edited) 
 - [ ] Write Paper
 
-
-## <ins>**BMI**</ins>
-- [ ] BMI GUI
-  - [ ] Matplotlib slow &rarr; PyQT? PyQT-Graph? what is faster
-- [ ] Analysis needs to be standardized
-- [ ] If I have enough time:
-  - [ ] motions correction by
-    - [ ] Separate Contours for BMI into multiple blocks 
-    - [ ]  motion correct individual block (because brain moves differently, because different pressure on Brain)
-
 ## <ins>**Active Avoidance paradigm**</ins>
-## <ins>**Nathalie Mouse in a Box**</ins>
+
 ## <ins>**Nathalie Volition/Imagination**</ins>
 
 ****
