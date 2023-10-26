@@ -55,7 +55,9 @@ def get_animal_dict_from_spreadsheet(fname):
         sex = sheet.cell(row=row, column=4).value 
         dob = sheet.cell(row=row, column=11).value 
         injected = sheet.cell(row=row, column=12).value 
+        injected = "20"+str(int(injected)) if injected else None
         implanted = sheet.cell(row=row, column=13).value 
+        implanted = "20"+str(int(implanted)) if implanted else None
         duration = [sheet.cell(row=row, column=14).value] 
         method = "2P"
         setup = sheet.cell(row=row, column=16).value 
@@ -139,7 +141,7 @@ def init_animal_dict(animal_id, cohort_year=None, dob=None, sex=None):
 def create_session_dict(**kwargs):
     session_dict = kwargs
     for key, var in session_dict.items():
-        session_dict[key] = None if var == "n/a" or "" else var
+        session_dict[key] = None if var == "n/a" or "" else var       
     #WARNING dob_date.year could be wrong for other 
     return session_dict 
 
@@ -148,9 +150,6 @@ def create_animal_dict(**kwargs):
     for key, var in animal_dict.items():
         animal_dict[key] = None if var == "n/a" or "" else var
 
-    animal_id = animal_dict["animal_id"]
-    animal_dict["animal_id"] = "DON-00"+animal_id[3:] if len(animal_id) == 7 else "DON-0"+animal_id[3:]
-    
     sex = animal_dict["sex"]
     animal_dict["sex"] = "male" if sex == "m" else "female" if sex else None
     dob = animal_dict["dob"]
@@ -192,16 +191,16 @@ def get_animals_from_yaml(directory):
         animal
         animals[animal_id] = animal if animal else animals[animal_id]
     
-    to_delete_animals = []
+    """to_delete_animals = []
     to_delete_keys = ["pdays", "cohort_year", "functional_channels", "sex", "session_dates", "session_names", "dob"]
     for animal_id, animal in animals.items():
-        """if 'UseMUnits' not in animal.keys():
+        if 'UseMUnits' not in animal.keys():
             to_delete_animals.append(animal_id)
-            continue"""
+            continue
         for to_delete_key in to_delete_keys:
             if to_delete_key in animal.keys():# and 'UseMUnits' in animal.keys():
                 del animal[to_delete_key]
-    """for to_delete_animal in to_delete_animals:
+    for to_delete_animal in to_delete_animals:
         del animals[to_delete_animal]"""
     return animals
 
