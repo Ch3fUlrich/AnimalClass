@@ -342,9 +342,10 @@ def get_age_range(animal_dict):
     min_age = float('inf')
     max_age = 0
     for animal_id, animal in animal_dict.items():
-        ages_list += animal.pdays
-        min_age = min(animal.pdays) if min(animal.pdays) < min_age else min_age
-        max_age = max(animal.pdays) if max(animal.pdays) > max_age else max_age
+        pdays = animal.get_pdays()
+        ages_list += pdays
+        min_age = min(pdays) if min(pdays) < min_age else min_age
+        max_age = max(pdays) if max(pdays) > max_age else max_age
     unique_sorted_ages = np.unique(ages_list)
     unique_sorted_ages.sort() 
     return unique_sorted_ages, min_age, max_age
@@ -480,20 +481,23 @@ def reset_s2p_files(data_path):
 def backup_path_files(data_path, backup_folder_name="backup", 
                       redo_backup=False, restore=False):
     data_path = os.path.join(data_path)
-    backup_path = os.path.join(data_path, backup_folder_name)
-    if restore:
-        shutil.copytree(backup_path, data_path, dirs_exist_ok=True)
-        print("Files restored from Backup.")
-    else:
-        if not os.path.exists(backup_path):
-            shutil.copytree(data_path, backup_path)
+    if os.path.exists(data_path):
+        backup_path = os.path.join(data_path, backup_folder_name)
+        if restore:
+            shutil.copytree(backup_path, data_path, dirs_exist_ok=True)
+            print("Files restored from Backup.")
         else:
-            if redo_backup:
-                if os.path.exists(backup_path):
-                    shutil.rmtree(backup_path)
+            if not os.path.exists(backup_path):
                 shutil.copytree(data_path, backup_path)
             else:
-                print("Backup path already exists. Skipping")
+                if redo_backup:
+                    if os.path.exists(backup_path):
+                        shutil.rmtree(backup_path)
+                    shutil.copytree(data_path, backup_path)
+                else:
+                    print("Backup path already exists. Skipping")
+    else:
+        print("Data path does not exist. Skipping Backup")
 
 def del_file_dir(fpath):
     """

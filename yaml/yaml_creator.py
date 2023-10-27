@@ -100,8 +100,7 @@ def get_animal_dict_from_spreadsheet(fname):
             animals[animal_id]["sessions"][date]["movement_data"].append(movement_data[0])
             animals[animal_id]["sessions"][date]["session"].append(session[0])
         else:
-            animals[animal_id]["sessions"][date] = create_session_dict(animal_id=animal_id,
-                                                                      date=date,
+            animals[animal_id]["sessions"][date] = create_session_dict(date=date,
                                                                       injected=injected,
                                                                       implanted=implanted,
                                                                       duration=duration,
@@ -182,6 +181,7 @@ def get_animals_from_yaml(directory):
     else:
         animals = {}
 
+    """
     for animal_id in get_directories(root_dir, regex_search="DON-"):
         animal_path = os.path.join(root_dir, animal_id)
 
@@ -191,7 +191,7 @@ def get_animals_from_yaml(directory):
         animal
         animals[animal_id] = animal if animal else animals[animal_id]
     
-    """to_delete_animals = []
+    to_delete_animals = []
     to_delete_keys = ["pdays", "cohort_year", "functional_channels", "sex", "session_dates", "session_names", "dob"]
     for animal_id, animal in animals.items():
         if 'UseMUnits' not in animal.keys():

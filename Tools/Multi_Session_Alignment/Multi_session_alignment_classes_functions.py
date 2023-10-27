@@ -20,7 +20,8 @@ from Helper import *
 from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
 
-def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], restore=False, regenerate=False, print_loading=True):
+def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], 
+             restore=False, regenerate=False, print_loading=True):
     """
     Loads animal data from the specified root directory for the given animal IDs.
 
@@ -145,8 +146,6 @@ class Animal:
     cohort_year (int): The year of the cohort that the animal belongs to.
     dob (str): The date of birth of the animal.
     animal_id (str): The ID of the animal.
-    session_dates (list of str): The dates when the sessions were conducted.
-    session_names (list of str): The names of the sessions.
     sex (str): The sex of the animal.
 
     Methods:
@@ -161,10 +160,6 @@ class Animal:
         self.dob = None
         self.animal_id = None 
         self.sex = None 
-        #self.pdays = None 
-        #self.session_dates = None 
-        #self.session_names = None 
-        #self.session_shifts = None
         self.load_metadata(yaml_file_path)
         self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
         if print_loading:
@@ -187,9 +182,12 @@ class Animal:
     
     def get_session_data(self, path,
                          restore=False,
+                         generate=False,
                          regenerate=False,
+                         delete=False,
                          print_loading=True):
-        session_yaml_fnames = get_files(path, ending=".yaml", regex_search=self.animal_id)
+        session_yaml_fnames = get_files(path, ending=".yaml")
+        match = None
         if session_yaml_fnames:
             for session_yaml_fname in session_yaml_fnames:
                 match = True
@@ -200,12 +198,9 @@ class Animal:
                 if str(session.date) not in session_yaml_fname and not session.session_type == "merged":
                     print(f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}")
                     match = False
-                if self.animal_id != session.animal_id:
-                    print(f"Yaml file does not match animal_id: {self.animal_id} != {session.animal_id}")
-                    match = False
                 if match:
                     session.pday = session.date - self.dob if session.session_type != "merged" else None
-                    session.load_data(restore=restore, regenerate=regenerate)
+                    session.load_data(restore=restore, generate=generate, regenerate=regenerate, delete=delete)
                     break
                 else:
                     print(f"Reading next yaml file")
@@ -216,7 +211,8 @@ class Animal:
             print(f"No matching yaml file found. Skipping session path {path}")
 
     def merge_sessions(self, reference_session_id="day0", restore=False, 
-                       regenerate=False, n_frames_to_be_acquired=1000, num_align_frames=1000):
+                       regenerate=False, 
+                       n_frames_to_be_acquired=1000, num_align_frames=1000):
         reference_session = self.sessions[reference_session_id]
         sessions = self.sessions
         yaml_fname = f"{reference_session.animal_id}_merged.yaml"
@@ -300,13 +296,13 @@ class Session:
     corr_fname = "allcell_clean_corr_pval_zscore.npy"
     cabincorr_fname = "binarized_traces.npz"
 
-    def __init__(self, yaml_file_path, animal_id, image_x_size=512, image_y_size=512, print_loading=True):
+    def __init__(self, yaml_file_path, animal_id, print_loading=True):
         
         #Animal.root_dir = yaml_file_path.split("DON-")[0]
         self.animal_id = animal_id 
         self.yaml_file_path = yaml_file_path
-        self.image_x_size = image_x_size
-        self.image_y_size = image_y_size
+        self.image_x_size = 512
+        self.image_y_size = 512
         self.session_id = None # = session_name
         self.date = None
         self.method = None
@@ -324,14 +320,13 @@ class Session:
         self.bin_traces_zip = None
         self.ops = None
         self.c, self.contours, self.footprints = None, None, None
-        self.updated = None
         print(yaml_file_path)
         self.load_metadata(yaml_file_path)
+        self.updated = None
         updated_txt = "updated " if self.updated else ""
         if print_loading:
             print(f"Initialized {updated_txt}session: {animal_id} {self.session_id}")
         
-
     def load_metadata(self, yaml_path):
         """
         Load session metadata from a YAML file and update the session object's attributes.
@@ -363,7 +358,7 @@ class Session:
         if not self.session_id:
             self.session_id = str(self.date)
 
-        needed_variables = ["animal_id", "date", "yx_shift", "rot_center_yx", "rot_angle"]
+        needed_variables = ["date", "yx_shift", "rot_center_yx", "rot_angle"]
         for needed_variable in needed_variables:
             defined_variable = getattr(self, needed_variable)
             if defined_variable == None:
@@ -410,17 +405,8 @@ class Session:
                 old_backup = True
         return old_backup
 
-    def load_data(self, restore=True, regenerate=False):
-        """
-        Load data and related parameters for the session.
-
-        Parameters:
-        - restore (bool, optional): Whether to restore from backup files if updated (default is True).
-        - regenerate (bool, optional): Whether to regenerate data (default is False).
-
-        This function updates file paths, sets processing parameters, and loads data for the session. It provides options to restore from backup files and regenerate data as needed.
-
-        """
+    def load_data(self, restore=True, generate=False, 
+                  regenerate=False, delete=False):
         self.update_paths()
         self.ops = self.set_ops()
         if restore and self.updated:
@@ -536,9 +522,6 @@ class Session:
 
         """
         #Merging cell footprints
-        print(self.animal_id)
-        print(self.session_id)
-        print(self.suite2p_path)
         c = run_cabin_corr(Animal.root_dir, data_dir=self.suite2p_path,
                             animal_id=self.animal_id, session_id=self.session_id, 
                             regenerate=regenerate)
@@ -1473,11 +1456,10 @@ class Merger:
         This function combines metadata from multiple sessions, including the reference session, and saves it to a new YAML file for a merged session. It includes key information such as 'animal_id,' image dimensions, 'merged' status, and a list of session names included in the merge.
 
         """
-        yaml_fname = f"{reference_session.animal_id}_merged.yaml"
+        yaml_fname = f"merged.yaml"
         yaml_path = os.path.join(Animal.root_dir, reference_session.animal_id, "merged", yaml_fname)
 
-        merged_metadata = {"animal_id": reference_session.animal_id,
-                           "image_x_size" : reference_session.image_x_size,
+        merged_metadata = {"image_x_size" : reference_session.image_x_size,
                            "image_y_size" : reference_session.image_y_size,
                            "session_type" : "merged",
                            "sessions" : list(sessions.keys())}

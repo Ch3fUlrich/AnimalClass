@@ -69,63 +69,74 @@ class Animal:
         self.cohort_year = None
         self.dob = None
         self.animal_id = None 
-        self.pdays = None 
-        self.session_dates = None 
-        self.session_names = None 
-        self.sex = None 
-        self.mesc_munit_pairs = None
-        self.load_yaml(yaml_file_path)
+        self.sex = None
+        self.load_metadata(yaml_file_path)
         self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
         if print_loading:
             print(f"Added animal: {self.animal_id}")
 
-    def load_yaml(self, yaml_path):
+    def load_metadata(self, yaml_path):
         with open(yaml_path, "r") as yaml_file:
-            animal_metadata_dict = yaml.safe_load(yaml_file)        
-        self.cohort_year = int(animal_metadata_dict["cohort_year"])
-        self.dob = animal_metadata_dict["dob"]
-        self.animal_id = animal_metadata_dict["name"]
-        self.pdays = [int(pday) for pday in animal_metadata_dict["pdays"]]
-        self.session_dates = animal_metadata_dict["session_dates"]
-        self.session_names = animal_metadata_dict["session_names"]
-        self.sex = animal_metadata_dict["sex"]
-        self.mesc_munit_pairs = animal_metadata_dict["UseMUnits"] if "UseMUnits" in animal_metadata_dict.keys() else None
-        self.funcional_channels = animal_metadata_dict["functional_channels"] if "functional_channels" in animal_metadata_dict.keys() else [1]*len(self.session_dates)
-            
-    def get_session_data(self, session_id, generate=False, regenerate=False, unit_ids="all", print_loading=True, delete=False):
-        yaml_file_index = self.session_names.index(session_id)
+            animal_metadata_dict = yaml.safe_load(yaml_file)
 
-        session_mesc_munit_pairs = []
-        if self.mesc_munit_pairs:
-            for mesc_munit_pair in self.mesc_munit_pairs:
-                mesc_name = mesc_munit_pair
-                if session_id in mesc_name:
-                    session_mesc_munit_pairs.append(mesc_munit_pair)
-        
-        functional_chan = self.funcional_channels[yaml_file_index] if self.funcional_channels else None
-        session = Session(self.animal_id, session_id, 
-                          generate=generate, 
-                          regenerate=regenerate, 
-                          unit_ids=unit_ids, 
-                          delete=delete, 
-                          age=self.pdays[yaml_file_index], 
-                          session_date=self.session_dates[yaml_file_index], 
-                          mesc_munit_pairs=session_mesc_munit_pairs, 
-                          functional_chan=functional_chan,
-                          print_loading=print_loading)
-        self.sessions[session_id] = session
-        self.sessions = {session_id: session for session_id, session in sorted(self.sessions.items())}
+        # Load any additional metadata into session object
+        for variable_name, value in animal_metadata_dict.items():
+            setattr(self, variable_name, value)
+
+        cohort_year = animal_metadata_dict["cohort_year"]
+        self.cohort_year = int(cohort_year) if type(cohort_year)==str else int(cohort_year[0]) if type(cohort_year)==list else cohort_year
+        self.dob = animal_metadata_dict["dob"]
+        for animal_id_key in ["name", "animal_id"]:
+            if animal_id_key in animal_metadata_dict.keys():
+                self.animal_id = animal_metadata_dict["animal_id"]
+        self.sex = animal_metadata_dict["sex"]
+        return animal_metadata_dict
+    
+    def get_session_data(self, path, generate=False, 
+                         regenerate=False, restore=False, 
+                         unit_ids="all", delete=False, print_loading=True):
+        session_yaml_fnames = get_files(path, ending=".yaml")
+        match = None
+        if session_yaml_fnames:
+            for session_yaml_fname in session_yaml_fnames:
+                match = True
+                session_yaml_path = os.path.join(path, session_yaml_fname)
+                session = Session(session_yaml_path,
+                                animal_id=self.animal_id,
+                                unit_ids=unit_ids, #FIXME: how to solve this problem??? 
+                                print_loading=print_loading)
+                #checking if sessin is correct
+                if str(session.date) not in session_yaml_fname and not session.session_type == "merged":
+                    print(f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}")
+                    match = False
+                if match:
+                    session.pday = int(session.date) - int(self.dob) if session.session_type != "merged" else None
+                    session.load_data(restore=restore, generate=generate, regenerate=regenerate, delete=delete)
+                    break
+                else:
+                    print(f"Reading next yaml file")
+        if match:
+            self.sessions[session.session_id] = session
+            self.sessions = {session_id: session for session_id, session in sorted(self.sessions.items())}
+        else:
+            print(f"No matching yaml file found. Skipping session path {path}")
         return session
+
+    def get_pdays(self):
+        pdays = []
+        for session_id, session in self.sessions.items():
+            pdays.append(session.pday)
+        return pdays
 
     def get_overview(self):
         print("-----------------------------------------------")
         print(f"{self.animal_id} born: {self.dob} sex: {self.sex}")
-        overview_df = pd.DataFrame(columns = ['session_name', 'date', 'P', 'suite2p_paths'])#, 'duration [min]'])
-        for session_id, session in self.sessions.items():
-            overview_df.loc[len(overview_df)] = {'session_name': session_id, 'date': session.session_date, 'P':session.age, 'suite2p_folder_paths':session.suite2p_paths}
-        display(overview_df)
+        #TODO: would be usefull for others
+        #overview_df = pd.DataFrame(columns = ['session_name', 'date', 'P', 'suite2p_paths'])#, 'duration [min]'])
+        #for session_id, session in self.sessions.items():
+        #    overview_df.loc[len(overview_df)] = {'session_name': session_id, 'date': session.session_date, 'P':session.age, 'suite2p_folder_paths':session.suite2p_paths}
+        #display(overview_df)
         print("-----------------------------------------------")
-        return overview_df
 
 
 class Session:
@@ -136,146 +147,106 @@ class Session:
     binary_fname = "data.bin"
 
 
-    def __init__(self, animal_id, session_id, generate=False, regenerate=False, mesc_munit_pairs=None,
-                 unit_ids="all", delete=False, age=None, session_date=None, functional_chan=None, print_loading=True) -> None:
-        if print_loading:
-            print(f"Loading session: {animal_id} {session_id}")
+    def __init__(self, yaml_file_path, animal_id=None, generate=False, regenerate=False,
+                 unit_ids="all", delete=False, print_loading=True) -> None:
         self.animal_id = animal_id
-        self.session_id = session_id
-        self.session_date = session_date
-        self.session_dir = os.path.join(Animal.root_dir, animal_id, session_id, Animal.dir_)
-        self.functional_chan = functional_chan
+        self.yaml_file_path = yaml_file_path
+        self.image_x_size = 512
+        self.image_y_size = 512
+        self.functional_chan = 1
+        self.session_id = None
         self.fps = None
-        self.age = age
+        self.date = None
+        self.method = None
+        self.pday = None
+        self.mesc_munit_pairs = None
+
+        # BMI
+        self.yx_shift = None
+        self.rot_center_yx = None
+        self.rot_angle = None
+        self.session_type = None
+        self.water_deprivation = None
+        
+        #FIXME: start working on using different datasets and splitting up if needed...
         self.units = None
+        self.session_dir = None
+        self.suite2p_path = None
+        self.binary_path = None
+        self.refImg = None
+        self.refAndMasks = None
+
+        self.ops = None
         self.merged_unit = None
         self.cell_geldrying = None
         self.cells = None
-        self.updated = None
+        self.c, self.contours, self.footprints = None, None, None
 
-        #TODO: upodate to session yaml_file loding
+        self.load_metadata(yaml_file_path)
+        updated_txt = "updated " if self.session_type else ""
+        if print_loading:
+            #print(f"Initialized {updated_txt}session: {animal_id} {self.session_id}")
+            print(f"Initialized session: {animal_id} {self.session_id}")
+
+    def load_metadata(self, yaml_path):
         """
-        class Animal:
-            def __init__():
-                #self.pdays = None 
-                #self.session_dates = None 
-                #self.session_names = None 
-                #self.session_shifts = None
-                self.load_metadata(yaml_file_path)
-            def load_metadata(self, yaml_path):
-                with open(yaml_path, "r") as yaml_file:
-                    animal_metadata_dict = yaml.safe_load(yaml_file)
-                cohort_year = animal_metadata_dict["cohort_year"]
-                self.cohort_year = int(cohort_year) if type(cohort_year)==str else int(cohort_year[0]) if type(cohort_year)==list else cohort_year
-                self.dob = animal_metadata_dict["dob"]
-                self.animal_id = animal_metadata_dict["name"]
-                self.sex = animal_metadata_dict["sex"]
-                return animal_metadata_dict
-            
-            def get_session_data(self, path,
-                                restore=False,
-                                regenerate=False,
-                                print_loading=True):
-                session_yaml_fnames = get_files(path, ending=".yaml", regex_search=self.animal_id)
-                if session_yaml_fnames:
-                    for session_yaml_fname in session_yaml_fnames:
-                        match = True
-                        session_yaml_path = os.path.join(path, session_yaml_fname)
-                        session = Session(session_yaml_path,
-                                        animal_id=self.animal_id,
-                                        print_loading=print_loading)
-                        if str(session.date) not in session_yaml_fname:
-                            print(f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}")
-                            match = False
-                        if self.animal_id != session.animal_id:
-                            print(f"Yaml file does not match animal_id: {self.animal_id} != {session.animal_id}")
-                            match = False
-                        if match:
-                            session.pday = session.date - self.dob
-                            session.load_data(restore=restore, regenerate=regenerate)
-                            break
-                        else:
-                            print(f"Reading next yaml file")
-                if match:
-                    self.sessions[session.session_id] = session
-                else:
-                    print(f"No matching yaml file found. Skipping session path {path}")
+        Load session metadata from a YAML file and update the session object's attributes.
 
-        class Session:
-            def __init__():
-                self.load_metadata(yaml_file_path)
+        Parameters:
+        - yaml_path (str): Path to the YAML file containing session metadata.
 
-            def load_metadata(self, yaml_path):
-                with open(yaml_path, "r") as yaml_file:
-                    session_metadata_dict = yaml.safe_load(yaml_file)
+        Raises:
+        - NameError: If any of the required metadata variables are not defined in the YAML file.
 
-                for variable_name, value in session_metadata_dict.items():
-                    setattr(self, variable_name, value)
+        This function loads session metadata from a YAML file and assigns the values to the session object's attributes.
+        It also performs some conditional checks and updates specific attributes based on the loaded metadata.
 
-                self.day0 = self.day0 if self.day0 else False
-                self.yx_shift = [0, 0] if self.day0 else self.yx_shift
-                self.rot_angle = 0 if self.day0 else self.rot_angle
-                self.rot_center_yx = [0, 0] if self.day0 else self.rot_center_yx
-                self.session_id = "day0" if self.day0 else self.date
-
-                needed_variables = ["animal_id", "date", "yx_shift", "rot_center_yx", "rot_angle"]
-                for needed_variable in needed_variables:
-                    defined_variable = getattr(self, needed_variable)
-                    if defined_variable == None:
-                        raise NameError(f"Variable {needed_variable} is not defined in yaml file {yaml_path}")
-
-            def load_data(self, restore=True, regenerate=False):
-                self.update_paths()
-                self.ops = self.set_ops()
-                if restore and self.updated:
-                    backup_path_files(self.suite2p_path, restore=restore)
-                self.c, self.contours, self.footprints = self.get_c_contours_footprints(regenerate=regenerate)
         """
+        with open(yaml_path, "r") as yaml_file:
+            session_metadata_dict = yaml.safe_load(yaml_file)
 
-        # load session information
+        # Load any additional metadata into session object
+        for variable_name, value in session_metadata_dict.items():
+            setattr(self, variable_name, value)
+
+        if self.session_type:
+            if self.session_type == "pretraining" or self.session_type == "merged":
+                self.yx_shift = [0, 0]
+                self.rot_angle = 0
+                self.rot_center_yx = [0, 0]
+                self.session_id = self.session_type if self.session_type!="pretraining" else "day0"
+                self.date = "99999999" if self.session_type=="merged" else self.date    
+        if not self.session_id:
+            self.session_id = str(self.date)
+
+        needed_variables = ["date"]
+        for needed_variable in needed_variables:
+            defined_variable = getattr(self, needed_variable)
+            if defined_variable == None:
+                raise NameError(f"Variable {needed_variable} is not defined in yaml file {yaml_path}")
+
+    def update_paths(self):
+        """
+        Update file paths within the session object based on session metadata.
+
+        This function updates file paths within the session object based on session metadata and default values.
+        It constructs paths for the session directory, Suite2P output, and binary data, as well as checks for old backup files.
+
+        """
+        # load session data paths
+        self.session_dir          = os.path.join(Animal.root_dir, 
+                                                 self.animal_id, 
+                                                 str(self.session_id), 
+                                                 Animal.dir_) if not self.session_dir else self.session_dir
         self.mesc_data_paths      = self.get_data_paths(ending="mesc")
-        self.mesc_munit_pairs     = self.define_mesc_munit_pairs(mesc_munit_pairs)
+        self.mesc_munit_pairs     = self.define_mesc_munit_pairs()
         self.tiff_data_paths      = self.get_data_paths(ending="tiff")
         self.session_parts        = self.get_session_parts() 
         self.suite2p_paths        = self.get_data_paths(regex_search="suite2p", folder=True)
-        self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.suite2p_paths] if self.suite2p_paths else None
-        self.cabincorr_data_paths = self.get_data_paths(directories=self.suite2p_plane0_paths, regex_search=Session.cabincorr_fname)
-        self.updated = None 
-
-        # Merging, generating cabincorr. suite2p, tiff from mesc
-        if generate:
-            self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, delete=delete)
-            self.generate_suite2p(generate=generate, regenerate=regenerate, unit_ids=unit_ids, delete=delete)
-            self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
-        
-        # generate top down pricipal
-        #self.self.generate_cabincorr(generate=generate, regenerate=regenerate, unit_ids=unit_ids)
-        if print_loading:
-            print(f"Finished {animal_id}: {session_id}")
-
-    def update_paths(self):
-        self.mesc_data_paths      = self.get_data_paths(ending="mesc")
-        self.tiff_data_paths      = self.get_data_paths(ending="tiff")
-        self.suite2p_paths        = self.get_data_paths(regex_search="suite2p", folder=True)
-        self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.suite2p_paths] if self.suite2p_paths else None
-        self.cabincorr_data_paths = self.get_data_paths(directories=self.suite2p_plane0_paths, regex_search=Session.cabincorr_fname)
-        self.updated = self.old_backup_files(self.suite2p_path)
-
-    def old_backup_files(self, path):
-        old_backup = False
-        backup_path = os.path.join(path, "backup")
-        if os.path.exists(backup_path):
-            suite2p_folder_files_size = 0
-            backup_files_size = 0
-            for file_path in os.listdir(backup_path):
-                if os.path.isfile(file_path):
-                    backup_files_size += os.path.getsize(file_path)
-            for file_path in os.listdir(path):
-                if os.path.isfile(file_path):
-                    suite2p_folder_files_size += os.path.getsize(file_path)
-            if backup_files_size != suite2p_folder_files_size:
-                old_backup = True
-        return old_backup
+        self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") 
+                                     for s2p_fpath in self.suite2p_paths] if self.suite2p_paths else None
+        self.cabincorr_data_paths = self.get_data_paths(directories=self.suite2p_plane0_paths, 
+                                                        regex_search=Session.cabincorr_fname)
 
     def get_data_paths(self, directories=None, ending="", regex_search=None, folder=False):
         # Search for file names with specific ending and naming content
@@ -362,7 +333,10 @@ class Session:
                             number_channels += 1
         return recording_munits, number_channels
 
-    def define_mesc_munit_pairs(self, predefined_pairs=[]):
+    def define_mesc_munit_pairs(self):
+        predefined_pairs = []
+        if "UseMUnits" in self.__dict__:
+            predefined_pairs = self.UseMUnits
         mesc_munit_pairs = []
         for mesc_data_path in self.mesc_data_paths:
             mesc_fnames = mesc_data_path.split("\\")[-1]
@@ -372,11 +346,11 @@ class Session:
                 # skip if mesc file name munits are already defined
                 if mesc_fnames in predef_mesc_name:
                     undefined_mesc_munit_pair = False
+                    break
             if undefined_mesc_munit_pair:
                 # define usefull munit to merge
                 usefull_munits, number_channels = self.get_recording_munits(mesc_data_path)
                 mesc_munit_pairs.append([mesc_fnames, usefull_munits])
-
         mesc_munit_pairs += predefined_pairs
         return mesc_munit_pairs#, number_channels
 
@@ -392,6 +366,38 @@ class Session:
                 unique_combinations.append(unique_combination)
         return unique_combinations
 
+
+
+    def load_data(self, unit_ids="all", restore=True, generate=False,
+                  regenerate=False, delete=False, topdown=False):
+        self.update_paths()
+        #self.ops = self.set_ops()
+        if topdown:
+            # generate top down pricipal
+            self.generate_cabincorr(generate=generate, regenerate=regenerate, 
+                                         unit_ids=unit_ids)
+            units = self.get_units(restore=restore, 
+                                   get_geldrying=True, 
+                                   unit_type="single", 
+                                   generate=generate, 
+                                   regenerate=regenerate)
+        else:
+            # Merging, generating cabincorr. suite2p, tiff from mesc
+            self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, 
+                                         delete=delete)
+            self.generate_suite2p(generate=generate, regenerate=regenerate, 
+                                  unit_ids=unit_ids, delete=delete)
+            self.generate_cabincorr(generate=generate, regenerate=regenerate, 
+                                    unit_ids=unit_ids)
+            #units = self.get_units(restore=restore, 
+            #                       get_geldrying=True, 
+            #                       unit_type="single", 
+            #                       generate=generate, 
+            #                       regenerate=regenerate)
+            #merged_unit = self.merge_units(generate=generate, regenerate=regenerate, 
+            #                      compute_corrs=True, delete_used_subsessions=False)
+            #session.load_corr_matrix(generate=True, regenerate=False, unit_id="merged")
+        
     def generate_tiff_from_mesc(self, wanted_combination=None, generate=False, regenerate=False, delete=False):
         mesc_functional_chan = self.functional_chan-1 # mesc starts with 0, suite2p with 1
         delete = False #TODO: Mesc is probably always usefull.
@@ -951,6 +957,7 @@ class Session:
                 # shift merged mask
                 print(f"Updating Unit {unit_id}")
                 merger.shift_update_unit_s2p_files(unit, merged_stat, image_x_size=image_x_size, image_y_size=image_y_size)
+                #TODO: unit.change_yaml_file("updated", True)
                 updated_units[unit_id] = Unit(unit.suite2p_path, 
                                               session=self, 
                                               unit_id=unit_id, 
@@ -1006,13 +1013,50 @@ class Unit:
         self.refImg = None
         self.yx_shift = [0, 0]
         self.usefull = None
+        
+        #TODO: integrate this into full Class
+        """self.updated = None 
+        self.updated = self.old_backup_files(self.suite2p_path)
+
+        def old_backup_files(self, path):
+            old_backup = False
+            backup_path = os.path.join(path, "backup")
+            if os.path.exists(backup_path):
+                suite2p_folder_files_size = 0
+                backup_files_size = 0
+                for file_path in os.listdir(backup_path):
+                    if os.path.isfile(file_path):
+                        backup_files_size += os.path.getsize(file_path)
+                for file_path in os.listdir(path):
+                    if os.path.isfile(file_path):
+                        suite2p_folder_files_size += os.path.getsize(file_path)
+                if backup_files_size != suite2p_folder_files_size:
+                    old_backup = True
+            return old_backup
+            
+        def set_ops(self, ops=None):
+            if not ops:
+                if not self.ops:
+                    ops_path = os.path.join(self.suite2p_path, "ops.npy")
+                    if os.path.exists(ops_path):
+                        ops = np.load(ops_path, allow_pickle=True).item()
+                    if ops==None:
+                        ops = register.default_ops()
+                    ops["nonrigid"] = False                
+            else:
+                self.ops = ops
+            return self.ops
+        """
 
     def get_c(self, compute_corrs=False, regenerate=False, parallel=True):
         #Merging cell footprints
+        c_object, contours, footprints = None, None, None
         c = run_cabin_corr(Animal.root_dir, data_dir=self.suite2p_path,
                             animal_id=self.animal_id, session_id=self.session_id,
                             compute_corrs=compute_corrs, regenerate=regenerate, parallel=parallel)
-        return c, c.contours, c.footprints
+        if c:
+            c_object, contours, footprints = c, c.contours, c.footprints
+        return c_object, contours, footprints
 
     def get_geldrying_cells(self, regenerate=False, parallel=True, bad_minutes = 1.5, not_bad_minutes=0.5, mode="mean"):
         #detect gel_drying with sliding mean change. Too long increase of mean = bad
@@ -1584,7 +1628,7 @@ class Vizualizer:
         num_corrs = {}
 
         for animal_id, session_id, session in yield_animal_session(filtered_animals):
-            age = session.age
+            age = session.pday
             # show_prints(show=show_print)  FIXME: why not working?
             print(animal_id, session_id)
             corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
@@ -1649,7 +1693,7 @@ class Vizualizer:
                 show_prints(show=True)
                 if type(corr_matrix) != np.ndarray:
                     continue
-                ages.append(session.age)
+                ages.append(session.pday)
                 means.append(np.nanmean(corr_matrix))
                 stds.append(np.nanstd(corr_matrix))
           
@@ -2593,7 +2637,8 @@ class Merger:
         unit.update_s2p_files(shifted_unit_stat)
 
 def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], 
-             generate=False, regenerate=False, unit_ids="all", delete=False, print_loading=True):
+             restore=False, generate=False, regenerate=False, 
+             unit_ids="all", delete=False, print_loading=True):
     """
     Loads animal data from the specified root directory for the given animal IDs.
 
@@ -2614,16 +2659,19 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"],
     # Search for animal_ids
     for animal_id in present_animal_ids:
         if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
-            sessions_path = os.path.join(root_dir, animal_id)
-            present_sessions = get_directories(sessions_path)
+            sessions_root_path = os.path.join(root_dir, animal_id)
+            present_sessions = get_directories(sessions_root_path)
             yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
             animal = Animal(yaml_file_name, print_loading=print_loading)
             Animal.root_dir = root_dir
             # Search for 2P Sessions
             for session in present_sessions:
                 if session in wanted_session_ids or "all" in wanted_session_ids:
-                    animal.get_session_data(session, generate=generate, regenerate=regenerate, 
-                                            unit_ids=unit_ids, delete=delete, print_loading=print_loading)
+                    session_path = os.path.join(sessions_root_path, session)
+                    animal.get_session_data(session_path, restore=restore,
+                                            unit_ids=unit_ids, 
+                                            delete=delete, 
+                                            print_loading=print_loading)
             animals_dict[animal_id] = animal
     animals_dict = {animal_id: animal for animal_id, animal in sorted(animals_dict.items())}
     return animals_dict
