@@ -59,7 +59,7 @@ def get_animal_dict_from_spreadsheet(fname):
         implanted = sheet.cell(row=row, column=13).value 
         implanted = "20"+str(int(implanted)) if implanted else None
         duration = [sheet.cell(row=row, column=14).value] 
-        duration = [None if duration == "n/a" or duration == "" or duration == "?" else duration ]
+        duration = [None if duration == "n/a" or duration == "" or duration == "?" else duration[0] ]
         method = "2P"
         setup = sheet.cell(row=row, column=16).value 
         expt_pipeline = sheet.cell(row=row, column=17).value 
