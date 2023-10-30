@@ -97,6 +97,7 @@ class Animal:
                          unit_ids="all", delete=False, print_loading=True):
         session_yaml_fnames = get_files(path, ending=".yaml")
         match = None
+        session = None
         if session_yaml_fnames:
             for session_yaml_fname in session_yaml_fnames:
                 match = True

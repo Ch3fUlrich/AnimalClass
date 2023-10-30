@@ -92,18 +92,18 @@ def get_animal_dict_from_spreadsheet(fname):
         if not animal_exists:
             animals[animal_id] = create_animal_dict(animal_id=animal_id,
                                                     sex=sex,
-                                                    dob=dob)
+                                                    dob=dob,
+                                                    injected=injected,
+                                                    implanted=implanted)
         
         if session_exists:
             animals[animal_id]["sessions"][date]["duration"].append(duration[0])
             animals[animal_id]["sessions"][date]["underground"].append(underground[0])
             animals[animal_id]["sessions"][date]["cam_data"].append(cam_data[0])
             animals[animal_id]["sessions"][date]["movement_data"].append(movement_data[0])
-            animals[animal_id]["sessions"][date]["session"].append(session[0])
+            animals[animal_id]["sessions"][date]["session_parts"].append(session[0])
         else:
             animals[animal_id]["sessions"][date] = create_session_dict(date=date,
-                                                                      injected=injected,
-                                                                      implanted=implanted,
                                                                       duration=duration,
                                                                       method=method,
                                                                       setup=setup,
@@ -121,7 +121,7 @@ def get_animal_dict_from_spreadsheet(fname):
                                                                       lens=lens,
                                                                       pixels=pixels,
                                                                       n_planes=n_planes,
-                                                                      session=session,
+                                                                      session_parts=session,
                                                                       weight=weight,
                                                                       comment=comment)
     return animals
