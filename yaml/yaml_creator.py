@@ -59,6 +59,7 @@ def get_animal_dict_from_spreadsheet(fname):
         implanted = sheet.cell(row=row, column=13).value 
         implanted = "20"+str(int(implanted)) if implanted else None
         duration = [sheet.cell(row=row, column=14).value] 
+        duration = [None if duration == "n/a" or duration == "" or duration == "?" else duration ]
         method = "2P"
         setup = sheet.cell(row=row, column=16).value 
         expt_pipeline = sheet.cell(row=row, column=17).value 
@@ -140,14 +141,14 @@ def init_animal_dict(animal_id, cohort_year=None, dob=None, sex=None):
 def create_session_dict(**kwargs):
     session_dict = kwargs
     for key, var in session_dict.items():
-        session_dict[key] = None if var == "n/a" or "" else var       
+        session_dict[key] = None if var == "n/a" or var == "" or var == "?" else var       
     #WARNING dob_date.year could be wrong for other 
     return session_dict 
 
 def create_animal_dict(**kwargs):
     animal_dict = kwargs
     for key, var in animal_dict.items():
-        animal_dict[key] = None if var == "n/a" or "" else var
+        animal_dict[key] =  None if var == "n/a" or var == "" or var == "?" else var 
 
     sex = animal_dict["sex"]
     animal_dict["sex"] = "male" if sex == "m" else "female" if sex else None
@@ -202,6 +203,37 @@ def get_animals_from_yaml(directory):
                 del animal[to_delete_key]
     for to_delete_animal in to_delete_animals:
         del animals[to_delete_animal]"""
+    return animals
+
+def combine_spreadsheet_and_old_animal_summary_yaml(animals_spreadsheet, animals_yaml):
+    import copy
+    animals = copy.deepcopy(animals_spreadsheet)
+    for (as_id, sanimal), (ay_id, yanimal) in zip(animals_spreadsheet.items(), animals_yaml.items()):
+        print(as_id, ay_id)
+        if "UseMUnits" in yanimal.keys():
+            usemunits = yanimal["UseMUnits"]
+            if not usemunits:
+                continue   
+            # add munits to session_yaml files
+            for fname, munits in usemunits:
+                for sid, sess in sanimal["sessions"].items():
+                    if sid in fname:
+                        if "UseMUnits" in animals[as_id]["sessions"][sid].keys():
+                            animals[as_id]["sessions"][sid]["UseMUnits"].append([fname, munits])
+                        else:
+                            animals[as_id]["sessions"][sid]["UseMUnits"] = [[fname, munits]]
+
+        sess_dates = yanimal["session_dates"]
+        for date in sess_dates:
+            session_present = False
+            for sid, sess in sanimal["sessions"].items():
+                if sid == date:
+                    session_present = True
+                    break
+            if not session_present:
+                animals[as_id]["sessions"][date] = create_session_dict(date=date,
+                                                                    method="2P",
+                                                                    setup="femtonics")
     return animals
 
 def add_session_animal_folders(animals, animals_spreadsheet, directory=None):
