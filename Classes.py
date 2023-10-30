@@ -107,11 +107,11 @@ class Animal:
                                 unit_ids=unit_ids, #FIXME: how to solve this problem??? 
                                 print_loading=print_loading)
                 #checking if sessin is correct
-                if str(session.date) not in session_yaml_fname and not session.session_type == "merged":
+                if str(session.date) not in session_yaml_fname:
                     print(f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}")
                     match = False
                 if match:
-                    session.pday = int(session.date) - int(self.dob) if session.session_type != "merged" else None
+                    session.pday = int(session.date) - int(self.dob)
                     session.load_data(restore=restore, generate=generate, regenerate=regenerate, delete=delete)
                     break
                 else:
