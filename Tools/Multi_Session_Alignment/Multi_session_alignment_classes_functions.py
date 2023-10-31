@@ -199,7 +199,7 @@ class Animal:
                     print(f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}")
                     match = False
                 if match:
-                    session.pday = session.date - self.dob if session.session_type != "merged" else None
+                    session.pday = (num_to_date(session.date) - num_to_date(self.dob)).days if session.session_type != "merged" else None
                     session.load_data(restore=restore, generate=generate, regenerate=regenerate, delete=delete)
                     break
                 else:

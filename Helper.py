@@ -3,24 +3,11 @@
 import pandas as pd
 import numpy as np
 
-# Plotting
-import matplotlib as mlp
-import matplotlib.pyplot as plt, mpld3 #plotting and html plots
-plt.style.use('dark_background')
-#plt.style.use('default')
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
-
 # Regular Expression searching
 import re
 
-# Suite2p for TIFF file analysis
-import suite2p
-
 # Used for Popups
 import tkinter as tk
-
-import nest_asyncio
 
 # for progress bar support
 from tqdm import tqdm
@@ -30,11 +17,12 @@ import os
 import sys
 import shutil
 import psutil
+from datetime import datetime
+
 
 # statistics
 import scipy
 import math
-
 
 # Mesc file analysis
 import pathlib
@@ -94,6 +82,12 @@ def timer(func):
         print(f"Elapsed time: {end_time - start_time}")
         return result
     return wrapper
+
+def num_to_date(date_string):
+    if type(date_string) != str:
+        date_string = str(date_string)
+    date = datetime.strptime(date_string, '%Y%m%d')
+    return date
 
 def get_num_batches_based_on_available_ram():
     stats = psutil.virtual_memory()  # returns a named tuple

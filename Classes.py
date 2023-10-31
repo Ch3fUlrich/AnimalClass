@@ -59,7 +59,6 @@ from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
 
 
-
 class Animal:
     root_dir = os.path.join("F:", "Steffen_Experiments")
     dir_ = r'002P-F'
@@ -111,7 +110,7 @@ class Animal:
                     print(f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}")
                     match = False
                 if match:
-                    session.pday = int(session.date) - int(self.dob)
+                    session.pday = (num_to_date(session.date) - num_to_date(self.dob)).days
                     session.load_data(restore=restore, generate=generate, regenerate=regenerate, delete=delete)
                     break
                 else:
@@ -161,6 +160,7 @@ class Session:
         self.method = None
         self.pday = None
         self.mesc_munit_pairs = None
+        self.session_parts = None
 
         # BMI
         self.yx_shift = None
@@ -993,10 +993,18 @@ class Unit:
     def __init__(self, suite2p_path, session:Session, unit_id, unit_type, 
                  compute_corrs=False, regenerate=False, parallel=True, print_loading=True):
         self.suite2p_path = suite2p_path
+        self.binary_path = find_binary_fpath(self.suite2p_path)
+        ########################################################################################################################
+        self.duration = None
+        self.session_part = None
+        self.mesc_data_path = None
+        self.underground = None
+        self.movement_data = None
+        self.cam_data = None
+        ########################################################################################################################
         self.animal_id = session.animal_id
         self.session_id = session.session_id
         self.session_dir = session.session_dir
-        self.binary_path = find_binary_fpath(self.suite2p_path)
         self.unit_id = unit_id
         self.unit_type = unit_type
         if print_loading:

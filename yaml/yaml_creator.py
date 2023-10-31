@@ -26,9 +26,6 @@ def row_to_list(sheet, row):
     return result
 
 def num_to_date(date_string):
-    """
-    :parameter add_20 add 20 to the number in front so the date has the format YYYYMMDD
-    """
     if type(date_string) != str:
         date_string = str(date_string)
     date = datetime.strptime(date_string, '%Y%m%d')
@@ -222,7 +219,7 @@ def combine_spreadsheet_and_old_animal_summary_yaml(animals_spreadsheet, animals
                             animals[as_id]["sessions"][sid]["UseMUnits"].append([fname, munits])
                         else:
                             animals[as_id]["sessions"][sid]["UseMUnits"] = [[fname, munits]]
-
+        
         sess_dates = yanimal["session_dates"]
         for date in sess_dates:
             session_present = False
