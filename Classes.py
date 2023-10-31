@@ -964,6 +964,7 @@ class Session:
                                               unit_id=unit_id, 
                                               unit_type=unit.unit_type,
                                               parallel=parallel)
+                updated_units[unit_id].updated = True
                 merged_unit_id += str(unit_id)+"_"
             # concatenate S2P results
             ops = default_ops()
@@ -992,21 +993,39 @@ class Session:
 class Unit:
     def __init__(self, suite2p_path, session:Session, unit_id, unit_type, 
                  compute_corrs=False, regenerate=False, parallel=True, print_loading=True):
-        self.suite2p_path = suite2p_path
-        self.binary_path = find_binary_fpath(self.suite2p_path)
-        ########################################################################################################################
-        self.duration = None
-        self.session_part = None
-        self.mesc_data_path = None
-        self.underground = None
-        self.movement_data = None
-        self.cam_data = None
-        ########################################################################################################################
         self.animal_id = session.animal_id
         self.session_id = session.session_id
         self.session_dir = session.session_dir
         self.unit_id = unit_id
         self.unit_type = unit_type
+        
+        self.suite2p_path = suite2p_path
+        self.binary_path = find_binary_fpath(self.suite2p_path)
+        self.cabincorr_data_path = os.path.join(self.suite2p_path, Session.cabincorr_fname)
+        ########################################################################################################################
+        self.mesc_data_path = None 
+        # Define mesc_data_path 
+        if unit_type == "single":
+            # get mesc file name and munit combinations
+            mesc_munit_combinations = self.get_all_unique_mesc_munit_combinations()
+            suite2p_folder_ending = self.suite2p_path.split("suite2p")[-1]
+            for mesc_munit_combination in mesc_munit_combinations:
+                if suite2p_folder_ending in mesc_munit_combination:
+                    mesc_fname_session_parts, munit = mesc_munit_combination.split("_MUnit_")
+                    self.mesc_data_path = os.path.join(self.session_dir, mesc_fname_session_parts+".mesc")
+        elif unit_type == "summary":
+            self.mesc_data_path = session.mesc_data_paths
+        for mesc_data_path in session.mesc_data_paths:
+
+        #FIXME: get duration, session_part and others
+        # based on position of munit in session.mesc_munit_pairs
+        session.mesc_munit_pairs
+        self.duration = None
+        self.session_part = None
+        self.underground = None
+        self.movement_data = None
+        self.cam_data = None
+        ########################################################################################################################
         if print_loading:
             print(f"Loading Unit {self.animal_id} {self.session_id} {self.unit_id}")
         self.functional_chan = session.functional_chan
@@ -1018,44 +1037,27 @@ class Unit:
         self.cell_geldrying = None
         self.load_geldrying()
         self.cell_geldrying_reasons = None
-        self.ops = self.define_ops()
+        self.ops = self.set_ops()
         self.refImg = None
         self.yx_shift = [0, 0]
         self.usefull = None
-        
-        #TODO: integrate this into full Class
-        """self.updated = None 
         self.updated = self.old_backup_files(self.suite2p_path)
-
-        def old_backup_files(self, path):
-            old_backup = False
-            backup_path = os.path.join(path, "backup")
-            if os.path.exists(backup_path):
-                suite2p_folder_files_size = 0
-                backup_files_size = 0
-                for file_path in os.listdir(backup_path):
-                    if os.path.isfile(file_path):
-                        backup_files_size += os.path.getsize(file_path)
-                for file_path in os.listdir(path):
-                    if os.path.isfile(file_path):
-                        suite2p_folder_files_size += os.path.getsize(file_path)
-                if backup_files_size != suite2p_folder_files_size:
-                    old_backup = True
-            return old_backup
-            
-        def set_ops(self, ops=None):
-            if not ops:
-                if not self.ops:
-                    ops_path = os.path.join(self.suite2p_path, "ops.npy")
-                    if os.path.exists(ops_path):
-                        ops = np.load(ops_path, allow_pickle=True).item()
-                    if ops==None:
-                        ops = register.default_ops()
-                    ops["nonrigid"] = False                
-            else:
-                self.ops = ops
-            return self.ops
-        """
+        
+    def old_backup_files(self, path):
+        old_backup = False
+        backup_path = os.path.join(path, "backup")
+        if os.path.exists(backup_path):
+            suite2p_folder_files_size = 0
+            backup_files_size = 0
+            for file_path in os.listdir(backup_path):
+                if os.path.isfile(file_path):
+                    backup_files_size += os.path.getsize(file_path)
+            for file_path in os.listdir(path):
+                if os.path.isfile(file_path):
+                    suite2p_folder_files_size += os.path.getsize(file_path)
+            if backup_files_size != suite2p_folder_files_size:
+                old_backup = True
+        return old_backup
 
     def get_c(self, compute_corrs=False, regenerate=False, parallel=True):
         #Merging cell footprints
@@ -1104,10 +1106,19 @@ class Unit:
             self.refImg = register.compute_reference(frames, ops=self.ops)
         return self.refImg
     
-    def define_ops(self):
-        ops = register.default_ops()
-        ops["nonrigid"] = False
-        return ops
+    def set_ops(self, ops=None):
+        if not ops:
+            if not self.ops:
+                ops_path = os.path.join(self.suite2p_path, "ops.npy")
+                if os.path.exists(ops_path):
+                    ops = np.load(ops_path, allow_pickle=True).item()
+                if ops==None:
+                    ops = register.default_ops()
+                self.ops = ops
+        else:
+            self.ops = ops
+        self.ops["nonrigid"] = False                
+        return self.ops
     
     def calc_yx_shift(self, refAndMasks, num_align_frames=1000, image_x_size=512, image_y_size=512):
         if self.yx_shift == [0, 0]:

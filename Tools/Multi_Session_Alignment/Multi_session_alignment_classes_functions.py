@@ -436,9 +436,10 @@ class Session:
                     ops = np.load(ops_path, allow_pickle=True).item()
                 if ops==None:
                     ops = register.default_ops()
-                ops["nonrigid"] = False                
+                self.ops = ops
         else:
             self.ops = ops
+        self.ops["nonrigid"] = False                
         return self.ops
 
     def get_reference_image(self, n_frames_to_be_acquired=1000):
