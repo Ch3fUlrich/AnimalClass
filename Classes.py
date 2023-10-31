@@ -286,14 +286,15 @@ class Session:
 
     def get_session_parts(self, file_names = None):
         # get session parts from MESC file name if available
-        file_names = file_names if file_names else self.mesc_data_paths
-        file_names = make_list_ifnot(file_names)
-        session_parts = []
-        for file_name in file_names:
-            last_fname_part = file_name.split("\\")[-1].split("_")[-1].split(".")[0]
-            session_parts += re.findall("S[0-9]", last_fname_part)
+        if not self.session_parts:
+            file_names = file_names if file_names else self.mesc_data_paths
+            file_names = make_list_ifnot(file_names)
+            session_parts = []
+            for file_name in file_names:
+                last_fname_part = file_name.split("\\")[-1].split("_")[-1].split(".")[0]
+                session_parts += re.findall("S[0-9]", last_fname_part)
 
-        self.session_parts = np.unique(session_parts).tolist()
+            self.session_parts = np.unique(session_parts).tolist()
         return self.session_parts
 
     def get_mesc_fps(self, mesc_fpath=None):
@@ -2686,6 +2687,9 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id,
     cabincorr_path = os.path.join(data_dir, "binarized_traces.npz")
     if regenerate:
         del_file_dir(cabincorr_path)
+        if compute_corrs:
+            correlations_path = os.path.join(data_dir, "correlations")
+            del_file_dir(correlations_path)
     c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
 
     c.parallel_flag = parallel
