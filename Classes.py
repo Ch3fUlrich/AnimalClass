@@ -572,17 +572,16 @@ class Session:
             if wanted_combination:
                 wanted_fname = self.fname_extract_sessparts_munits(wanted_combination)
                 s2p_path = standard_s2p_path_naming + "_" + wanted_fname
-                if s2p_path not in self.suite2p_paths:
-                    self.generate_suite2p(wanted_combination=wanted_combination, generate=generate, delete=delete)
+                if not self.suite2p_paths or s2p_path not in self.suite2p_paths:
+                        self.generate_suite2p(wanted_combination=wanted_combination, generate=generate, delete=delete)
             elif unit_ids == "all":
                 s2p_path = standard_s2p_path_naming
-                if s2p_path not in self.suite2p_paths:
-                    self.generate_suite2p(unit_ids="all", generate=generate, delete=delete)
+                if not self.suite2p_paths or s2p_path not in self.suite2p_paths:
+                        self.generate_suite2p(unit_ids="all", generate=generate, delete=delete)
             elif unit_ids == "merged":
                 s2p_path = standard_s2p_path_naming + "_merged"
-                if s2p_path not in self.suite2p_paths:
-                    self.merge_units(unit_type="single", 
-                                     delete_used_subsessions=delete)
+                if not self.suite2p_paths or s2p_path not in self.suite2p_paths:
+                        self.merge_units(unit_type="single", delete_used_subsessions=delete)
             elif unit_ids == "single":
                 suite2p_paths = []
                 for mesc_munit_combination in self.get_all_unique_mesc_munit_combinations():
@@ -807,7 +806,7 @@ class Session:
             unit_id = s2p_path.split("suite2p")[-1]
             unit_id = unit_id[1:] if len(unit_id) > 0 else unit_id
             unit_type = "summary" if unit_id in summary_suite2p_folder_endings else "single"
-            if s2p_path not in self.suite2p_paths:
+            if not self.suite2p_paths or s2p_path not in self.suite2p_paths:
                 if unit_id == "merged":
                     continue
                 print(f"No s2p folder found for {unit_id}: {s2p_path}.")

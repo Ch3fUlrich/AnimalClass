@@ -90,9 +90,10 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
     viz = Vizualizer(animals, save_dir = Animal.root_dir)
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
-            if len(session.mesc_data_paths)>1:
-                print(f"Skipping, has more than 2 mesc files")
-                continue
+            #if len(session.mesc_data_paths)>1:
+            #    print(f"Skipping, has more than 2 mesc files")
+            #    continue
+
             #if animal_id in skip_animal and session_id in skip_session:
             #    continue
             print(f"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Starting {animal_id} {session_id} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
@@ -102,7 +103,8 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             print(f"-----------------------------------Loading Units-----------------------------------")
             units = session.get_units(restore=True, get_geldrying=True, 
                                       unit_type="single", generate=True, 
-                                      regenerate=regenerate)
+                                      regenerate=False)
+                                      #FIXME: regenerate=regenerate)
             """print(f"-----------------------------------Merging Units-----------------------------------")
             merged_unit = session.merge_units(generate=True, 
                                               regenerate=regenerate, 
