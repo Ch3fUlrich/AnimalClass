@@ -1336,7 +1336,7 @@ class Unit:
         # Initiate unit properties
         self.mesc_data_path = None
         self.session_part = None
-        self.get_attributes_from_session(self, session)
+        self.get_attributes_from_session(session)
 
         if print_loading:
             print(f"Loading Unit {self.animal_id} {self.session_id} {self.unit_id}")
@@ -1352,7 +1352,8 @@ class Unit:
         self.cell_geldrying = None
         self.load_geldrying()
         self.cell_geldrying_reasons = None
-        self.ops = self.set_ops()
+        self.ops = None
+        self.set_ops()
         self.refImg = None
         self.yx_shift = [0, 0]
         self.usefull = None
@@ -1391,7 +1392,7 @@ class Unit:
         # Define mesc_data_path
         if self.unit_type == "single":
             # get mesc file name and munit combinations
-            mesc_munit_combinations = self.get_all_unique_mesc_munit_combinations()
+            mesc_munit_combinations = session.get_all_unique_mesc_munit_combinations()
             suite2p_folder_ending = self.suite2p_path.split("suite2p")[-1]
             for mesc_munit_combination in mesc_munit_combinations:
                 if suite2p_folder_ending in mesc_munit_combination:
