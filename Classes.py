@@ -998,11 +998,15 @@ class Unit:
         self.session_dir = session.session_dir
         self.unit_id = unit_id
         self.unit_type = unit_type
-        
         self.suite2p_path = suite2p_path
         self.binary_path = find_binary_fpath(self.suite2p_path)
         self.cabincorr_data_path = os.path.join(self.suite2p_path, Session.cabincorr_fname)
-        ########################################################################################################################
+        ########################################
+        self.duration = None
+        self.session_part = None
+        self.underground = None
+        self.movement_data = None
+        self.cam_data = None
         self.mesc_data_path = None 
         # Define mesc_data_path 
         if unit_type == "single":
@@ -1013,19 +1017,37 @@ class Unit:
                 if suite2p_folder_ending in mesc_munit_combination:
                     mesc_fname_session_parts, munit = mesc_munit_combination.split("_MUnit_")
                     self.mesc_data_path = os.path.join(self.session_dir, mesc_fname_session_parts+".mesc")
-        elif unit_type == "summary":
-            self.mesc_data_path = session.mesc_data_paths
-        for mesc_data_path in session.mesc_data_paths:
+            #FIXME: get duration, session_part and others
+            # based on position of munit in session.mesc_munit_pairs
 
-        #FIXME: get duration, session_part and others
-        # based on position of munit in session.mesc_munit_pairs
-        session.mesc_munit_pairs
-        self.duration = None
-        self.session_part = None
-        self.underground = None
-        self.movement_data = None
-        self.cam_data = None
-        ########################################################################################################################
+            # get munit index and set metadata based on parts
+            if self.mesc_data_path:
+                mesc_data_fname = os.path.split(self.mesc_data_path)
+                for mesc_fname, munits in session.mesc_munit_pairs:
+                    if mesc_data_fname == mesc_fname:
+                        munit_index = munits.index(self.unit_id)
+                        mesc_session_parts = re.findall("S[0-9]", mesc_fname)
+                        self.session_part = mesc_session_parts[munit_index]
+
+            for mesc_data_path in session.mesc_data_paths:
+
+            session.mesc_munit_pairs
+            self.duration = None
+            self.session_part = None
+            self.underground = None
+            self.movement_data = None
+            self.cam_data = None
+            ###################################
+        elif unit_type == "summary": #set to session metadata
+            self.mesc_data_path = session.mesc_data_paths
+            self.duration = session.duration
+            self.session_part = session.session_part
+            self.underground = session.underground
+            self.movement_data = session.movement_data
+            self.cam_data = session.cam_data
+        else:
+            print(f"Unknown unit_type: {unit_type}")
+
         if print_loading:
             print(f"Loading Unit {self.animal_id} {self.session_id} {self.unit_id}")
         self.functional_chan = session.functional_chan
