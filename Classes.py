@@ -3650,11 +3650,14 @@ def run_compute_correlations(c, parallel=True, min_number_bursts=0):
 
 
 def delete_bin_tiff_s2p_intermediate(
-    session, binary=True, tiff=True, intermediate_s2p=True
+    session, binary=True, tiff=True, intermediate_s2p=False
 ):
     # Delete binaries
     del_tiff = True
     for s2p_folder in session.suite2p_paths:
+        binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
+        binary_backup_path = os.path.join(s2p_folder, "plane0", "backup", "data.bin")
+
         s2p_folder_ending = s2p_folder.split("suite2p")[-1]
         iscell_path = os.path.join(s2p_folder, "plane0", Session.iscell_fname)
         iscell_count = -1
@@ -3667,14 +3670,10 @@ def delete_bin_tiff_s2p_intermediate(
         if os.path.exists(notgel_path):
             notgel = np.load(notgel_path) == 0
             notgel_count = sum(notgel)
-        if s2p_folder_ending == "":
-            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
+        if s2p_folder_ending == "" or iscell_count != -1 and notgel_count != -1:
             if binary:
                 del_file_dir(binary_path)
-        elif iscell_count != -1 and notgel_count != -1:
-            binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
-            if binary:
-                del_file_dir(binary_path)
+                del_file_dir(binary_backup_path)
         else:
             del_tiff = False
 
