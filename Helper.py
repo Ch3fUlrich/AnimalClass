@@ -27,15 +27,17 @@ import math
 # Mesc file analysis
 import pathlib
 import h5py
+
 # add root directory to be able to import packages
 # todo: make all packages installable so they can be called/imported by environment
-#module_path = os.path.abspath(os.path.join('../'))
-#print(module_path)
-#sys.path.append(module_path)
-global old_stdout 
+# module_path = os.path.abspath(os.path.join('../'))
+# print(module_path)
+# sys.path.append(module_path)
+global old_stdout
 
 import time
 from multiprocessing import Pool
+
 
 def gif_to_mp4(path):
     """
@@ -50,15 +52,18 @@ def gif_to_mp4(path):
         None
     """
     import moviepy.editor as mp
+
     clip = mp.VideoFileClip(path)
-    save_path = path.replace('.gif', '.mp4')
+    save_path = path.replace(".gif", ".mp4")
     clip.write_videofile(save_path)
 
+
 def show_mesc_units(path):
-    h5 = h5py.File(path, 'r')
-    for munit_id, MUnits in h5['MSession_0'].items():
+    h5 = h5py.File(path, "r")
+    for munit_id, MUnits in h5["MSession_0"].items():
         print(munit_id)
-        print(MUnits['Channel_0'])
+        print(MUnits["Channel_0"])
+
 
 def yield_animal_session(animal_dict):
     """
@@ -74,6 +79,7 @@ def yield_animal_session(animal_dict):
         for session_id, session in animal.sessions.items():
             yield animal_id, session_id, session
 
+
 def timer(func):
     def wrapper(*args, **kwargs):
         start_time = time.time()
@@ -81,19 +87,22 @@ def timer(func):
         end_time = time.time()
         print(f"Elapsed time: {end_time - start_time}")
         return result
+
     return wrapper
+
 
 def num_to_date(date_string):
     if type(date_string) != str:
         date_string = str(date_string)
-    date = datetime.strptime(date_string, '%Y%m%d')
+    date = datetime.strptime(date_string, "%Y%m%d")
     return date
+
 
 def get_num_batches_based_on_available_ram():
     stats = psutil.virtual_memory()  # returns a named tuple
-    available = getattr(stats, 'available')
-    byte_to_gb = 1/1000000000
-    available_ram_gb = available*byte_to_gb
+    available = getattr(stats, "available")
+    byte_to_gb = 1 / 1000000000
+    available_ram_gb = available * byte_to_gb
     print("Setting Number of Batches according to free RAM")
     num_batches = 16
     num_batches_range = [12, 8, 4, 2, 1]
@@ -101,11 +110,15 @@ def get_num_batches_based_on_available_ram():
     for batches, ram in zip(num_batches_range, ram_range):
         if available_ram_gb > ram:
             num_batches = batches
-    print(f"Available RAM: {round(available_ram_gb)}GB setting number of batches to {num_batches}")
+    print(
+        f"Available RAM: {round(available_ram_gb)}GB setting number of batches to {num_batches}"
+    )
     return num_batches
+
 
 def make_list_ifnot(string_or_list):
     return [string_or_list] if type(string_or_list) != list else string_or_list
+
 
 def save_file_present(file_path):
     fname = file_path.split("\\")[-1]
@@ -117,7 +130,12 @@ def save_file_present(file_path):
         print(f"Saving {fname} to {file_path}")
     return file_present
 
-def find_binary_fpath(data_path, subdirectories=["data"], possible_binary_fnames=["data.bin", "Image_001_001.raw"]):
+
+def find_binary_fpath(
+    data_path,
+    subdirectories=["data"],
+    possible_binary_fnames=["data.bin", "Image_001_001.raw"],
+):
     """
     Searches for binary files in the specified data path and its subdirectories.
 
@@ -132,23 +150,31 @@ def find_binary_fpath(data_path, subdirectories=["data"], possible_binary_fnames
     subdirectories = make_list_ifnot(subdirectories)
     possible_binary_fnames = make_list_ifnot(possible_binary_fnames)
     binary_fpath = None
-    possible_binary_data_paths = [data_path] + [os.path.join(data_path, subdirectory) for subdirectory in subdirectories]
+    possible_binary_data_paths = [data_path] + [
+        os.path.join(data_path, subdirectory) for subdirectory in subdirectories
+    ]
     for possible_binary_data_path in possible_binary_data_paths:
         for possible_binary_fname in possible_binary_fnames:
-            binary_file_path = os.path.join(possible_binary_data_path, possible_binary_fname)
+            binary_file_path = os.path.join(
+                possible_binary_data_path, possible_binary_fname
+            )
             if os.path.exists(binary_file_path):
                 binary_fpath = binary_file_path
                 break
         if binary_fpath:
             break
     if not binary_fpath:
-        print(f"No binary path to {possible_binary_fnames} found in {possible_binary_data_paths}")
+        print(
+            f"No binary path to {possible_binary_fnames} found in {possible_binary_data_paths}"
+        )
     return binary_fpath
+
 
 def remove_rows_cols(data, remove_rows, remove_cols):
     data = np.delete(data, remove_rows, 0)
     data = np.delete(data, remove_cols, 1)
     return data
+
 
 def extract_cell_numbers(animals):
     """
@@ -176,37 +202,51 @@ def extract_cell_numbers(animals):
                 iscell_path = os.path.join(path, "iscell.npy")
                 cell_drying_path = os.path.join(path, "cell_drying.npy")
                 corr_path = os.path.join(path, "allcell_corr_pval_zscore.npy")
-                if path_ending=="":
-                    cell_numbers["iscell"], cell_numbers["corr"] = get_cellnum_check_corr(iscell_path, corr_path)
+                if path_ending == "":
+                    (
+                        cell_numbers["iscell"],
+                        cell_numbers["corr"],
+                    ) = get_cellnum_check_corr(iscell_path, corr_path)
                 elif path_ending == "_merged":
-                    cell_numbers["not_geldrying"], cell_numbers["gel_corr"] = get_cellnum_check_corr(cell_drying_path, corr_path, geldrying=True)
+                    (
+                        cell_numbers["not_geldrying"],
+                        cell_numbers["gel_corr"],
+                    ) = get_cellnum_check_corr(
+                        cell_drying_path, corr_path, geldrying=True
+                    )
 
             ages.append(session.age)
             cell_numbers_dict[animal_id][session_id] = cell_numbers
         cell_numbers_dict[animal_id]["ages"] = ages
     return cell_numbers_dict
 
+
 def get_cellnum_check_corr(cell_path, corr_path, geldrying=False):
     if os.path.exists(cell_path):
         iscell = np.load(cell_path)
-        cell_number = sum(np.array(iscell==False, dtype="int32")) if geldrying else int(np.sum(iscell[:,0]))
+        cell_number = (
+            sum(np.array(iscell == False, dtype="int32"))
+            if geldrying
+            else int(np.sum(iscell[:, 0]))
+        )
     else:
         cell_number = -1
     corr_present = True if os.path.exists(corr_path) else False
     return cell_number, corr_present
 
+
 def summary_df_s2p_vs_geldrying(cell_numbers_dict):
     """
     Generates a summary DataFrame comparing Suite2p and gel drying results.
 
-    This function takes as input a dictionary containing cell numbers data for multiple animals. The dictionary keys are animal IDs and 
-    the values are data structures containing information about the cells for each animal. The function processes this data to generate a 
-    summary DataFrame comparing the results of Suite2p and gel drying for each animal. The resulting DataFrame has one row for each animal 
-    and columns for various summary statistics, including the number of cells identified by Suite2p, the number of cells not affected by gel 
+    This function takes as input a dictionary containing cell numbers data for multiple animals. The dictionary keys are animal IDs and
+    the values are data structures containing information about the cells for each animal. The function processes this data to generate a
+    summary DataFrame comparing the results of Suite2p and gel drying for each animal. The resulting DataFrame has one row for each animal
+    and columns for various summary statistics, including the number of cells identified by Suite2p, the number of cells not affected by gel
     drying, the proportion of cells that survived gel drying, and the proportion of sessions that failed for each method.
 
     Args:
-        cell_numbers_dict (Dict[str, Any]): A dictionary containing cell numbers data for multiple animals. The keys are animal IDs and the 
+        cell_numbers_dict (Dict[str, Any]): A dictionary containing cell numbers data for multiple animals. The keys are animal IDs and the
         values are data structures containing information about the cells for each animal.
 
     Returns:
@@ -214,52 +254,97 @@ def summary_df_s2p_vs_geldrying(cell_numbers_dict):
     """
     data = []
     for animal_id, animal in cell_numbers_dict.items():
-        sorted_ages, iscells, notgeldrying, corr, gel_corr = get_sorted_cells_notgeldyring_lists(animal)
+        (
+            sorted_ages,
+            iscells,
+            notgeldrying,
+            corr,
+            gel_corr,
+        ) = get_sorted_cells_notgeldyring_lists(animal)
         sumiscells = sum(iscells)
         sumnotgeldrying = sum(notgeldrying)
-        survived_cells = sumnotgeldrying/sumiscells
+        survived_cells = sumnotgeldrying / sumiscells
         sess_count = len(iscells)
-        failed_S2P = sum(np.array(iscells)==-1)/sess_count #f"{sum(np.array(iscells)==0)/sess_count:.2%}"
-        failed_own = sum(np.array(notgeldrying)==-1)/sess_count #f"{sum(np.array(notgeldrying)==0)/sess_count:.2%}"
-        failed_corr = sum(np.array(corr)==False)/sess_count 
-        failed_gel_corr = sum(np.array(gel_corr)==False)/sess_count 
-        data.append([animal_id, sumiscells, sumnotgeldrying, survived_cells, sess_count, failed_S2P, failed_own, failed_corr, failed_gel_corr])
+        failed_S2P = (
+            sum(np.array(iscells) == -1) / sess_count
+        )  # f"{sum(np.array(iscells)==0)/sess_count:.2%}"
+        failed_own = (
+            sum(np.array(notgeldrying) == -1) / sess_count
+        )  # f"{sum(np.array(notgeldrying)==0)/sess_count:.2%}"
+        failed_corr = sum(np.array(corr) == False) / sess_count
+        failed_gel_corr = sum(np.array(gel_corr) == False) / sess_count
+        data.append(
+            [
+                animal_id,
+                sumiscells,
+                sumnotgeldrying,
+                survived_cells,
+                sess_count,
+                failed_S2P,
+                failed_own,
+                failed_corr,
+                failed_gel_corr,
+            ]
+        )
 
-    pipeline_stats = pd.DataFrame(data, columns=
-                                  ["animal_id", "iscells", "notgeldrying", 
-                                   "survived_cells", "sess count", 
-                                   "Failed_S2P", "Failed_Own",
-                                   "Failed_corr", "Failed_gel_corr"])
+    pipeline_stats = pd.DataFrame(
+        data,
+        columns=[
+            "animal_id",
+            "iscells",
+            "notgeldrying",
+            "survived_cells",
+            "sess count",
+            "Failed_S2P",
+            "Failed_Own",
+            "Failed_corr",
+            "Failed_gel_corr",
+        ],
+    )
     pipeline_stats = pipeline_stats.set_index("animal_id")
     pipeline_stats = pipeline_stats.sort_index()
     return pipeline_stats
 
-def get_cells_pdays_df(cell_numbers_dict, suite2p_cells = False):
-    #show tabular visualization of usefull mice
+
+def get_cells_pdays_df(cell_numbers_dict, suite2p_cells=False):
+    # show tabular visualization of usefull mice
     animal_ids = list(cell_numbers_dict.keys())
 
     ages = []
     for animal_id, animal in cell_numbers_dict.items():
-        sorted_ages, iscells, notgeldrying, corr, gel_corr = get_sorted_cells_notgeldyring_lists(animal)
+        (
+            sorted_ages,
+            iscells,
+            notgeldrying,
+            corr,
+            gel_corr,
+        ) = get_sorted_cells_notgeldyring_lists(animal)
         ages += list(sorted_ages)
     ages = np.unique(ages)
 
-    #create pday_cell_count_dict and set num_cells to -1 for all ages
+    # create pday_cell_count_dict and set num_cells to -1 for all ages
     pday_cell_count_dict = {}
     for animal_id in animal_ids:
         pday_cell_count_dict[animal_id] = {}
         for age in ages:
             pday_cell_count_dict[animal_id][age] = -1
 
-    #set pday_cell_count_dict[animal_id][age] to the number of not geldrdying cells
+    # set pday_cell_count_dict[animal_id][age] to the number of not geldrdying cells
     for animal_id, animal in cell_numbers_dict.items():
-        sorted_ages, iscells, notgeldrying, corr, gel_corr = get_sorted_cells_notgeldyring_lists(animal)
+        (
+            sorted_ages,
+            iscells,
+            notgeldrying,
+            corr,
+            gel_corr,
+        ) = get_sorted_cells_notgeldyring_lists(animal)
         cell_count = iscells if suite2p_cells else notgeldrying
         for age, session_cells in zip(sorted_ages, cell_count):
             pday_cell_count_dict[animal_id][age] = session_cells
 
     pday_cell_count_df = pd.DataFrame(pday_cell_count_dict).transpose()
     return pday_cell_count_df
+
 
 def get_sorted_cells_notgeldyring_lists(cell_numbers_dict):
     """
@@ -282,19 +367,27 @@ def get_sorted_cells_notgeldyring_lists(cell_numbers_dict):
         notgeldrying.append(cell_numbers_dict[sessiondate]["not_geldrying"])
         corrs.append(cell_numbers_dict[sessiondate]["corr"])
         gel_corrs.append(cell_numbers_dict[sessiondate]["gel_corr"])
-    return np.array(sorted_ages), np.array(iscells), np.array(notgeldrying), np.array(corrs), np.array(gel_corrs)
-    
+    return (
+        np.array(sorted_ages),
+        np.array(iscells),
+        np.array(notgeldrying),
+        np.array(corrs),
+        np.array(gel_corrs),
+    )
+
+
 def show_prints(show=True):
     if show:
         # Restore
         sys.stdout = old_stdout if old_stdout else sys.stdout
     else:
         # Disable
-        if old_stdout not in globals(): 
+        if old_stdout not in globals():
             old_stdout = sys.stdout
-        sys.stdout = open(os.devnull, 'w')
+        sys.stdout = open(os.devnull, "w")
 
-def filter_animals(animal_dict, filters = []):
+
+def filter_animals(animal_dict, filters=[]):
     """
     Filters the animal dictionary based on the specified filters.
 
@@ -312,7 +405,7 @@ def filter_animals(animal_dict, filters = []):
             if filter == animal_id:
                 tmp_animal_dict[animal_id] = animal
                 continue
-            if animal.cohort_year == filter: 
+            if animal.cohort_year == filter:
                 tmp_animal_dict[animal_id] = animal
                 continue
             if filter == "male" or filter == "female":
@@ -320,6 +413,7 @@ def filter_animals(animal_dict, filters = []):
                 continue
         filtered_animal_dict = tmp_animal_dict
     return filtered_animal_dict
+
 
 def get_age_range(animal_dict):
     """
@@ -333,7 +427,7 @@ def get_age_range(animal_dict):
     - max_age (int): The maximum age value found among all animals.
     """
     ages_list = []
-    min_age = float('inf')
+    min_age = float("inf")
     max_age = 0
     for animal_id, animal in animal_dict.items():
         pdays = animal.get_pdays()
@@ -341,8 +435,9 @@ def get_age_range(animal_dict):
         min_age = min(pdays) if min(pdays) < min_age else min_age
         max_age = max(pdays) if max(pdays) > max_age else max_age
     unique_sorted_ages = np.unique(ages_list)
-    unique_sorted_ages.sort() 
+    unique_sorted_ages.sort()
     return unique_sorted_ages, min_age, max_age
+
 
 def split_array(arr, batch_size):
     """
@@ -359,7 +454,8 @@ def split_array(arr, batch_size):
         batch_size = len(arr)
     else:
         batch_size = int(batch_size)
-    return [arr[i:i+batch_size] for i in range(0, len(arr), batch_size)]
+    return [arr[i : i + batch_size] for i in range(0, len(arr), batch_size)]
+
 
 ### Popups
 def yes_no_q(Question):
@@ -372,6 +468,7 @@ def yes_no_q(Question):
     Returns:
         bool: True if the user clicked "Yes", False if the user clicked "No".
     """
+
     def on_button_click(button_text):
         global result
         result = button_text
@@ -390,7 +487,8 @@ def yes_no_q(Question):
 
     root.mainloop()
 
-    return True if result=="Yes" else False
+    return True if result == "Yes" else False
+
 
 #### directory, file search
 def dir_exist_create(directory):
@@ -407,6 +505,7 @@ def dir_exist_create(directory):
     if not os.path.exists(directory):
         # Create the directory
         os.makedirs(directory)
+
 
 def file_exist_rename(data_path, fname, fname_new, reset=False):
     """
@@ -446,6 +545,7 @@ def file_exist_rename(data_path, fname, fname_new, reset=False):
         else:
             del_file_dir(fpath)
 
+
 def create_dirs(dirs):
     """
     Create a new directory hierarchy.
@@ -462,18 +562,21 @@ def create_dirs(dirs):
         dir_exist_create(new_path)
     return new_path
 
-#reset files S2P files to original ones
+
+# reset files S2P files to original ones
 def reset_s2p_files(data_path):
     data_path = os.path.join(data_path)
-    file_exist_rename(data_path, "F.npy", 'F_old.npy', reset=True)
-    file_exist_rename(data_path, "Fneu.npy", 'Fneu_old.npy', reset=True)
-    file_exist_rename(data_path, "iscell.npy", 'iscell_old.npy', reset=True)
-    file_exist_rename(data_path, "ops.npy", 'ops_old.npy', reset=True)
-    file_exist_rename(data_path, "spks.npy", 'spks_old.npy', reset=True)
-    file_exist_rename(data_path, "stat.npy", 'stat_old.npy', reset=True)
+    file_exist_rename(data_path, "F.npy", "F_old.npy", reset=True)
+    file_exist_rename(data_path, "Fneu.npy", "Fneu_old.npy", reset=True)
+    file_exist_rename(data_path, "iscell.npy", "iscell_old.npy", reset=True)
+    file_exist_rename(data_path, "ops.npy", "ops_old.npy", reset=True)
+    file_exist_rename(data_path, "spks.npy", "spks_old.npy", reset=True)
+    file_exist_rename(data_path, "stat.npy", "stat_old.npy", reset=True)
 
-def backup_path_files(data_path, backup_folder_name="backup", 
-                      redo_backup=False, restore=False):
+
+def backup_path_files(
+    data_path, backup_folder_name="backup", redo_backup=False, restore=False
+):
     data_path = os.path.join(data_path)
     if os.path.exists(data_path):
         backup_path = os.path.join(data_path, backup_folder_name)
@@ -492,6 +595,62 @@ def backup_path_files(data_path, backup_folder_name="backup",
                     print("Backup path already exists. Skipping")
     else:
         print("Data path does not exist. Skipping Backup")
+
+
+def set_object_attributes(
+    propertie_name_list, set_object, get_object=None, propertie_values=None
+):
+    """
+    Set attributes of a target object based on a list of property names and values.
+
+    This function allows you to set attributes on a target object (the 'set_object') based on a list of
+    property names provided in 'propertie_name_list' and corresponding values. You can specify these
+    values directly through 'propertie_values' or retrieve them from another object ('get_object').
+    If 'propertie_values' is not provided, this function will attempt to fetch the values from the
+    'get_object' using the specified property names.
+
+    Args:
+        propertie_name_list (list): A list of property names to set on the 'set_object.'
+        set_object (object): The target object for attribute assignment.
+        get_object (object, optional): The source object to retrieve property values from. Default is None.
+        propertie_values (list, optional): A list of values corresponding to the property names.
+            Default is None.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If the number of properties in 'propertie_name_list' does not match the number of values
+            provided in 'propertie_values' (if 'propertie_values' is specified).
+
+    Example Usage:
+        # Example 1: Set attributes directly with values
+        set_object_attributes(["attr1", "attr2"], my_object, propertie_values=[value1, value2])
+
+        # Example 2: Retrieve attribute values from another object
+        set_object_attributes(["attr1", "attr2"], my_object, get_object=source_object)
+    """
+    propertie_name_list = list(propertie_name_list)
+    if propertie_values:
+        propertie_values = list(propertie_values)
+        if len(propertie_values) != len(propertie_name_list):
+            raise ValueError(
+                f"Number of properties does not match given propertie values: {len(propertie_name_list)} != {len(propertie_values)}"
+            )
+    elif get_object:
+        propertie_values = []
+        for propertie in propertie_name_list:
+            if propertie in get_object.__dict__.keys():
+                propertie_values.append(getattr(get_object, propertie))
+            else:
+                propertie_values.append(None)
+
+    propertie_values = (
+        propertie_values if propertie_values else [None] * len(propertie_name_list)
+    )
+    for propertie, value in zip(propertie_name_list, propertie_values):
+        setattr(set_object, propertie, value)
+
 
 def del_file_dir(fpath):
     """
@@ -515,42 +674,56 @@ def del_file_dir(fpath):
         else:
             shutil.rmtree(fpath)
 
+
 def get_directories(directory, regex_search=""):
     """
     This function returns a list of directories from the specified directory that match the regular expression search pattern.
-    
+
     Parameters:
     directory (str): The directory path where to look for directories.
     regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all directories are included.
-    
+
     Returns:
     list: A list of directory names that match the regular expression search pattern.
     """
     directories = None
     if os.path.exists(directory):
-        directories = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0]
+        directories = [
+            name
+            for name in os.listdir(directory)
+            if os.path.isdir(os.path.join(directory, name))
+            and len(re.findall(regex_search, name)) > 0
+        ]
     else:
         print(f"Directory does not exist: {directory}")
     return directories
 
+
 def get_files(directory, ending="", regex_search=""):
     """
     This function returns a list of files from the specified directory that match the regular expression search pattern and have the specified file ending.
-    
+
     Parameters:
     directory (str): The directory path where to look for files.
     ending (str, optional): The file ending to match. Default is '', which means all file endings are included.
     regex_search (str, optional): The regular expression pattern to match. Default is an empty string, which means all files are included.
-    
+
     Returns:
     list: A list of file names that match the regular expression search pattern and have the specified file ending.
     """
     files_list = None
     if os.path.exists(directory):
-        files_list = [name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name)) and len(re.findall(regex_search, name))>0 and name.endswith(ending)]
+        files_list = [
+            name
+            for name in os.listdir(directory)
+            if os.path.isfile(os.path.join(directory, name))
+            and len(re.findall(regex_search, name)) > 0
+            and name.endswith(ending)
+        ]
     else:
         print(f"Directory does not exist: {directory}")
     return files_list
+
 
 def search_file(directory, filename):
     """

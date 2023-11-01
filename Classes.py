@@ -6,9 +6,10 @@ import numpy as np
 
 # Plotting
 import matplotlib as mlp
-import matplotlib.pyplot as plt, mpld3 #plotting and html plots
-plt.style.use('dark_background')
-#plt.style.use('default')
+import matplotlib.pyplot as plt, mpld3  # plotting and html plots
+
+plt.style.use("dark_background")
+# plt.style.use('default')
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.patches import Rectangle
@@ -27,6 +28,7 @@ import tkinter as tk
 import nest_asyncio
 
 import parmap
+
 # for progress bar support
 from tqdm import tqdm
 
@@ -51,9 +53,9 @@ import pathlib
 
 # add root directory to be able to import packages
 # todo: make all packages installable so they can be called/imported by environment
-#module_path = os.path.abspath(os.path.join('../'))
-#print(module_path)
-#sys.path.append(module_path)
+# module_path = os.path.abspath(os.path.join('../'))
+# print(module_path)
+# sys.path.append(module_path)
 from Helper import *
 from manifolds.donlabtools.utils.calcium import calcium
 from manifolds.donlabtools.utils.calcium.calcium import *
@@ -61,13 +63,13 @@ from manifolds.donlabtools.utils.calcium.calcium import *
 
 class Animal:
     root_dir = os.path.join("F:", "Steffen_Experiments")
-    dir_ = r'002P-F'
-    
+    dir_ = r"002P-F"
+
     def __init__(self, yaml_file_path, print_loading=True) -> None:
         self.sessions = {}
         self.cohort_year = None
         self.dob = None
-        self.animal_id = None 
+        self.animal_id = None
         self.sex = None
         self.load_metadata(yaml_file_path)
         self.animal_dir = os.path.join(Animal.root_dir, self.animal_id)
@@ -79,21 +81,37 @@ class Animal:
             animal_metadata_dict = yaml.safe_load(yaml_file)
 
         # Load any additional metadata into session object
-        for variable_name, value in animal_metadata_dict.items():
-            setattr(self, variable_name, value)
+        set_object_attributes(
+            propertie_name_list=animal_metadata_dict.keys(),
+            set_object=self,
+            propertie_values=animal_metadata_dict.values(),
+        )
 
         cohort_year = animal_metadata_dict["cohort_year"]
-        self.cohort_year = int(cohort_year) if type(cohort_year)==str else int(cohort_year[0]) if type(cohort_year)==list else cohort_year
+        self.cohort_year = (
+            int(cohort_year)
+            if type(cohort_year) == str
+            else int(cohort_year[0])
+            if type(cohort_year) == list
+            else cohort_year
+        )
         self.dob = animal_metadata_dict["dob"]
         for animal_id_key in ["name", "animal_id"]:
             if animal_id_key in animal_metadata_dict.keys():
                 self.animal_id = animal_metadata_dict["animal_id"]
         self.sex = animal_metadata_dict["sex"]
         return animal_metadata_dict
-    
-    def get_session_data(self, path, generate=False, 
-                         regenerate=False, restore=False, 
-                         unit_ids="all", delete=False, print_loading=True):
+
+    def get_session_data(
+        self,
+        path,
+        generate=False,
+        regenerate=False,
+        restore=False,
+        unit_ids="all",
+        delete=False,
+        print_loading=True,
+    ):
         session_yaml_fnames = get_files(path, ending=".yaml")
         match = None
         session = None
@@ -101,23 +119,37 @@ class Animal:
             for session_yaml_fname in session_yaml_fnames:
                 match = True
                 session_yaml_path = os.path.join(path, session_yaml_fname)
-                session = Session(session_yaml_path,
-                                animal_id=self.animal_id,
-                                unit_ids=unit_ids, #FIXME: how to solve this problem??? 
-                                print_loading=print_loading)
-                #checking if sessin is correct
+                session = Session(
+                    session_yaml_path,
+                    animal_id=self.animal_id,
+                    unit_ids=unit_ids,  # FIXME: how to solve this problem???
+                    print_loading=print_loading,
+                )
+                # checking if sessin is correct
                 if str(session.date) not in session_yaml_fname:
-                    print(f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}")
+                    print(
+                        f"Yaml file naming does not match session date: {session_yaml_fname} != {session.date}"
+                    )
                     match = False
                 if match:
-                    session.pday = (num_to_date(session.date) - num_to_date(self.dob)).days
-                    session.load_data(restore=restore, generate=generate, regenerate=regenerate, delete=delete)
+                    session.pday = (
+                        num_to_date(session.date) - num_to_date(self.dob)
+                    ).days
+                    session.load_data(
+                        restore=restore,
+                        generate=generate,
+                        regenerate=regenerate,
+                        delete=delete,
+                    )
                     break
                 else:
                     print(f"Reading next yaml file")
         if match:
             self.sessions[session.session_id] = session
-            self.sessions = {session_id: session for session_id, session in sorted(self.sessions.items())}
+            self.sessions = {
+                session_id: session
+                for session_id, session in sorted(self.sessions.items())
+            }
         else:
             print(f"No matching yaml file found. Skipping session path {path}")
         return session
@@ -131,11 +163,11 @@ class Animal:
     def get_overview(self):
         print("-----------------------------------------------")
         print(f"{self.animal_id} born: {self.dob} sex: {self.sex}")
-        #TODO: would be usefull for others
-        #overview_df = pd.DataFrame(columns = ['session_name', 'date', 'P', 'suite2p_paths'])#, 'duration [min]'])
-        #for session_id, session in self.sessions.items():
+        # TODO: would be usefull for others
+        # overview_df = pd.DataFrame(columns = ['session_name', 'date', 'P', 'suite2p_paths'])#, 'duration [min]'])
+        # for session_id, session in self.sessions.items():
         #    overview_df.loc[len(overview_df)] = {'session_name': session_id, 'date': session.session_date, 'P':session.age, 'suite2p_folder_paths':session.suite2p_paths}
-        #display(overview_df)
+        # display(overview_df)
         print("-----------------------------------------------")
 
 
@@ -146,47 +178,57 @@ class Session:
     iscell_fname = "iscell.npy"
     binary_fname = "data.bin"
 
-
-    def __init__(self, yaml_file_path, animal_id=None, generate=False, regenerate=False,
-                 unit_ids="all", delete=False, print_loading=True) -> None:
+    def __init__(
+        self,
+        yaml_file_path,
+        animal_id=None,
+        generate=False,
+        regenerate=False,
+        unit_ids="all",
+        delete=False,
+        print_loading=True,
+    ) -> None:
         self.animal_id = animal_id
         self.yaml_file_path = yaml_file_path
         self.image_x_size = 512
         self.image_y_size = 512
         self.functional_chan = 1
-        self.session_id = None
-        self.fps = None
-        self.date = None
-        self.method = None
-        self.pday = None
-        self.mesc_munit_pairs = None
-        self.session_parts = None
 
-        # BMI
-        self.yx_shift = None
-        self.rot_center_yx = None
-        self.rot_angle = None
-        self.session_type = None
-        self.water_deprivation = None
-        
-        #FIXME: start working on using different datasets and splitting up if needed...
-        self.units = None
-        self.session_dir = None
-        self.suite2p_path = None
-        self.binary_path = None
-        self.refImg = None
-        self.refAndMasks = None
+        # Initiate session properties
+        properties = [
+            "session_id",
+            "fps",
+            "date",
+            "method",
+            "pday",
+            "mesc_munit_pairs",
+            "session_parts",  # session attributes
+            "yx_shift",
+            "rot_center_yx",
+            "rot_angle",
+            "session_type",
+            "water_deprivation",  # BMI
+            "units",
+            "session_dir",
+            "suite2p_path",
+            "binary_path",
+            "refImg",
+            "refAndMasks",
+            "c",
+            "contours",
+            "footprints",
+            "ops",
+            "merged_unit",
+            "cell_geldrying",
+            "cells",
+        ]
+        set_object_attributes(properties, self)
 
-        self.ops = None
-        self.merged_unit = None
-        self.cell_geldrying = None
-        self.cells = None
-        self.c, self.contours, self.footprints = None, None, None
-
+        # FIXME: start working on using different datasets and splitting up if needed...
         self.load_metadata(yaml_file_path)
         updated_txt = "updated " if self.session_type else ""
         if print_loading:
-            #print(f"Initialized {updated_txt}session: {animal_id} {self.session_id}")
+            # print(f"Initialized {updated_txt}session: {animal_id} {self.session_id}")
             print(f"Initialized session: {animal_id} {self.session_id}")
 
     def load_metadata(self, yaml_path):
@@ -207,16 +249,21 @@ class Session:
             session_metadata_dict = yaml.safe_load(yaml_file)
 
         # Load any additional metadata into session object
-        for variable_name, value in session_metadata_dict.items():
-            setattr(self, variable_name, value)
+        set_object_attributes(
+            propertie_name_list=session_metadata_dict.keys(),
+            set_object=self,
+            propertie_values=session_metadata_dict.values(),
+        )
 
         if self.session_type:
             if self.session_type == "pretraining" or self.session_type == "merged":
                 self.yx_shift = [0, 0]
                 self.rot_angle = 0
                 self.rot_center_yx = [0, 0]
-                self.session_id = self.session_type if self.session_type!="pretraining" else "day0"
-                self.date = "99999999" if self.session_type=="merged" else self.date    
+                self.session_id = (
+                    self.session_type if self.session_type != "pretraining" else "day0"
+                )
+                self.date = "99999999" if self.session_type == "merged" else self.date
         if not self.session_id:
             self.session_id = str(self.date)
 
@@ -224,7 +271,9 @@ class Session:
         for needed_variable in needed_variables:
             defined_variable = getattr(self, needed_variable)
             if defined_variable == None:
-                raise NameError(f"Variable {needed_variable} is not defined in yaml file {yaml_path}")
+                raise NameError(
+                    f"Variable {needed_variable} is not defined in yaml file {yaml_path}"
+                )
 
     def update_paths(self):
         """
@@ -235,21 +284,30 @@ class Session:
 
         """
         # load session data paths
-        self.session_dir          = os.path.join(Animal.root_dir, 
-                                                 self.animal_id, 
-                                                 str(self.session_id), 
-                                                 Animal.dir_) if not self.session_dir else self.session_dir
-        self.mesc_data_paths      = self.get_data_paths(ending="mesc")
-        self.mesc_munit_pairs     = self.define_mesc_munit_pairs()
-        self.tiff_data_paths      = self.get_data_paths(ending="tiff")
-        self.session_parts        = self.get_session_parts() 
-        self.suite2p_paths        = self.get_data_paths(regex_search="suite2p", folder=True)
-        self.suite2p_plane0_paths = [os.path.join(s2p_fpath, "plane0") 
-                                     for s2p_fpath in self.suite2p_paths] if self.suite2p_paths else None
-        self.cabincorr_data_paths = self.get_data_paths(directories=self.suite2p_plane0_paths, 
-                                                        regex_search=Session.cabincorr_fname)
+        self.session_dir = (
+            os.path.join(
+                Animal.root_dir, self.animal_id, str(self.session_id), Animal.dir_
+            )
+            if not self.session_dir
+            else self.session_dir
+        )
+        self.mesc_data_paths = self.get_data_paths(ending="mesc")
+        self.mesc_munit_pairs = self.define_mesc_munit_pairs()
+        self.tiff_data_paths = self.get_data_paths(ending="tiff")
+        self.session_parts = self.get_session_parts()
+        self.suite2p_paths = self.get_data_paths(regex_search="suite2p", folder=True)
+        self.suite2p_plane0_paths = (
+            [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.suite2p_paths]
+            if self.suite2p_paths
+            else None
+        )
+        self.cabincorr_data_paths = self.get_data_paths(
+            directories=self.suite2p_plane0_paths, regex_search=Session.cabincorr_fname
+        )
 
-    def get_data_paths(self, directories=None, ending="", regex_search=None, folder=False):
+    def get_data_paths(
+        self, directories=None, ending="", regex_search=None, folder=False
+    ):
         # Search for file names with specific ending and naming content
         directories = make_list_ifnot(directories)
         fpaths = None
@@ -257,16 +315,22 @@ class Session:
             if not directory:
                 directory = self.session_dir
             if not regex_search:
-                regex_search = "S[0-9]" if ending=="mesc" else "MUnit" if ending=="tiff" else ""
+                regex_search = (
+                    "S[0-9]"
+                    if ending == "mesc"
+                    else "MUnit"
+                    if ending == "tiff"
+                    else ""
+                )
             if folder:
-                if regex_search=="suite2p":
+                if regex_search == "suite2p":
                     directory = os.path.join(directory, "tif")
-                else: 
+                else:
                     directory = os.path.join(directory)
                 fnames = get_directories(directory, regex_search=regex_search)
             else:
                 fnames = get_files(directory, ending=ending, regex_search=regex_search)
-        
+
             directory_fpaths = None
             if fnames:
                 directory_fpaths = []
@@ -275,8 +339,12 @@ class Session:
                     usefull = True
                     fpath = os.path.join(directory, fname)
 
-                    if regex_search=="suite2p" and folder: #auto filter for usefull suite2p folders
-                        fluorescence_path = search_file(fpath, Session.fluoresence_fname)
+                    if (
+                        regex_search == "suite2p" and folder
+                    ):  # auto filter for usefull suite2p folders
+                        fluorescence_path = search_file(
+                            fpath, Session.fluoresence_fname
+                        )
                         usefull = True if fluorescence_path else False
 
                     if usefull:
@@ -284,7 +352,7 @@ class Session:
                 fpaths += directory_fpaths
         return fpaths
 
-    def get_session_parts(self, file_names = None):
+    def get_session_parts(self, file_names=None):
         # get session parts from MESC file name if available
         if not self.session_parts:
             file_names = file_names if file_names else self.mesc_data_paths
@@ -304,31 +372,53 @@ class Session:
         if not mesc_fpath:
             mesc_fpath = self.mesc_data_paths[0]
         if mesc_fpath:
-            with h5py.File(mesc_fpath, 'r') as file:
-                msessions = [msession_data for name, msession_data in file.items() if "MSession" in name]
+            with h5py.File(mesc_fpath, "r") as file:
+                msessions = [
+                    msession_data
+                    for name, msession_data in file.items()
+                    if "MSession" in name
+                ]
                 msession = msessions[0]
-                #msession_attribute_names = list(msession.attrs.keys())
-                munits = [munit_data for name, munit_data in msession.items() if "MUnit" in name] if len(msessions)>0 else []
-                #munit_attribute_names = list(munit.attrs.keys())
-                frTimes = [munit.attrs["ZAxisConversionConversionLinearScale"] for munit in munits] if len(munits)>0 else None
+                # msession_attribute_names = list(msession.attrs.keys())
+                munits = (
+                    [
+                        munit_data
+                        for name, munit_data in msession.items()
+                        if "MUnit" in name
+                    ]
+                    if len(msessions) > 0
+                    else []
+                )
+                # munit_attribute_names = list(munit.attrs.keys())
+                frTimes = (
+                    [
+                        munit.attrs["ZAxisConversionConversionLinearScale"]
+                        for munit in munits
+                    ]
+                    if len(munits) > 0
+                    else None
+                )
                 if frTimes:
-                    frTime = max(frTimes) #in milliseconds
-                    self.fps = 1000/frTime 
+                    frTime = max(frTimes)  # in milliseconds
+                    self.fps = 1000 / frTime
         else:
-                print(f"No mesc path found in {self.session_dir}")
+            print(f"No mesc path found in {self.session_dir}")
         return self.fps
-    
-    def get_recording_munits(self, mesc_fpath, fps = 30, at_least_minutes_of_recording=5):
+
+    def get_recording_munits(self, mesc_fpath, fps=30, at_least_minutes_of_recording=5):
         # Get MUnit number list of first Mescfile session MSession_0
-        with h5py.File(mesc_fpath, 'r') as file:
+        with h5py.File(mesc_fpath, "r") as file:
             munits = file[list(file.keys())[0]]
             recording_munits = []
             for name, unit in munits.items():
                 # if recording has at least x minutes
-                if unit["Channel_0"].shape[0] > fps*60*at_least_minutes_of_recording: 
+                if (
+                    unit["Channel_0"].shape[0]
+                    > fps * 60 * at_least_minutes_of_recording
+                ):
                     unit_number = name.split("_")[-1]
                     recording_munits.append(int(unit_number))
-                    # get number of imaging channels 
+                    # get number of imaging channels
                     number_channels = 0
                     for key in unit.keys():
                         if "Channel" in key:
@@ -351,10 +441,12 @@ class Session:
                     break
             if undefined_mesc_munit_pair:
                 # define usefull munit to merge
-                usefull_munits, number_channels = self.get_recording_munits(mesc_data_path)
+                usefull_munits, number_channels = self.get_recording_munits(
+                    mesc_data_path
+                )
                 mesc_munit_pairs.append([mesc_fnames, usefull_munits])
         mesc_munit_pairs += predefined_pairs
-        return mesc_munit_pairs#, number_channels
+        return mesc_munit_pairs  # , number_channels
 
     def get_all_unique_mesc_munit_combinations(self, mesc_munit_pairs=None):
         # get all possible tiff file names
@@ -368,61 +460,92 @@ class Session:
                 unique_combinations.append(unique_combination)
         return unique_combinations
 
-
-
-    def load_data(self, unit_ids="all", restore=True, generate=False,
-                  regenerate=False, delete=False, topdown=False):
+    def load_data(
+        self,
+        unit_ids="all",
+        restore=True,
+        generate=False,
+        regenerate=False,
+        delete=False,
+        topdown=False,
+    ):
         self.update_paths()
-        #self.ops = self.set_ops()
+        # self.ops = self.set_ops()
         if topdown:
             # generate top down pricipal
-            self.generate_cabincorr(generate=generate, regenerate=regenerate, 
-                                         unit_ids=unit_ids)
-            units = self.get_units(restore=restore, 
-                                   get_geldrying=True, 
-                                   unit_type="single", 
-                                   generate=generate, 
-                                   regenerate=regenerate)
+            self.generate_cabincorr(
+                generate=generate, regenerate=regenerate, unit_ids=unit_ids
+            )
+            units = self.get_units(
+                restore=restore,
+                get_geldrying=True,
+                unit_type="single",
+                generate=generate,
+                regenerate=regenerate,
+            )
         else:
             # Merging, generating cabincorr. suite2p, tiff from mesc
-            self.generate_tiff_from_mesc(generate=generate, regenerate=regenerate, 
-                                         delete=delete)
-            self.generate_suite2p(generate=generate, regenerate=regenerate, 
-                                  unit_ids=unit_ids, delete=delete)
-            self.generate_cabincorr(generate=generate, regenerate=regenerate, 
-                                    unit_ids=unit_ids)
-            #units = self.get_units(restore=restore, 
-            #                       get_geldrying=True, 
-            #                       unit_type="single", 
-            #                       generate=generate, 
+            self.generate_tiff_from_mesc(
+                generate=generate, regenerate=regenerate, delete=delete
+            )
+            self.generate_suite2p(
+                generate=generate,
+                regenerate=regenerate,
+                unit_ids=unit_ids,
+                delete=delete,
+            )
+            self.generate_cabincorr(
+                generate=generate, regenerate=regenerate, unit_ids=unit_ids
+            )
+            # units = self.get_units(restore=restore,
+            #                       get_geldrying=True,
+            #                       unit_type="single",
+            #                       generate=generate,
             #                       regenerate=regenerate)
-            #merged_unit = self.merge_units(generate=generate, regenerate=regenerate, 
+            # merged_unit = self.merge_units(generate=generate, regenerate=regenerate,
             #                      compute_corrs=True, delete_used_subsessions=False)
-            #session.load_corr_matrix(generate=True, regenerate=False, unit_id="merged")
-        
-    def generate_tiff_from_mesc(self, wanted_combination=None, generate=False, regenerate=False, delete=False):
-        mesc_functional_chan = self.functional_chan-1 # mesc starts with 0, suite2p with 1
-        delete = False #TODO: Mesc is probably always usefull.
+            # session.load_corr_matrix(generate=True, regenerate=False, unit_id="merged")
+
+    def generate_tiff_from_mesc(
+        self, wanted_combination=None, generate=False, regenerate=False, delete=False
+    ):
+        mesc_functional_chan = (
+            self.functional_chan - 1
+        )  # mesc starts with 0, suite2p with 1
+        delete = False  # TODO: Mesc is probably always usefull.
         self.tiff_data_paths = [] if generate and regenerate else self.tiff_data_paths
         self.tiff_data_paths = [] if not self.tiff_data_paths else self.tiff_data_paths
 
         if generate:
-            # get all possible tiff file names or create specific tiff file 
-            mesc_munit_combinations = [wanted_combination] if wanted_combination else self.get_all_unique_mesc_munit_combinations()
+            # get all possible tiff file names or create specific tiff file
+            mesc_munit_combinations = (
+                [wanted_combination]
+                if wanted_combination
+                else self.get_all_unique_mesc_munit_combinations()
+            )
             for mesc_munit_combination in mesc_munit_combinations:
                 # if tiff file name is not in tiff_data_paths, generate it
-                mesc_fname_session_parts, munit = mesc_munit_combination.split("_MUnit_")
-                tiff_path = os.path.join(self.session_dir, mesc_munit_combination+".tiff")
+                mesc_fname_session_parts, munit = mesc_munit_combination.split(
+                    "_MUnit_"
+                )
+                tiff_path = os.path.join(
+                    self.session_dir, mesc_munit_combination + ".tiff"
+                )
                 if tiff_path not in self.tiff_data_paths:
-                    mesc_path = os.path.join("\\".join(tiff_path.split("\\")[:-1]), mesc_fname_session_parts +".mesc")
+                    mesc_path = os.path.join(
+                        "\\".join(tiff_path.split("\\")[:-1]),
+                        mesc_fname_session_parts + ".mesc",
+                    )
                     munit_naming = f"MUnit_{munit}"
 
-                    print("Merging Mesc to Tiff...")                
+                    print("Merging Mesc to Tiff...")
                     data = []
-                    with h5py.File(mesc_path, 'r') as file:
-                        print (f"processing: {munit_naming}")
-                        temp = file['MSession_0'][munit_naming][f'Channel_{mesc_functional_chan}'][()]
-                        print ("    data loaded size: ", temp.shape)
+                    with h5py.File(mesc_path, "r") as file:
+                        print(f"processing: {munit_naming}")
+                        temp = file["MSession_0"][munit_naming][
+                            f"Channel_{mesc_functional_chan}"
+                        ][()]
+                        print("    data loaded size: ", temp.shape)
                         data.append(temp)
                     data = np.vstack(data)
                     print(data.shape)
@@ -438,20 +561,34 @@ class Session:
 
             self.tiff_data_paths = self.get_data_paths(ending="tiff")
         return tiff_path if wanted_combination else self.tiff_data_paths
-    
-    def fname_extract_sessparts_munits(self, fname:str, return_string=True, session_regex="S[0-9]", munit_regex="MUnit_[0-9]"):
-        session_parts = re.findall(session_regex, fname) #find corresponding session parts
-        munit_parts = re.findall(munit_regex, fname) #find MUnit naming
+
+    def fname_extract_sessparts_munits(
+        self,
+        fname: str,
+        return_string=True,
+        session_regex="S[0-9]",
+        munit_regex="MUnit_[0-9]",
+    ):
+        session_parts = re.findall(
+            session_regex, fname
+        )  # find corresponding session parts
+        munit_parts = re.findall(munit_regex, fname)  # find MUnit naming
         if return_string:
-            unique_name = f"{'-'.join(session_parts)}_{munit_parts[0]}" #TODO: not suieted for multiple munit naming
+            unique_name = f"{'-'.join(session_parts)}_{munit_parts[0]}"  # TODO: not suieted for multiple munit naming
             return unique_name
         return session_parts, munit_parts
-    
-    def generate_suite2p(self, wanted_combination=None, generate=False, 
-                         regenerate=False, unit_ids="all", delete=False):
+
+    def generate_suite2p(
+        self,
+        wanted_combination=None,
+        generate=False,
+        regenerate=False,
+        unit_ids="all",
+        delete=False,
+    ):
         self.suite2p_paths = [] if generate and regenerate else self.suite2p_paths
         s2p_root_folder_path = os.path.join(self.session_dir, "tif")
-        
+
         if generate:
             if not self.suite2p_paths:
                 dir_exist_create(s2p_root_folder_path)
@@ -467,32 +604,56 @@ class Session:
                 mesc_munit_combinations = [""]
             else:
                 raise ValueError("Only options single or all are allowed for unit_ids")
-            
+
             for mesc_munit_combination in mesc_munit_combinations:
                 # if s2p_path is not in suite2p_paths, generate it
-                unique_s2p_folder_ending = "_"+self.fname_extract_sessparts_munits(mesc_munit_combination) if mesc_munit_combination!="" else ""
+                unique_s2p_folder_ending = (
+                    "_" + self.fname_extract_sessparts_munits(mesc_munit_combination)
+                    if mesc_munit_combination != ""
+                    else ""
+                )
                 suite2p_path = standard_s2p_path_naming + unique_s2p_folder_ending
                 if suite2p_path not in self.suite2p_paths:
                     dir_exist_create(suite2p_path)
                     # standard suite2p run
                     if mesc_munit_combination == "":
-                        print(f"Generating all possible and missing tiff files for {suite2p_path}")
-                        tiff_data_paths = self.generate_tiff_from_mesc(generate=generate, delete=delete)
-                        tiff_fnames = [tiff_data_path.split("\\")[-1] for tiff_data_path in tiff_data_paths]
-                        #TODO: how to decide which files first?
-                        self.run_suite2p(tiff_fnames, save_folder=suite2p_path, 
-                                    reuse_bin=False, delete_bin=True, move_bin=False)
+                        print(
+                            f"Generating all possible and missing tiff files for {suite2p_path}"
+                        )
+                        tiff_data_paths = self.generate_tiff_from_mesc(
+                            generate=generate, delete=delete
+                        )
+                        tiff_fnames = [
+                            tiff_data_path.split("\\")[-1]
+                            for tiff_data_path in tiff_data_paths
+                        ]
+                        # TODO: how to decide which files first?
+                        self.run_suite2p(
+                            tiff_fnames,
+                            save_folder=suite2p_path,
+                            reuse_bin=False,
+                            delete_bin=True,
+                            move_bin=False,
+                        )
                     else:
                         # Single unit mesc runmerge_units
                         tiff_fname = None
-                        self.tiff_data_paths = [] if not self.tiff_data_paths else self.tiff_data_paths
+                        self.tiff_data_paths = (
+                            [] if not self.tiff_data_paths else self.tiff_data_paths
+                        )
                         for tiff_data_path in self.tiff_data_paths:
                             if mesc_munit_combination in tiff_data_path:
                                 tiff_fname = tiff_data_path.split("\\")[-1]
                                 break
                         if not tiff_fname:
-                            print(f"Generating missing tiff file for {mesc_munit_combination}")
-                            tiff_data_path = self.generate_tiff_from_mesc(wanted_combination=mesc_munit_combination, generate=generate, delete=delete)
+                            print(
+                                f"Generating missing tiff file for {mesc_munit_combination}"
+                            )
+                            tiff_data_path = self.generate_tiff_from_mesc(
+                                wanted_combination=mesc_munit_combination,
+                                generate=generate,
+                                delete=delete,
+                            )
                             tiff_fname = tiff_data_path.split("\\")[-1]
                         if tiff_fname:
                             self.run_suite2p(tiff_fname, save_folder=suite2p_path)
@@ -510,21 +671,30 @@ class Session:
         self.tiff_data_paths = self.get_data_paths(ending="tiff")
         return self.suite2p_paths
 
-    def run_suite2p(self, tiff_fnames, save_folder,
-                    reuse_bin=True, delete_old_temp_bin=True, 
-                    delete_bin=False, move_bin=True, fps=30, batch_size=500):
-        
+    def run_suite2p(
+        self,
+        tiff_fnames,
+        save_folder,
+        reuse_bin=True,
+        delete_old_temp_bin=True,
+        delete_bin=False,
+        move_bin=True,
+        fps=30,
+        batch_size=500,
+    ):
         print(f"Starting Suite2p... saving in {save_folder}")
-        
-        if type(tiff_fnames)==str:
+
+        if type(tiff_fnames) == str:
             tiff_fnames = [tiff_fnames]
-        
+
         # set your options for running
-        ops = default_ops() # populates ops with the default options
+        ops = default_ops()  # populates ops with the default options
 
         # deleting binary file from old s2p run
         if delete_old_temp_bin:
-            s2p_temp_binary_location = os.path.join(self.session_dir, "suite2p", "plane0", "data.bin")
+            s2p_temp_binary_location = os.path.join(
+                self.session_dir, "suite2p", "plane0", "data.bin"
+            )
             print(f"Deleting old binary file from {s2p_temp_binary_location}")
             del_file_dir(s2p_temp_binary_location)
 
@@ -538,34 +708,45 @@ class Session:
         # provide an h5 path in 'h5py' or a tiff path in 'data_path'
         # db overwrites any ops (allows for experiment specific settings)
         db = {
-            'batch_size': batch_size,      # we will decrease the batch_size in case low RAM on computer
-            'fs': fps,               # sampling rate of recording, determines binning for cell detection
-            'look_one_level_down': False, # whether to look in ALL subfolders when searching for tiffs
-            'data_path': [self.session_dir], # a list of folders with tiffs 
+            "batch_size": batch_size,  # we will decrease the batch_size in case low RAM on computer
+            "fs": fps,  # sampling rate of recording, determines binning for cell detection
+            "look_one_level_down": False,  # whether to look in ALL subfolders when searching for tiffs
+            "data_path": [self.session_dir],  # a list of folders with tiffs
             #'functional_chan': self.functional_chan,
-                                    # (or folder of folders with tiffs if look_one_level_down is True, or subfolders is not empty)
-            'save_folder': save_folder,
+            # (or folder of folders with tiffs if look_one_level_down is True, or subfolders is not empty)
+            "save_folder": save_folder,
             #'threshold_scaling': 2.0, # we are increasing the threshold for finding ROIs to limit the number of non-cell ROIs found (sometimes useful in gcamp injections)
             #'tau': 1.25,           # timescale of gcamp to use for deconvolution
             #'nimg_init': 500,      # Can create errors... how many frames to use to compute reference image for registration
-            'tiff_list': tiff_fnames,
-            'allow_overlap': False,  #extract signals from pixels which belong to two ROIs. By default, any pixels which belong to two ROIs (overlapping pixels) are excluded from the computation of the ROI trace.
-            'delete_bin': delete_bin,    # delete binary files afterwards
-            'keep_movie_raw': False, # keep the binary file of the non-registered frames
+            "tiff_list": tiff_fnames,
+            "allow_overlap": False,  # extract signals from pixels which belong to two ROIs. By default, any pixels which belong to two ROIs (overlapping pixels) are excluded from the computation of the ROI trace.
+            "delete_bin": delete_bin,  # delete binary files afterwards
+            "keep_movie_raw": False,  # keep the binary file of the non-registered frames
             #'reg_tif': True,        # write the registered binary to tiff files
-            'move_bin': move_bin,       # If True and ops['fast_disk'] is different from ops[save_disk], the created binary file is moved to ops['save_disk']
-            'save_disk': os.path.join(self.session_dir, save_folder) # Move the bin files to this location afterwards
+            "move_bin": move_bin,  # If True and ops['fast_disk'] is different from ops[save_disk], the created binary file is moved to ops['save_disk']
+            "save_disk": os.path.join(
+                self.session_dir, save_folder
+            )  # Move the bin files to this location afterwards
             #'combined': False      # combine results across planes in separate folder “combined” at end of processing.
-            }
-        
+        }
+
         # run one experiment
         opsEnd = run_s2p(ops=ops, db=db)
         print("Finished Suite2p.")
 
-    def generate_cabincorr(self, wanted_combination=None, generate=False, 
-                            regenerate=False, unit_ids="all", delete=False,
-                            compute_corrs=False, parallel=True): 
-        self.cabincorr_data_paths = [] if not self.cabincorr_data_paths else self.cabincorr_data_paths
+    def generate_cabincorr(
+        self,
+        wanted_combination=None,
+        generate=False,
+        regenerate=False,
+        unit_ids="all",
+        delete=False,
+        compute_corrs=False,
+        parallel=True,
+    ):
+        self.cabincorr_data_paths = (
+            [] if not self.cabincorr_data_paths else self.cabincorr_data_paths
+        )
 
         if generate:
             s2p_root_folder_path = os.path.join(self.session_dir, "tif")
@@ -574,35 +755,59 @@ class Session:
                 wanted_fname = self.fname_extract_sessparts_munits(wanted_combination)
                 s2p_path = standard_s2p_path_naming + "_" + wanted_fname
                 if not self.suite2p_paths or s2p_path not in self.suite2p_paths:
-                        self.generate_suite2p(wanted_combination=wanted_combination, generate=generate, delete=delete)
+                    self.generate_suite2p(
+                        wanted_combination=wanted_combination,
+                        generate=generate,
+                        delete=delete,
+                    )
             elif unit_ids == "all":
                 s2p_path = standard_s2p_path_naming
                 if not self.suite2p_paths or s2p_path not in self.suite2p_paths:
-                        self.generate_suite2p(unit_ids="all", generate=generate, delete=delete)
+                    self.generate_suite2p(
+                        unit_ids="all", generate=generate, delete=delete
+                    )
             elif unit_ids == "merged":
                 s2p_path = standard_s2p_path_naming + "_merged"
                 if not self.suite2p_paths or s2p_path not in self.suite2p_paths:
-                        self.merge_units(unit_type="single", delete_used_subsessions=delete)
+                    self.merge_units(unit_type="single", delete_used_subsessions=delete)
             elif unit_ids == "single":
                 suite2p_paths = []
-                for mesc_munit_combination in self.get_all_unique_mesc_munit_combinations():
+                for (
+                    mesc_munit_combination
+                ) in self.get_all_unique_mesc_munit_combinations():
                     # if s2p_path is not in suite2p_paths, generate it
-                    unique_s2p_folder_ending = self.fname_extract_sessparts_munits(mesc_munit_combination)
-                    suite2p_path = standard_s2p_path_naming + "_" + unique_s2p_folder_ending
+                    unique_s2p_folder_ending = self.fname_extract_sessparts_munits(
+                        mesc_munit_combination
+                    )
+                    suite2p_path = (
+                        standard_s2p_path_naming + "_" + unique_s2p_folder_ending
+                    )
                     if suite2p_path not in self.suite2p_paths:
-                        self.generate_suite2p(wanted_combination=mesc_munit_combination, generate=generate, delete=delete)
+                        self.generate_suite2p(
+                            wanted_combination=mesc_munit_combination,
+                            generate=generate,
+                            delete=delete,
+                        )
                         suite2p_paths.append(suite2p_path)
                 s2p_path = suite2p_paths
             else:
-                raise ValueError("Only options [single, all, merged] are allowed for unit_ids")
-            
-            s2p_paths_to_look_at = [s2p_path] if type(s2p_path)!=list else s2p_path
+                raise ValueError(
+                    "Only options [single, all, merged] are allowed for unit_ids"
+                )
+
+            s2p_paths_to_look_at = [s2p_path] if type(s2p_path) != list else s2p_path
             for s2p_path in s2p_paths_to_look_at:
                 data_dir = os.path.join(s2p_path, "plane0")
-                c = run_cabin_corr(Animal.root_dir, data_dir=data_dir, regenerate=regenerate,
-                                animal_id=self.animal_id, session_id=self.session_id, 
-                                compute_corrs=compute_corrs, parallel=parallel)
-        
+                c = run_cabin_corr(
+                    Animal.root_dir,
+                    data_dir=data_dir,
+                    regenerate=regenerate,
+                    animal_id=self.animal_id,
+                    session_id=self.session_id,
+                    compute_corrs=compute_corrs,
+                    parallel=parallel,
+                )
+
         self.update_paths()
         return self.cabincorr_data_paths
 
@@ -612,17 +817,21 @@ class Session:
             for path in self.cabincorr_data_paths:
                 slash_type = "\\" if "\\" in path else "/"
                 path_unit = path.split("suite2p")[-1].split(slash_type)[0]
-                if path_unit == "_"+unit_id or unit_id == "all" and len(path_unit)==0:
-                    if os.path.exists(path): #pathnames changed
+                if (
+                    path_unit == "_" + unit_id
+                    or unit_id == "all"
+                    and len(path_unit) == 0
+                ):
+                    if os.path.exists(path):  # pathnames changed
                         bin_traces_zip = np.load(path, allow_pickle=True)
                     else:
                         print("No CaBincorrPath found")
         return bin_traces_zip
-    
+
     def get_cells(self, merged=True, generate=False, regenerate=False):
         if self.cells and not regenerate:
             return self.cells
-        
+
         found = False
         s2p_path = None
         if merged:
@@ -630,7 +839,7 @@ class Session:
             for s2p_path in self.suite2p_paths:
                 if "merged" in s2p_path:
                     found = True
-                    print(f"Loading Cells from merged Suite2P folder {s2p_path}") 
+                    print(f"Loading Cells from merged Suite2P folder {s2p_path}")
                     break
         if not found or not merged:
             if merged == True:
@@ -644,23 +853,28 @@ class Session:
         if not found:
             print(f"No matching Suite2p folder found")
             return None
-        
-        cell_fname = str(0)+".npz"
+
+        cell_fname = str(0) + ".npz"
         cell_npz_path = search_file(s2p_path, cell_fname)
         if not cell_npz_path:
             data_dir = os.path.join(s2p_path, "plane0")
-            c = run_cabin_corr(Animal.root_dir, data_dir=data_dir, 
-                               animal_id=self.animal_id, 
-                               session_id=self.session_id,
-                               compute_corrs=generate,
-                               regenerate=regenerate)
+            c = run_cabin_corr(
+                Animal.root_dir,
+                data_dir=data_dir,
+                animal_id=self.animal_id,
+                session_id=self.session_id,
+                compute_corrs=generate,
+                regenerate=regenerate,
+            )
             cell_npz_path = search_file(s2p_path, cell_fname)
         if cell_npz_path:
             corr_path = search_file(s2p_path, cell_fname).split(cell_fname)[0]
             cells = {}
             for cell_fname in get_files(corr_path):
                 cell_id = int(cell_fname.split(".npz")[0])
-                cells[cell_id] = Cell(self.animal_id, self.session_id, cell_id, s2p_path)
+                cells[cell_id] = Cell(
+                    self.animal_id, self.session_id, cell_id, s2p_path
+                )
             # sort dictionary
             cells_sorted = {cell_id: cell for cell_id, cell in sorted(cells.items())}
             self.cells = cells_sorted
@@ -668,22 +882,32 @@ class Session:
             print(f"{cell_fname} not found in subdirectories of {s2p_path}")
         return self.cells
 
-    def create_corr_matrix(self, corr_matrix_path, 
-                           generate=False,
-                           regenerate=False, merged=True):
+    def create_corr_matrix(
+        self, corr_matrix_path, generate=False, regenerate=False, merged=True
+    ):
         print("Loading correlation data from individual cell.npz files...")
         corr_matrix, pval_matrix, z_score_matrix = None, None, None
         cells = self.get_cells(merged, generate=generate, regenerate=regenerate)
         if type(cells) == dict:
-            pearson_corrs = [] 
+            pearson_corrs = []
             pvalue_pearson_corrs = []
             z_scores = []
             num_cells = len(cells)
             for cell_id, cell in cells.items():
-                cell_pearson_corr, cell_pvalue, cell_z_scores = cell.get_corr_pval_zscore()
-                cell_pearson_corr, cell_pvalue, cell_z_scores = cell_pearson_corr[:num_cells], cell_pvalue[:num_cells], cell_z_scores[:num_cells]
+                (
+                    cell_pearson_corr,
+                    cell_pvalue,
+                    cell_z_scores,
+                ) = cell.get_corr_pval_zscore()
+                cell_pearson_corr, cell_pvalue, cell_z_scores = (
+                    cell_pearson_corr[:num_cells],
+                    cell_pvalue[:num_cells],
+                    cell_z_scores[:num_cells],
+                )
                 pearson_corrs = np.concatenate([pearson_corrs, cell_pearson_corr])
-                pvalue_pearson_corrs = np.concatenate([pvalue_pearson_corrs, cell_pvalue])
+                pvalue_pearson_corrs = np.concatenate(
+                    [pvalue_pearson_corrs, cell_pvalue]
+                )
                 z_scores = np.concatenate([z_scores, cell_z_scores])
 
             corr_matrix = pearson_corrs.reshape([num_cells, num_cells])
@@ -694,9 +918,9 @@ class Session:
             np.save(corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
         return corr_matrix, pval_matrix, z_score_matrix
 
-    def load_corr_matrix(self, unit_id="merged", 
-                         generate=False, regenerate=False, 
-                         remove_geldrying=True):
+    def load_corr_matrix(
+        self, unit_id="merged", generate=False, regenerate=False, remove_geldrying=True
+    ):
         """
         Loads the correlation matrix for the specified unit ID.
 
@@ -714,47 +938,74 @@ class Session:
         suite2p_unit_path = None
         if self.suite2p_paths:
             for path in self.suite2p_paths:
-                if path.split("suite2p")[-1] == s2p_folder_ending or path.split("suite2p")[-1] == "_"+s2p_folder_ending:
+                if (
+                    path.split("suite2p")[-1] == s2p_folder_ending
+                    or path.split("suite2p")[-1] == "_" + s2p_folder_ending
+                ):
                     suite2p_unit_path = path
                     break
         if not suite2p_unit_path:
             print(f"No suite2p path found for unit {unit_id}")
             return corr_matrix, pval_matrix, z_score_matrix
-        
-        corr_matrix_path = os.path.join(suite2p_unit_path, "plane0", f"allcell_corr_pval_zscore.npy")
-        cleaned_corr_matrix_path = os.path.join(suite2p_unit_path, "plane0", f"allcell_clean_corr_pval_zscore.npy")
+
+        corr_matrix_path = os.path.join(
+            suite2p_unit_path, "plane0", f"allcell_corr_pval_zscore.npy"
+        )
+        cleaned_corr_matrix_path = os.path.join(
+            suite2p_unit_path, "plane0", f"allcell_clean_corr_pval_zscore.npy"
+        )
 
         if not os.path.exists(corr_matrix_path):
             if generate:
-                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(corr_matrix_path, merged=merged, 
-                                                                                   generate=generate)
+                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(
+                    corr_matrix_path, merged=merged, generate=generate
+                )
             else:
                 print("No correlation data. Returning None, None")
         else:
             if regenerate:
-                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(corr_matrix_path, merged=merged, 
-                                                                                   generate=generate,
-                                                                                   regenerate=regenerate)
+                corr_matrix, pval_matrix, z_score_matrix = self.create_corr_matrix(
+                    corr_matrix_path,
+                    merged=merged,
+                    generate=generate,
+                    regenerate=regenerate,
+                )
             else:
                 print(f"Loading {corr_matrix_path}")
                 corr_matrix, pval_matrix, z_score_matrix = np.load(corr_matrix_path)
 
-        if remove_geldrying and unit_id == "merged" and type(corr_matrix)==np.ndarray:
+        if remove_geldrying and unit_id == "merged" and type(corr_matrix) == np.ndarray:
             # removes geldrying cells in matrix with shape (#cell x #cells)
             geldrying = self.load_geldrying()
             if type(geldrying) == np.ndarray:
-                geldrying_indexes = np.argwhere(geldrying==True).flatten()
+                geldrying_indexes = np.argwhere(geldrying == True).flatten()
                 number_cells = corr_matrix.shape[0]
-                if sum(geldrying_indexes>=number_cells) > 0:
-                    print(f"ERROR ERROR ERROR geldrying indexes do not correspond to cells in correlation matrix: {len(geldrying_indexes)} != {corr_matrix.shape[0]}")
+                if sum(geldrying_indexes >= number_cells) > 0:
+                    print(
+                        f"ERROR ERROR ERROR geldrying indexes do not correspond to cells in correlation matrix: {len(geldrying_indexes)} != {corr_matrix.shape[0]}"
+                    )
                     return None, None, None
-                corr_matrix = remove_rows_cols(corr_matrix, geldrying_indexes, geldrying_indexes)
-                pval_matrix = remove_rows_cols(pval_matrix, geldrying_indexes, geldrying_indexes)
-                z_score_matrix = remove_rows_cols(z_score_matrix, geldrying_indexes, geldrying_indexes)
+                corr_matrix = remove_rows_cols(
+                    corr_matrix, geldrying_indexes, geldrying_indexes
+                )
+                pval_matrix = remove_rows_cols(
+                    pval_matrix, geldrying_indexes, geldrying_indexes
+                )
+                z_score_matrix = remove_rows_cols(
+                    z_score_matrix, geldrying_indexes, geldrying_indexes
+                )
                 if not os.path.exists(cleaned_corr_matrix_path):
-                    np.save(cleaned_corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
-                elif os.path.getmtime(cleaned_corr_matrix_path) < os.path.getmtime(corr_matrix_path):
-                    np.save(cleaned_corr_matrix_path, (corr_matrix, pval_matrix, z_score_matrix))
+                    np.save(
+                        cleaned_corr_matrix_path,
+                        (corr_matrix, pval_matrix, z_score_matrix),
+                    )
+                elif os.path.getmtime(cleaned_corr_matrix_path) < os.path.getmtime(
+                    corr_matrix_path
+                ):
+                    np.save(
+                        cleaned_corr_matrix_path,
+                        (corr_matrix, pval_matrix, z_score_matrix),
+                    )
                 print("removed gelddrying cells")
         return corr_matrix, pval_matrix, z_score_matrix
 
@@ -763,29 +1014,40 @@ class Session:
         cells_geldrying_fpath = None
         for s2p_path in self.suite2p_paths:
             if "merged" in s2p_path:
-                cells_geldrying_fpath = os.path.join(s2p_path, "plane0", Session.cell_geldrying_fname)
+                cells_geldrying_fpath = os.path.join(
+                    s2p_path, "plane0", Session.cell_geldrying_fname
+                )
                 if os.path.exists(cells_geldrying_fpath):
                     self.cell_geldrying = np.load(cells_geldrying_fpath)
         if type(self.cell_geldrying) != np.ndarray:
             print(f"File {Session.cell_geldrying_fname} not found suite2p paths")
         return self.cell_geldrying
 
-    def get_units(self, generate=False, regenerate=False, 
-                  unit_type="single", get_geldrying=False, 
-                  restore=False, delete=False, min_needed_cells_per_unit=80):
+    def get_units(
+        self,
+        generate=False,
+        regenerate=False,
+        unit_type="single",
+        get_geldrying=False,
+        restore=False,
+        delete=False,
+        min_needed_cells_per_unit=80,
+    ):
         """
         This function load data from suiet2p folders corresponding to the same Experiment (animal_id, session_id)
-        units: string    
-            can be defined as 
-                'single' for loading only single units, 
+        units: string
+            can be defined as
+                'single' for loading only single units,
                 'summary' for loading only units composed of all single units e.g. standard suite2p or merged suite2p without geldrying,
-                'all' or loading all units from tif folder in Session.session_dir 
+                'all' or loading all units from tif folder in Session.session_dir
         """
         defined_unit_types = ["single", "summary", "all"]
         if unit_type not in defined_unit_types:
-            raise ValueError(f"unit_type is only defined for 'single', 'summary', 'all'")
+            raise ValueError(
+                f"unit_type is only defined for 'single', 'summary', 'all'"
+            )
         units = {}
-        
+
         s2p_root_folder_path = os.path.join(self.session_dir, "tif")
         standard_s2p_path_naming = os.path.join(s2p_root_folder_path, "suite2p")
         units_s2p_fpath = []
@@ -794,24 +1056,28 @@ class Session:
             if unit_type == "single":
                 break
             units_s2p_fpath.append(standard_s2p_path_naming + ending)
-        
+
         mesc_munit_combinations = self.get_all_unique_mesc_munit_combinations()
         for mesc_munit_combination in mesc_munit_combinations:
             if unit_type == "summary":
                 break
-            unique_s2p_folder_ending = self.fname_extract_sessparts_munits(mesc_munit_combination)
+            unique_s2p_folder_ending = self.fname_extract_sessparts_munits(
+                mesc_munit_combination
+            )
             s2p_path = standard_s2p_path_naming + "_" + unique_s2p_folder_ending
             units_s2p_fpath.append(s2p_path)
 
         for s2p_path in units_s2p_fpath:
             unit_id = s2p_path.split("suite2p")[-1]
             unit_id = unit_id[1:] if len(unit_id) > 0 else unit_id
-            unit_type = "summary" if unit_id in summary_suite2p_folder_endings else "single"
+            unit_type = (
+                "summary" if unit_id in summary_suite2p_folder_endings else "single"
+            )
             if not self.suite2p_paths or s2p_path not in self.suite2p_paths:
                 if unit_id == "merged":
                     continue
                 print(f"No s2p folder found for {unit_id}: {s2p_path}.")
-                wanted_combination = None 
+                wanted_combination = None
                 if unit_type != "single":
                     for mesc_munit_combination in mesc_munit_combinations:
                         print(mesc_munit_combination)
@@ -819,25 +1085,36 @@ class Session:
                             wanted_combination = mesc_munit_combination
                             print(wanted_combination)
                             break
-                self.generate_suite2p(wanted_combination=wanted_combination, generate=generate, 
-                                      regenerate=regenerate, unit_ids=unit_type, delete=delete)
-                
+                self.generate_suite2p(
+                    wanted_combination=wanted_combination,
+                    generate=generate,
+                    regenerate=regenerate,
+                    unit_ids=unit_type,
+                    delete=delete,
+                )
+
             data_path = os.path.join(s2p_path, "plane0")
             if unit_type != "summary":
                 backup_path_files(data_path, restore=False)
                 backup_path_files(data_path, restore=restore)
             unit = Unit(data_path, session=self, unit_id=unit_id, unit_type=unit_type)
             num_good_cells = unit.print_s2p_iscell()
-            if num_good_cells < min_needed_cells_per_unit: #If less than 100 good cells
-                print(f"Skipping Unit {unit.unit_id} (<{min_needed_cells_per_unit} cells)")    
+            if (
+                num_good_cells < min_needed_cells_per_unit
+            ):  # If less than 100 good cells
+                print(
+                    f"Skipping Unit {unit.unit_id} (<{min_needed_cells_per_unit} cells)"
+                )
             else:
                 units[unit_id] = unit
-                #single cells sliding mean detector for gel detection
+                # single cells sliding mean detector for gel detection
                 if get_geldrying and unit_id != "":
                     cell_drying = unit.get_geldrying_cells()
                     bad = sum(unit.cell_geldrying)
-                    good = len(unit.cell_geldrying)-bad
-                    print(f"Autodetection Cells: {good+bad}    Good: {good}   gel drying:{bad} ")
+                    good = len(unit.cell_geldrying) - bad
+                    print(
+                        f"Autodetection Cells: {good+bad}    Good: {good}   gel drying:{bad} "
+                    )
         self.units = units
         return self.units
 
@@ -849,12 +1126,16 @@ class Session:
                 continue
             num_good_cells = unit.num_not_geldrying()
             if num_good_cells >= most_good_cells:
-                most_good_cells = num_good_cells 
+                most_good_cells = num_good_cells
                 best_unit = unit
         if best_unit:
-            print(f"Best Mask has {most_good_cells} cells and is from {best_unit.unit_id}")
-        else: 
-            raise ValueError(f"No unit found with enough good cells and unit_type: {unit_type}.")
+            print(
+                f"Best Mask has {most_good_cells} cells and is from {best_unit.unit_id}"
+            )
+        else:
+            raise ValueError(
+                f"No unit found with enough good cells and unit_type: {unit_type}."
+            )
         return best_unit
 
     def get_usefull_units(self, min_num_usefull_cells, unit_type="single"):
@@ -875,27 +1156,36 @@ class Session:
                 unit.usefull = True
             else:
                 unit.usefull = False
-        return {unit_id:unit for unit_id, unit in self.units.items() if unit.usefull}
-    
+        return {unit_id: unit for unit_id, unit in self.units.items() if unit.usefull}
+
     def calc_unit_yx_shifts(self, best_unit, units, num_align_frames=1000):
         """
         S2P Registration (Footprint position shift determination)
         """
         # caly yx_shift
-        refImg = best_unit.get_reference_image(n_frames_to_be_acquired = 1000)
-        #refImg = get_reference_image(best_unit)
+        refImg = best_unit.get_reference_image(n_frames_to_be_acquired=1000)
+        # refImg = get_reference_image(best_unit)
         refAndMasks = register.compute_reference_masks(refImg, best_unit.ops)
-        #refAndMasks = register.compute_reference_masks(refImg, ops)
+        # refAndMasks = register.compute_reference_masks(refImg, ops)
         for unit_id, unit in units.items():
             if unit_id == best_unit.unit_id:
-                continue   
-            #unit.yx_shift = calc_yx_shift(refAndMasks, unit, unit.ops, num_align_frames)
+                continue
+            # unit.yx_shift = calc_yx_shift(refAndMasks, unit, unit.ops, num_align_frames)
             if unit.usefull:
                 unit.calc_yx_shift(refAndMasks, num_align_frames=num_align_frames)
 
-    def merge_units(self, generate=True, regenerate=False, get_geldrying=True,
-                    unit_type="single", delete_used_subsessions=False, compute_corrs=False, 
-                    image_x_size=512, image_y_size=512, parallel=True):
+    def merge_units(
+        self,
+        generate=True,
+        regenerate=False,
+        get_geldrying=True,
+        unit_type="single",
+        delete_used_subsessions=False,
+        compute_corrs=False,
+        image_x_size=512,
+        image_y_size=512,
+        parallel=True,
+    ):
         """
         Takes MUnits with #cells> #most_cells/3 based on best MUnit (cells withoug geldrying).
         1. stat files are merged (suite2p) + deduplicated(cabincorr algo)
@@ -914,37 +1204,52 @@ class Session:
         :return: A merged unit object.
         :rtype: Unit
         """
-        generate = True if regenerate==True else generate
-        merged_s2p_path = os.path.join(self.suite2p_paths[0].split("suite2p")[0], "suite2p_merged", "plane0")
+        generate = True if regenerate == True else generate
+        merged_s2p_path = os.path.join(
+            self.suite2p_paths[0].split("suite2p")[0], "suite2p_merged", "plane0"
+        )
         if os.path.exists(merged_s2p_path):
             if regenerate:
                 del_file_dir(merged_s2p_path)
             else:
-                merged_unit = Unit(merged_s2p_path, self, f"merged", unit_type="summary")
+                merged_unit = Unit(
+                    merged_s2p_path, self, f"merged", unit_type="summary"
+                )
                 return merged_unit
 
         if generate:
             if not self.units:
-                self.get_units(get_geldrying=True, unit_type=unit_type, generate=generate)
+                self.get_units(
+                    get_geldrying=True, unit_type=unit_type, generate=generate
+                )
             for unit_id, unit in self.units.items():
                 binary_path = os.path.join(unit.suite2p_path, Session.binary_fname)
                 binary_file_present = os.path.exists(binary_path)
                 if not binary_file_present:
                     print(f"Binary file not found in {unit.suite2p_path}")
-                    print(f"recomputing suite2p for Unit {unit.animal_id} {unit.session_id} {unit_id}")
+                    print(
+                        f"recomputing suite2p for Unit {unit.animal_id} {unit.session_id} {unit_id}"
+                    )
                     unit_id_session_parts, unit_id_munits = unit_id.split("_MUnit_")
-                    for mesc_munit_combination in self.get_all_unique_mesc_munit_combinations():
-                        if unit_id_session_parts in mesc_munit_combination and "MUnit_"+unit_id_munits in mesc_munit_combination:
-                            self.generate_suite2p(wanted_combination=mesc_munit_combination,
-                                                    generate=generate,
-                                                    regenerate=True, 
-                                                    unit_ids=unit.unit_type)
+                    for (
+                        mesc_munit_combination
+                    ) in self.get_all_unique_mesc_munit_combinations():
+                        if (
+                            unit_id_session_parts in mesc_munit_combination
+                            and "MUnit_" + unit_id_munits in mesc_munit_combination
+                        ):
+                            self.generate_suite2p(
+                                wanted_combination=mesc_munit_combination,
+                                generate=generate,
+                                regenerate=True,
+                                unit_ids=unit.unit_type,
+                            )
             # get unit with the most good cells (after geldrying detection)
             best_unit = self.get_most_good_cell_unit(unit_type=unit_type)
             # get units with enough usefull cells (at least 1/3 of best MUnit cells)
             min_num_usefull_cells = best_unit.num_not_geldrying() / 3
             units = self.get_usefull_units(min_num_usefull_cells, unit_type=unit_type)
-            
+
             self.calc_unit_yx_shifts(best_unit, units)
 
             # merge statistical information of units and deduplicate
@@ -952,47 +1257,71 @@ class Session:
             merged_stat = merger.merge_stat(units, best_unit)
             print(f"Number of cells after merging: {merged_stat.shape[0]}")
 
-            updated_units = {} 
+            updated_units = {}
             merged_unit_id = ""
             for unit_id, unit in units.items():
                 # shift merged mask
                 print(f"Updating Unit {unit_id}")
-                merger.shift_update_unit_s2p_files(unit, merged_stat, image_x_size=image_x_size, image_y_size=image_y_size)
-                #TODO: unit.change_yaml_file("updated", True)
-                updated_units[unit_id] = Unit(unit.suite2p_path, 
-                                              session=self, 
-                                              unit_id=unit_id, 
-                                              unit_type=unit.unit_type,
-                                              parallel=parallel)
+                merger.shift_update_unit_s2p_files(
+                    unit,
+                    merged_stat,
+                    image_x_size=image_x_size,
+                    image_y_size=image_y_size,
+                )
+                # TODO: unit.change_yaml_file("updated", True)
+                updated_units[unit_id] = Unit(
+                    unit.suite2p_path,
+                    session=self,
+                    unit_id=unit_id,
+                    unit_type=unit.unit_type,
+                    parallel=parallel,
+                )
                 updated_units[unit_id].updated = True
-                merged_unit_id += str(unit_id)+"_"
+                merged_unit_id += str(unit_id) + "_"
             # concatenate S2P results
             ops = default_ops()
-            #TODO: how to decide which unit was imaged first?
-            merged_F, _, _, _ = merger.merge_s2p_files(updated_units, merged_stat, ops) #best_unit.c.ops)
-            #merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
+            # TODO: how to decide which unit was imaged first?
+            merged_F, _, _, _ = merger.merge_s2p_files(
+                updated_units, merged_stat, ops
+            )  # best_unit.c.ops)
+            # merged_F, merged_Fneu, merged_spks, merged_iscell = merger.merge_s2p_files(updated_units, merged_stat, best_unit.c.ops)
 
-            merged_unit = Unit(merged_s2p_path, self, 
-                               unit_id=f"{merged_unit_id}_merged", 
-                               unit_type="summary",
-                               compute_corrs=compute_corrs,
-                               parallel=parallel)
+            merged_unit = Unit(
+                merged_s2p_path,
+                self,
+                unit_id=f"{merged_unit_id}_merged",
+                unit_type="summary",
+                compute_corrs=compute_corrs,
+                parallel=parallel,
+            )
             if get_geldrying:
                 merged_unit.get_geldrying_cells()
 
             if delete_used_subsessions:
-                units_s2p_paths = [unit.suite2p_path for unit_id, unit in updated_units.items()]
+                units_s2p_paths = [
+                    unit.suite2p_path for unit_id, unit in updated_units.items()
+                ]
                 del updated_units
                 for path in units_s2p_paths:
                     del_file_dir(path)
-                    
+
             self.update_paths()
             self.merged_unit = merged_unit
         return merged_unit
 
+
 class Unit:
-    def __init__(self, suite2p_path, session:Session, unit_id, unit_type, 
-                 compute_corrs=False, regenerate=False, parallel=True, print_loading=True):
+    def __init__(
+        self,
+        suite2p_path,
+        session: Session,
+        unit_id,
+        unit_type,
+        compute_corrs=False,
+        regenerate=False,
+        parallel=True,
+        print_loading=True,
+    ):
         self.animal_id = session.animal_id
         self.session_id = session.session_id
         self.session_dir = session.session_dir
@@ -1000,62 +1329,26 @@ class Unit:
         self.unit_type = unit_type
         self.suite2p_path = suite2p_path
         self.binary_path = find_binary_fpath(self.suite2p_path)
-        self.cabincorr_data_path = os.path.join(self.suite2p_path, Session.cabincorr_fname)
-        ########################################
-        self.duration = None
+        self.cabincorr_data_path = os.path.join(
+            self.suite2p_path, Session.cabincorr_fname
+        )
+
+        # Initiate unit properties
+        self.mesc_data_path = None
         self.session_part = None
-        self.underground = None
-        self.movement_data = None
-        self.cam_data = None
-        self.mesc_data_path = None 
-        # Define mesc_data_path 
-        if unit_type == "single":
-            # get mesc file name and munit combinations
-            mesc_munit_combinations = self.get_all_unique_mesc_munit_combinations()
-            suite2p_folder_ending = self.suite2p_path.split("suite2p")[-1]
-            for mesc_munit_combination in mesc_munit_combinations:
-                if suite2p_folder_ending in mesc_munit_combination:
-                    mesc_fname_session_parts, munit = mesc_munit_combination.split("_MUnit_")
-                    self.mesc_data_path = os.path.join(self.session_dir, mesc_fname_session_parts+".mesc")
-            #FIXME: get duration, session_part and others
-            # based on position of munit in session.mesc_munit_pairs
-
-            # get munit index and set metadata based on parts
-            if self.mesc_data_path:
-                mesc_data_fname = os.path.split(self.mesc_data_path)
-                for mesc_fname, munits in session.mesc_munit_pairs:
-                    if mesc_data_fname == mesc_fname:
-                        munit_index = munits.index(self.unit_id)
-                        mesc_session_parts = re.findall("S[0-9]", mesc_fname)
-                        self.session_part = mesc_session_parts[munit_index]
-
-            for mesc_data_path in session.mesc_data_paths:
-
-            session.mesc_munit_pairs
-            self.duration = None
-            self.session_part = None
-            self.underground = None
-            self.movement_data = None
-            self.cam_data = None
-            ###################################
-        elif unit_type == "summary": #set to session metadata
-            self.mesc_data_path = session.mesc_data_paths
-            self.duration = session.duration
-            self.session_part = session.session_part
-            self.underground = session.underground
-            self.movement_data = session.movement_data
-            self.cam_data = session.cam_data
-        else:
-            print(f"Unknown unit_type: {unit_type}")
+        self.get_attributes_from_session(self, session)
 
         if print_loading:
             print(f"Loading Unit {self.animal_id} {self.session_id} {self.unit_id}")
         self.functional_chan = session.functional_chan
-        self.c, self.contours, self.footprints = self.get_c(compute_corrs=compute_corrs, 
-                                                            regenerate=regenerate, parallel=parallel)
+        self.c, self.contours, self.footprints = self.get_c(
+            compute_corrs=compute_corrs, regenerate=regenerate, parallel=parallel
+        )
         self.dedup_cell_ids = None
         self.get_all_sliding_cell_stat = None
-        self.fluorescence = butter_lowpass_filter(self.c.dff, cutoff=0.5, fs=30, order=2)
+        self.fluorescence = butter_lowpass_filter(
+            self.c.dff, cutoff=0.5, fs=30, order=2
+        )
         self.cell_geldrying = None
         self.load_geldrying()
         self.cell_geldrying_reasons = None
@@ -1064,7 +1357,73 @@ class Unit:
         self.yx_shift = [0, 0]
         self.usefull = None
         self.updated = self.old_backup_files(self.suite2p_path)
-        
+
+    def get_attributes_from_session(self, session: Session):
+        """
+        Extract and set attributes from a Session object to the current object.
+
+        This function populates the attributes of the current object using relevant information
+        retrieved from the provided Session object. It sets attributes related to duration, underground,
+        movement data, and camera data. Additionally, it calculates and assigns the 'mesc_data_path'
+        attribute based on the current object's 'unit_type' and other conditions.
+
+        Args:
+            self: The object for which attributes are being populated.
+            session (Session): A Session object containing the necessary data.
+
+        Returns:
+            None
+
+        Note:
+            - This function relies on the 'set_object_attributes' function to set the attributes
+            in the current object based on the properties defined in the 'properties' list.
+            - It also relies on the 'get_all_unique_mesc_munit_combinations' function to
+            determine the 'mesc_data_path' and other related attributes.
+
+        Example Usage:
+            obj = YourClass()
+            session = Session()
+            obj.get_attributes_from_session(session)
+        """
+        properties = ["duration", "underground", "movement_data", "cam_data"]
+        set_object_attributes(properties, self)
+
+        # Define mesc_data_path
+        if self.unit_type == "single":
+            # get mesc file name and munit combinations
+            mesc_munit_combinations = self.get_all_unique_mesc_munit_combinations()
+            suite2p_folder_ending = self.suite2p_path.split("suite2p")[-1]
+            for mesc_munit_combination in mesc_munit_combinations:
+                if suite2p_folder_ending in mesc_munit_combination:
+                    mesc_fname_session_parts, munit = mesc_munit_combination.split(
+                        "_MUnit_"
+                    )
+                    self.mesc_data_path = os.path.join(
+                        self.session_dir, mesc_fname_session_parts + ".mesc"
+                    )
+
+                    # get munit index and set metadata based on parts
+                    mesc_data_fname = os.path.split(self.mesc_data_path)
+                    for mesc_fname, munits in session.mesc_munit_pairs:
+                        if mesc_data_fname == mesc_fname:
+                            munit_index = munits.index(self.unit_id)
+                            mesc_session_parts = re.findall("S[0-9]", mesc_fname)
+                            self.session_part = mesc_session_parts[munit_index]
+                            propertie_values = [
+                                getattr(session, propertie)[munit_index]
+                                for propertie in properties
+                            ]
+                            set_object_attributes(
+                                properties, self, propertie_values=propertie_values
+                            )
+
+        elif self.unit_type == "summary":  # set to session metadata
+            self.mesc_data_path = session.mesc_data_paths
+            self.session_part = session.session_parts
+            set_object_attributes(properties, self, get_object=session)
+        else:
+            print(f"Unknown unit_type: {self.unit_type}")
+
     def old_backup_files(self, path):
         old_backup = False
         backup_path = os.path.join(path, "backup")
@@ -1082,34 +1441,51 @@ class Unit:
         return old_backup
 
     def get_c(self, compute_corrs=False, regenerate=False, parallel=True):
-        #Merging cell footprints
+        # Merging cell footprints
         c_object, contours, footprints = None, None, None
-        c = run_cabin_corr(Animal.root_dir, data_dir=self.suite2p_path,
-                            animal_id=self.animal_id, session_id=self.session_id,
-                            compute_corrs=compute_corrs, regenerate=regenerate, parallel=parallel)
+        c = run_cabin_corr(
+            Animal.root_dir,
+            data_dir=self.suite2p_path,
+            animal_id=self.animal_id,
+            session_id=self.session_id,
+            compute_corrs=compute_corrs,
+            regenerate=regenerate,
+            parallel=parallel,
+        )
         if c:
             c_object, contours, footprints = c, c.contours, c.footprints
         return c_object, contours, footprints
 
-    def get_geldrying_cells(self, regenerate=False, parallel=True, bad_minutes = 1.5, not_bad_minutes=0.5, mode="mean"):
-        #detect gel_drying with sliding mean change. Too long increase of mean = bad
-        #returns boolean list of cells, where True is a cell labeled as drying 
+    def get_geldrying_cells(
+        self,
+        regenerate=False,
+        parallel=True,
+        bad_minutes=1.5,
+        not_bad_minutes=0.5,
+        mode="mean",
+    ):
+        # detect gel_drying with sliding mean change. Too long increase of mean = bad
+        # returns boolean list of cells, where True is a cell labeled as drying
         if type(self.cell_geldrying) is np.ndarray and not regenerate:
             return self.cell_geldrying
         if type(self.get_all_sliding_cell_stat) is not np.ndarray:
             anz = Analyzer()
-            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(parallel=parallel, fluorescence=self.fluorescence, mode=mode)
+            self.get_all_sliding_cell_stat = anz.get_all_sliding_cell_stat(
+                parallel=parallel, fluorescence=self.fluorescence, mode=mode
+            )
         anz = Analyzer()
         self.cell_geldrying = np.full([len(self.get_all_sliding_cell_stat)], True)
-        self.cell_geldrying_reasons = [""]*len(self.get_all_sliding_cell_stat)
+        self.cell_geldrying_reasons = [""] * len(self.get_all_sliding_cell_stat)
         for i, mean_stds in enumerate(self.get_all_sliding_cell_stat):
-            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(mean_stds,
-                                                                                   bad_minutes=bad_minutes, 
-                                                                                   not_bad_minutes=not_bad_minutes, 
-                                                                                   mode=mode) 
+            self.cell_geldrying[i], self.cell_geldrying_reasons[i] = anz.geldrying(
+                mean_stds,
+                bad_minutes=bad_minutes,
+                not_bad_minutes=not_bad_minutes,
+                mode=mode,
+            )
         self.geldrying_to_npy()
         return self.cell_geldrying
-    
+
     def geldrying_to_npy(self):
         fpath = os.path.join(self.suite2p_path, Session.cell_geldrying_fname)
         np.save(fpath, self.cell_geldrying)
@@ -1120,33 +1496,49 @@ class Unit:
         if os.path.exists(fpath):
             self.cell_geldrying = np.load(fpath)
         return self.cell_geldrying
-    
-    def get_reference_image(self, n_frames_to_be_acquired=1000, image_x_size=512, image_y_size=512):
+
+    def get_reference_image(
+        self, n_frames_to_be_acquired=1000, image_x_size=512, image_y_size=512
+    ):
         if self.refImg is None:
             b_loader = Binary_loader()
-            frames = b_loader.load_binary(self.binary_path, n_frames_to_be_acquired=n_frames_to_be_acquired, image_x_size=image_x_size, image_y_size=image_y_size)
+            frames = b_loader.load_binary(
+                self.binary_path,
+                n_frames_to_be_acquired=n_frames_to_be_acquired,
+                image_x_size=image_x_size,
+                image_y_size=image_y_size,
+            )
             self.refImg = register.compute_reference(frames, ops=self.ops)
         return self.refImg
-    
+
     def set_ops(self, ops=None):
         if not ops:
             if not self.ops:
                 ops_path = os.path.join(self.suite2p_path, "ops.npy")
                 if os.path.exists(ops_path):
                     ops = np.load(ops_path, allow_pickle=True).item()
-                if ops==None:
+                if ops == None:
                     ops = register.default_ops()
                 self.ops = ops
         else:
             self.ops = ops
-        self.ops["nonrigid"] = False                
+        self.ops["nonrigid"] = False
         return self.ops
-    
-    def calc_yx_shift(self, refAndMasks, num_align_frames=1000, image_x_size=512, image_y_size=512):
+
+    def calc_yx_shift(
+        self, refAndMasks, num_align_frames=1000, image_x_size=512, image_y_size=512
+    ):
         if self.yx_shift == [0, 0]:
             b_loader = Binary_loader()
-            frames = b_loader.load_binary(self.binary_path, n_frames_to_be_acquired=num_align_frames, image_x_size=image_x_size, image_y_size=image_y_size)
-            frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(refAndMasks, frames, ops=self.ops)
+            frames = b_loader.load_binary(
+                self.binary_path,
+                n_frames_to_be_acquired=num_align_frames,
+                image_x_size=image_x_size,
+                image_y_size=image_y_size,
+            )
+            frames, ymax, xmax, cmax, ymax1, xmax1, cmax1, _ = register.register_frames(
+                refAndMasks, frames, ops=self.ops
+            )
             self.yx_shift = [round(np.mean(ymax)), round(np.mean(xmax))]
         return self.yx_shift
 
@@ -1155,21 +1547,25 @@ class Unit:
         iscell = np.load(iscell_path)
         num_cells = len(iscell[:, 0])
         num_good_cells = sum(iscell[:, 0])
-        num_bad_cells = num_cells-num_good_cells
-        print(f"Suite2p: Cells: {num_cells}  Good: {num_good_cells}  Bad: {num_bad_cells}")
+        num_bad_cells = num_cells - num_good_cells
+        print(
+            f"Suite2p: Cells: {num_cells}  Good: {num_good_cells}  Bad: {num_bad_cells}"
+        )
         return num_good_cells
 
     def num_not_geldrying(self):
-        return len(self.cell_geldrying)-sum(self.cell_geldrying)
+        return len(self.cell_geldrying) - sum(self.cell_geldrying)
 
     def update_s2p_files(self, stat):
         # Read in existing data from a suite2p run. We will use the "ops" and registered binary.
         suite2_data_path = self.suite2p_path
         binary_file_path = self.binary_path
-        
-        ops = np.load(os.path.join(suite2_data_path, "ops.npy"), allow_pickle=True).item()
-        Lx = ops['Lx']
-        Ly = ops['Ly']
+
+        ops = np.load(
+            os.path.join(suite2_data_path, "ops.npy"), allow_pickle=True
+        ).item()
+        Lx = ops["Lx"]
+        Ly = ops["Ly"]
         f_reg = suite2p.io.BinaryFile(Ly, Lx, binary_file_path)
 
         """# Using these inputs, we will first mimic the stat array made by suite2p
@@ -1183,25 +1579,33 @@ class Unit:
         stat = roi_stats(stat, Ly, Lx)  # This function fills in remaining roi properties to make it compatible with the rest of the suite2p pipeline/GUI
         """
         # Feed these values into the wrapper functions
-        stat_after_extraction, F, Fneu, F_chan2, Fneu_chan2 = suite2p.extraction_wrapper(stat, f_reg, f_reg_chan2 = None, ops=ops)
+        (
+            stat_after_extraction,
+            F,
+            Fneu,
+            F_chan2,
+            Fneu_chan2,
+        ) = suite2p.extraction_wrapper(stat, f_reg, f_reg_chan2=None, ops=ops)
         # Do cell classification
         classfile = suite2p.classification.builtin_classfile
         iscell = suite2p.classify(stat=stat_after_extraction, classfile=classfile)
         # Apply preprocessing step for deconvolution
-        dF = F.copy() - ops['neucoeff']*Fneu
+        dF = F.copy() - ops["neucoeff"] * Fneu
         dF = suite2p.extraction.preprocess(
-                F=dF,
-                baseline=ops['baseline'],
-                win_baseline=ops['win_baseline'],
-                sig_baseline=ops['sig_baseline'],
-                fs=ops['fs'],
-                prctile_baseline=ops['prctile_baseline']
-            )
+            F=dF,
+            baseline=ops["baseline"],
+            win_baseline=ops["win_baseline"],
+            sig_baseline=ops["sig_baseline"],
+            fs=ops["fs"],
+            prctile_baseline=ops["prctile_baseline"],
+        )
         # Identify spikes
-        spks = suite2p.extraction.oasis(F=dF, batch_size=ops['batch_size'], tau=ops['tau'], fs=ops['fs'])
+        spks = suite2p.extraction.oasis(
+            F=dF, batch_size=ops["batch_size"], tau=ops["tau"], fs=ops["fs"]
+        )
 
         # backing up original suite2p files first
-        backup_path_files(suite2_data_path) 
+        backup_path_files(suite2_data_path)
 
         old_files = ["binarized_traces.mat", "binarized_traces.npz", "Fall.mat"]
         old_folders = ["correlations", "figures"]
@@ -1212,24 +1616,25 @@ class Unit:
             fpath = os.path.join(suite2_data_path, old_file)
             del_file_dir(fpath)
 
-        np.save(os.path.join(suite2_data_path, 'F.npy'), F)
-        np.save(os.path.join(suite2_data_path, 'Fneu.npy'), Fneu)
-        np.save(os.path.join(suite2_data_path, 'iscell.npy'), iscell)
-        np.save(os.path.join(suite2_data_path, 'ops.npy'), ops)
-        np.save(os.path.join(suite2_data_path, 'spks.npy'), spks)
-        np.save(os.path.join(suite2_data_path, 'stat.npy'), stat)
+        np.save(os.path.join(suite2_data_path, "F.npy"), F)
+        np.save(os.path.join(suite2_data_path, "Fneu.npy"), Fneu)
+        np.save(os.path.join(suite2_data_path, "iscell.npy"), iscell)
+        np.save(os.path.join(suite2_data_path, "ops.npy"), ops)
+        np.save(os.path.join(suite2_data_path, "spks.npy"), spks)
+        np.save(os.path.join(suite2_data_path, "stat.npy"), stat)
+
 
 class Cell:
     cell_geldrying_fname = "cell_drying.npy"
 
     def __init__(self, animal_id, session_id, cell_id, s2p_path):
-        #super().__init__(animal_id, session_id, unit_ids=unit_ids)
+        # super().__init__(animal_id, session_id, unit_ids=unit_ids)
         self.animal_id = animal_id
         self.session_id = session_id
         self.cell_id = cell_id
         self.s2p_path = s2p_path
-        self.corr_path = search_file(s2p_path, str(cell_id)+".npz")
-        self.corr_props = None 
+        self.corr_path = search_file(s2p_path, str(cell_id) + ".npz")
+        self.corr_props = None
         self.geldrying = None
         self.fluorescence = None
         self.num_bursts = None
@@ -1247,8 +1652,12 @@ class Cell:
 
     def get_corr_pval_zscore(self):
         person_corr = np.array(self.get_correlation_properties()["pearson_corr"])
-        pvalue_pearson_corr = np.array(self.get_correlation_properties()["pvalue_pearson_corr"])
-        z_score_pearson_corr = np.array(self.get_correlation_properties()["z_score_pearson_corr"])
+        pvalue_pearson_corr = np.array(
+            self.get_correlation_properties()["pvalue_pearson_corr"]
+        )
+        z_score_pearson_corr = np.array(
+            self.get_correlation_properties()["z_score_pearson_corr"]
+        )
         return person_corr, pvalue_pearson_corr, z_score_pearson_corr
 
     def is_geldrying(self):
@@ -1265,11 +1674,12 @@ class Cell:
             fluorescence_path = search_file(self.s2p_path, Session.fluoresence_fname)
             self.fluorescence = np.load(fluorescence_path)[self.cell_id]
         return self.fluorescence
-    
+
     def get_number_bursts(self):
-        #TODO: needed?
+        # TODO: needed?
         num_bursts = None
         return num_bursts
+
 
 class Analyzer:
     # Pearson and histogram plot and save
@@ -1281,7 +1691,11 @@ class Analyzer:
         self.animals = animals
 
     def good_mean_std(self, mean, std):
-        return True if mean < Analyzer.mean_threshold or std > Analyzer.std_threshold else False
+        return (
+            True
+            if mean < Analyzer.mean_threshold or std > Analyzer.std_threshold
+            else False
+        )
 
     def lin_reg(self, data):
         length = np.arange(len(data))
@@ -1292,8 +1706,9 @@ class Analyzer:
         linreg = self.lin_reg(data)
         return linreg.slope, linreg.intercept
 
-    def cont_mean_increase(self, mean_stds, num_bad_means = 30*60*1.5, 
-                       num_not_bad_means=30*60*0.5):
+    def cont_mean_increase(
+        self, mean_stds, num_bad_means=30 * 60 * 1.5, num_not_bad_means=30 * 60 * 0.5
+    ):
         """
         Check if the mean of the data increases for 1.5 minutes without a 0.5 minutes break (30fps)
 
@@ -1312,14 +1727,14 @@ class Analyzer:
 
         for pos, mean_std in enumerate(mean_stds[1:]):
             mean = mean_std[0]
-            mean_diff = mean-old_mean
-            mean_diff -=  min_std * abs(mean_diff/mean)
+            mean_diff = mean - old_mean
+            mean_diff -= min_std * abs(mean_diff / mean)
             old_mean = mean
             if math.isnan(mean):
                 bad = True
                 reason = "nan"
                 break
-            if mean_diff > 0: 
+            if mean_diff > 0:
                 bad_mean_counter += 1
             else:
                 maybe_not_bad_counter += 1
@@ -1327,14 +1742,19 @@ class Analyzer:
                     bad_mean_counter = 0
                     maybe_not_bad_counter = 0
 
-            if bad_mean_counter >= num_bad_means: # 1 minute wide window mean to high for 1 minute  
+            if (
+                bad_mean_counter >= num_bad_means
+            ):  # 1 minute wide window mean to high for 1 minute
                 bad = True
                 reason = "cont. increase"
                 break
-        return bad, reason+" c: "+str(bad_mean_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
+        return bad, reason + " c: " + str(bad_mean_counter) + " not bad " + str(
+            maybe_not_bad_counter
+        )  # , pos/30
 
-    def cont_mode_increase(self, mode_stds, num_bad_modes = 30*60*1, 
-                       num_not_bad_modes=30*60*0.45):
+    def cont_mode_increase(
+        self, mode_stds, num_bad_modes=30 * 60 * 1, num_not_bad_modes=30 * 60 * 0.45
+    ):
         """
         !!!!!!!!!!!!Not usefull takes too long!!!!!!!!!!!!!!!!!!!!!!!!!!!
         Check if the mode of the data increases for 1.5 minutes without a 0.45 minutes break (30fps)
@@ -1355,14 +1775,14 @@ class Analyzer:
 
         for pos, mode_std in enumerate(mode_stds[1:]):
             mode = mode_std[0]
-            mode_diff = mode-old_mode
-            mode_diff -=  min_std/(1/(abs(mode_diff/mode)))
+            mode_diff = mode - old_mode
+            mode_diff -= min_std / (1 / (abs(mode_diff / mode)))
             old_mode = mode
             if math.isnan(mode):
                 bad = True
                 reason = "nan"
                 break
-            if mode_diff > 0: 
+            if mode_diff > 0:
                 bad_mode_counter += 1
             else:
                 maybe_not_bad_counter += 1
@@ -1370,11 +1790,15 @@ class Analyzer:
                     bad_mode_counter = 0
                     maybe_not_bad_counter = 0
 
-            if bad_mode_counter >= num_bad_modes: # 1 minute wide window mode to high for 1 minute  
+            if (
+                bad_mode_counter >= num_bad_modes
+            ):  # 1 minute wide window mode to high for 1 minute
                 bad = True
                 reason = "num bad"
                 break
-        return bad, reason+" c: "+str(bad_mode_counter)+" not bad "+str(maybe_not_bad_counter)#, pos/30
+        return bad, reason + " c: " + str(bad_mode_counter) + " not bad " + str(
+            maybe_not_bad_counter
+        )  # , pos/30
 
     def geldrying(self, m_stds, bad_minutes=1.5, not_bad_minutes=0.5, mode="mean"):
         """
@@ -1385,13 +1809,21 @@ class Analyzer:
         Returns:
             bool: True if the standard deviation values are within the threshold, False otherwise.
         """
-        #TODO: improve good bad detection currently only for geldrying used
+        # TODO: improve good bad detection currently only for geldrying used
         if mode == "mean":
-            bad, reason = self.cont_mean_increase(m_stds, num_bad_means = 30*60*bad_minutes, num_not_bad_means=30*60*not_bad_minutes) 
+            bad, reason = self.cont_mean_increase(
+                m_stds,
+                num_bad_means=30 * 60 * bad_minutes,
+                num_not_bad_means=30 * 60 * not_bad_minutes,
+            )
         elif mode == "mode":
-            bad, reason = self.cont_mode_increase(m_stds, num_bad_modes = 30*60*bad_minutes, num_not_bad_modes=30*60*not_bad_minutes) 
+            bad, reason = self.cont_mode_increase(
+                m_stds,
+                num_bad_modes=30 * 60 * bad_minutes,
+                num_not_bad_modes=30 * 60 * not_bad_minutes,
+            )
         return bad, reason
-    
+
     def sliding_window(self, arr, window_size, step_size=1):
         """
         Generate sliding windows of size window_size over an array.
@@ -1426,7 +1858,7 @@ class Analyzer:
         Returns:
             list: A list of mode values for each sliding window.
         """
-        num_windows = len(arr)-window_size+1
+        num_windows = len(arr) - window_size + 1
         mode_stds = np.zeros([num_windows, 2])
         for num, window in enumerate(self.sliding_window(arr, window_size)):
             mode_stds[num, 0], count = scipy.stats.mode(window)
@@ -1444,14 +1876,21 @@ class Analyzer:
         Returns:
         list: A list of tuples containing the mean and standard deviation of each window.
         """
-        num_windows = len(arr)-window_size+1
+        num_windows = len(arr) - window_size + 1
         mean_stds = np.zeros([num_windows, 2])
         for num, window in enumerate(self.sliding_window(arr, window_size)):
             mean_stds[num, 0] = np.mean(window)
             mean_stds[num, 1] = np.std(window)
         return np.array(mean_stds)
 
-    def get_all_sliding_cell_stat(self, fluorescence, window_size=30*60, parallel=True, processes=16, mode="mean"):
+    def get_all_sliding_cell_stat(
+        self,
+        fluorescence,
+        window_size=30 * 60,
+        parallel=True,
+        processes=16,
+        mode="mean",
+    ):
         """
         Calculate the mean and standard deviation of sliding window (default: 30*60 = 1 sec.) fluorescence for each cell.
 
@@ -1459,20 +1898,33 @@ class Analyzer:
             fluorescence (numpy.ndarray): A 3D numpy array containing fluorescence data for each cell.
 
         Returns:
-            numpy.ndarray: A (cells, frames, 2) Dimensional numpy array containing the mean [:,:,0] and 
+            numpy.ndarray: A (cells, frames, 2) Dimensional numpy array containing the mean [:,:,0] and
             standard deviation [:,:,1] of fluorescence for each cell.
 
         Example:
             means = np.array(get_all_sliding_cell_stat)[:,:,0]
             stds = np.array(get_all_sliding_cell_stat)[:,:,1]
         """
-        if mode=="mean":
-            get_all_sliding_cell_stat = parmap.map(self.sliding_mean_std, fluorescence, window_size, pm_processes=processes, 
-                                    pm_pbar=True, pm_parallel=parallel)
-        elif mode=="mode":
-            get_all_sliding_cell_stat = parmap.map(self.sliding_mode_std, fluorescence, window_size, pm_processes=processes, 
-                                    pm_pbar=True, pm_parallel=parallel)
+        if mode == "mean":
+            get_all_sliding_cell_stat = parmap.map(
+                self.sliding_mean_std,
+                fluorescence,
+                window_size,
+                pm_processes=processes,
+                pm_pbar=True,
+                pm_parallel=parallel,
+            )
+        elif mode == "mode":
+            get_all_sliding_cell_stat = parmap.map(
+                self.sliding_mode_std,
+                fluorescence,
+                window_size,
+                pm_processes=processes,
+                pm_pbar=True,
+                pm_parallel=parallel,
+            )
         return get_all_sliding_cell_stat
+
 
 class Vizualizer:
     def __init__(self, animals={}, save_dir=Animal.root_dir):
@@ -1489,7 +1941,7 @@ class Vizualizer:
     def create_colorsteps(self, min_value, max_value, max_color_number=None):
         """
         This function calculates the number of color steps between a minimum and maximum value.
-        
+
         :param min_value: The minimum value in the range.
         :type min_value: int or float
         :param max_value: The maximum value in the range.
@@ -1501,8 +1953,8 @@ class Vizualizer:
         """
         if not max_color_number:
             max_color_number = self.max_color_number
-        value_diff = max_value-min_value if max_value-min_value != 0 else 1
-        return math.floor(max_color_number/(value_diff))
+        value_diff = max_value - min_value if max_value - min_value != 0 else 1
+        return math.floor(max_color_number / (value_diff))
 
     def plot_colorsteps_example(self):
         # Colorexample
@@ -1511,16 +1963,34 @@ class Vizualizer:
 
         handles = []
         for age in [0, 15, 30, 50, 75, 100, 125, 150, 180, 200, 220, 240]:
-                handles.append(Line2D([0], [0], color=self.colors[age], linewidth=2, linestyle='-', label=f"Age {age}"))
+            handles.append(
+                Line2D(
+                    [0],
+                    [0],
+                    color=self.colors[age],
+                    linewidth=2,
+                    linestyle="-",
+                    label=f"Age {age}",
+                )
+            )
 
         plt.legend(handles=handles)
-        #plt.show()
+        # plt.show()
 
         #### save figures
-    
-    def bursts(self, animal_id, session_id, fluorescence_type="F_raw", num_cells="all", unit_id="all", 
-               remove_geldrying=True, dpi=300, fps="30"):
-        #for s2p_folder in self.animals[animal_id].sessions[session].suite2p_paths:
+
+    def bursts(
+        self,
+        animal_id,
+        session_id,
+        fluorescence_type="F_raw",
+        num_cells="all",
+        unit_id="all",
+        remove_geldrying=True,
+        dpi=300,
+        fps="30",
+    ):
+        # for s2p_folder in self.animals[animal_id].sessions[session].suite2p_paths:
         session = self.animals[animal_id].sessions[session_id]
         bin_traces_zip = session.load_cabincorr_data(unit_id=unit_id)
         fluorescence = None
@@ -1528,66 +1998,107 @@ class Vizualizer:
             if fluorescence_type in list(bin_traces_zip.keys()):
                 fluorescence = bin_traces_zip[fluorescence_type]
             else:
-                print(f"{animal_id} {session_id} No fluorescence data of type {fluorescence_type} in binarized_traces.npz")
+                print(
+                    f"{animal_id} {session_id} No fluorescence data of type {fluorescence_type} in binarized_traces.npz"
+                )
         else:
             print(f"{animal_id} {session_id} no binarized_traces.npz found")
-        if remove_geldrying and unit_id == "merged" and type(fluorescence)==np.ndarray:
+        if (
+            remove_geldrying
+            and unit_id == "merged"
+            and type(fluorescence) == np.ndarray
+        ):
             geldrying = session.load_geldrying()
-            geldrying_indexes = np.argwhere(geldrying==True).flatten()
+            geldrying_indexes = np.argwhere(geldrying == True).flatten()
             fluorescence = np.delete(fluorescence, geldrying_indexes, 0)
-        
-        if type(fluorescence)==np.ndarray:
-            self.traces(fluorescence, animal_id, session_id, unit_id, num_cells, fluorescence_type=fluorescence_type, dpi=dpi)
+
+        if type(fluorescence) == np.ndarray:
+            self.traces(
+                fluorescence,
+                animal_id,
+                session_id,
+                unit_id,
+                num_cells,
+                fluorescence_type=fluorescence_type,
+                dpi=dpi,
+            )
         return fluorescence
 
-    def traces(self, fluorescence, animal_id, session_id, unit_id="all", 
-               num_cells="all", fluorescence_type="", low_pass_filter=True, fps=30, dpi=300):
+    def traces(
+        self,
+        fluorescence,
+        animal_id,
+        session_id,
+        unit_id="all",
+        num_cells="all",
+        fluorescence_type="",
+        low_pass_filter=True,
+        fps=30,
+        dpi=300,
+    ):
         # plot fluorescence
         if low_pass_filter:
-            fluorescence = butter_lowpass_filter(fluorescence, cutoff=0.5, fs=30, order=2)
-        
+            fluorescence = butter_lowpass_filter(
+                fluorescence, cutoff=0.5, fs=30, order=2
+            )
+
         fluorescence = np.array(fluorescence)
-        fluorescence = np.transpose(fluorescence) if len(fluorescence.shape)==2 else fluorescence
+        fluorescence = (
+            np.transpose(fluorescence) if len(fluorescence.shape) == 2 else fluorescence
+        )
         plt.figure()
         plt.figure(figsize=(12, 7))
         if num_cells != "all":
-            plt.plot(fluorescence[:, :int(num_cells)])
+            plt.plot(fluorescence[:, : int(num_cells)])
         else:
             plt.plot(fluorescence)
 
-        if unit_id!="all":
+        if unit_id != "all":
             file_name = f"{animal_id} {session_id} Unit {unit_id}"
         else:
             file_name = f"{animal_id} {session_id}"
 
         seconds = 5
-        num_frames = fps*seconds
+        num_frames = fps * seconds
         num_x_ticks = 50
         written_label_steps = 2
 
-        x_time = [int(frame/num_frames)*seconds for frame in range(len(fluorescence)) if frame%num_frames==0] 
-        steps = round(len(x_time)/(2*num_x_ticks))
+        x_time = [
+            int(frame / num_frames) * seconds
+            for frame in range(len(fluorescence))
+            if frame % num_frames == 0
+        ]
+        steps = round(len(x_time) / (2 * num_x_ticks))
         x_time_shortened = x_time[::steps]
-        x_pos = np.arange(0, len(fluorescence), num_frames)[::steps] 
-        
+        x_pos = np.arange(0, len(fluorescence), num_frames)[::steps]
+
         title = f"Bursts from {file_name} {fluorescence_type}"
-        xlabel=f"seconds"
-        ylabel='fluorescence based on Ca in Cell'
-        x_labels = [time if num%written_label_steps==0 else "" for num, time in enumerate(x_time_shortened)]
+        xlabel = f"seconds"
+        ylabel = "fluorescence based on Ca in Cell"
+        x_labels = [
+            time if num % written_label_steps == 0 else ""
+            for num, time in enumerate(x_time_shortened)
+        ]
         plt.xticks(x_pos, x_labels, rotation=40, fontsize=8)
         plt.title(title)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
 
-        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")+".png"), dpi=dpi)
+        plt.savefig(
+            os.path.join(self.save_dir, title.replace(" ", "_") + ".png"), dpi=dpi
+        )
         plt.show()
         plt.close()
 
-    def save_rasters_fig(self, calcium_object, animal_id, session_id, unit_id="all"): 
-        #TODO: Update to classes
+    def save_rasters_fig(self, calcium_object, animal_id, session_id, unit_id="all"):
+        # TODO: Update to classes
         show_rasters_savelocation = os.path.join(calcium_object.data_dir, "figures")
-        show_rasters_savelocation_name = os.path.join(show_rasters_savelocation, "rasters.png")
-        own_location_name = os.path.join(self.save_dir, f"Rasters_{animal_id}_{session_id}_Unit_{unit_id}.png")
+        show_rasters_savelocation_name = os.path.join(
+            show_rasters_savelocation, "rasters.png"
+        )
+        own_location_name = os.path.join(
+            self.save_dir, f"Rasters_{animal_id}_{session_id}_Unit_{unit_id}.png"
+        )
 
         dir_exist_create(os.path.join(calcium_object.data_dir, "figures"))
         del_file_dir(own_location_name)
@@ -1595,77 +2106,102 @@ class Vizualizer:
 
         calcium_object.show_rasters(save_image=True)
 
-        #change picture location
-        os.rename(show_rasters_savelocation_name, own_location_name)    
+        # change picture location
+        os.rename(show_rasters_savelocation_name, own_location_name)
 
-    def pearson_hist(self, animal_id, session_id, unit_id="all", remove_geldrying=True, dpi=300, generate_corr=False, color_classify=False,
-                                facecolor="tab:blue"):
-        title_unit_text = "Suite2P" if unit_id == "all" else unit_id  
+    def pearson_hist(
+        self,
+        animal_id,
+        session_id,
+        unit_id="all",
+        remove_geldrying=True,
+        dpi=300,
+        generate_corr=False,
+        color_classify=False,
+        facecolor="tab:blue",
+    ):
+        title_unit_text = "Suite2P" if unit_id == "all" else unit_id
         title = f"Corr_Hist {animal_id} {session_id} {title_unit_text}"
-        unit_id = "" if unit_id=="all" else unit_id
+        unit_id = "" if unit_id == "all" else unit_id
         # Create a figure and two subplots
         session = self.animals[animal_id].sessions[session_id]
-        corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
-                                                                            generate=generate_corr, 
-                                                                            remove_geldrying=remove_geldrying)
+        corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(
+            unit_id, generate=generate_corr, remove_geldrying=remove_geldrying
+        )
         if type(corr_matrix) == np.ndarray:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
             # First subplot
-            sns.heatmap(corr_matrix, annot=False, cmap='YlGnBu', ax=ax1)
+            sns.heatmap(corr_matrix, annot=False, cmap="YlGnBu", ax=ax1)
             ax1.set_xlabel("Neuron id")
             ax1.set_ylabel("Neuron id")
-            ax1.set_title('Pearson Correlation Matrix')
-    
+            ax1.set_title("Pearson Correlation Matrix")
+
             # Second subplot
-            hist_data = corr_matrix if isinstance(corr_matrix, np.ndarray) else corr_matrix.to_numpy()
+            hist_data = (
+                corr_matrix
+                if isinstance(corr_matrix, np.ndarray)
+                else corr_matrix.to_numpy()
+            )
             mean = np.nanmean(corr_matrix)
             std = np.nanstd(corr_matrix)
             if color_classify:
                 anz = Analyzer()
                 corr_mean_std_good = anz.good_mean_std(mean, std)
-                facecolor = facecolor if corr_mean_std_good else "tab:red" 
-            sns.histplot(data=hist_data.flatten(), binwidth=0.1, ax=ax2, facecolor=facecolor)
+                facecolor = facecolor if corr_mean_std_good else "tab:red"
+            sns.histplot(
+                data=hist_data.flatten(), binwidth=0.1, ax=ax2, facecolor=facecolor
+            )
             ax2.set_title("Pearson Correlation Coefficient Histogram")
-            hist_xlabel="Coefficients combined in 0.1 size bins"
-            hist_ylabel="Number of coefficients in bin"
+            hist_xlabel = "Coefficients combined in 0.1 size bins"
+            hist_ylabel = "Number of coefficients in bin"
             ax2.set_xlabel(hist_xlabel)
             ax2.set_ylabel(hist_ylabel)
             ax2.legend()
 
-            mean_text = f'Mean: {mean:.2}'
-            std_text = f'Std: {std:.2}'
-            
-            extra = Rectangle((0, 0), 1, 1, fc=facecolor, fill=True, edgecolor='none', linewidth=0)
-            extra = Rectangle((0, 0), 1, 1, fc=facecolor, fill=True, edgecolor='none', linewidth=0)
-            plt.legend([extra, extra],[mean_text, std_text], loc='upper right')#, title='Legend')
+            mean_text = f"Mean: {mean:.2}"
+            std_text = f"Std: {std:.2}"
 
+            extra = Rectangle(
+                (0, 0), 1, 1, fc=facecolor, fill=True, edgecolor="none", linewidth=0
+            )
+            extra = Rectangle(
+                (0, 0), 1, 1, fc=facecolor, fill=True, edgecolor="none", linewidth=0
+            )
+            plt.legend(
+                [extra, extra], [mean_text, std_text], loc="upper right"
+            )  # , title='Legend')
 
             fig.suptitle(title)
-            plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")),
-                        dpi=dpi)
+            plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")), dpi=dpi)
             plt.show()
         else:
             print(f"No correlation data to be plotted")
         return corr_matrix, pval_matrix
 
-    def pearson_kde(self, filters=[], unit_id="all", 
-                    x_axes_range=[-0.5, 0.5], 
-                    y_axes_range=None, 
-                    generate_corr=False, remove_geldrying=True, 
-                    average_by_pday=False, dpi=300, show_print=False):
+    def pearson_kde(
+        self,
+        filters=[],
+        unit_id="all",
+        x_axes_range=[-0.5, 0.5],
+        y_axes_range=None,
+        generate_corr=False,
+        remove_geldrying=True,
+        average_by_pday=False,
+        dpi=300,
+        show_print=False,
+    ):
         filters = make_list_ifnot(filters)
-        title_unit_text = "Suite2P" if unit_id == "all" else unit_id  
+        title_unit_text = "Suite2P" if unit_id == "all" else unit_id
         title = f"All correlation coefficient KDE {filters} {title_unit_text} {x_axes_range}"
-        unit_id = "" if unit_id=="all" else unit_id
+        unit_id = "" if unit_id == "all" else unit_id
         # Plot Kernel density Estimation
         filtered_animals = filter_animals(self.animals, filters)
         unique_sorted_ages, min_age, max_age = get_age_range(filtered_animals)
         colorsteps = self.create_colorsteps(min_age, max_age)
-        
+
         plt.figure()
         plt.figure(figsize=(12, 7))
-        
-        
+
         sum_corrs_by_pday = {}
         num_corrs = {}
 
@@ -1673,33 +2209,52 @@ class Vizualizer:
             age = session.pday
             # show_prints(show=show_print)  FIXME: why not working?
             print(animal_id, session_id)
-            corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
-                                                                                generate=generate_corr, 
-                                                                                remove_geldrying=remove_geldrying)
-            #show_prints(show=True) FIXME: why not working?
+            corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(
+                unit_id, generate=generate_corr, remove_geldrying=remove_geldrying
+            )
+            # show_prints(show=True) FIXME: why not working?
             if type(corr_matrix) != np.ndarray:
                 continue
             if not average_by_pday:
-                sns.kdeplot(data=corr_matrix.flatten(), color=self.colors[(age-min_age)*colorsteps], linewidth=1)#, fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
+                sns.kdeplot(
+                    data=corr_matrix.flatten(),
+                    color=self.colors[(age - min_age) * colorsteps],
+                    linewidth=1,
+                )  # , fill=True, alpha=.001,)#, hist_kws=dict(edgecolor="k", linewidth=2))
             else:
                 if age not in sum_corrs_by_pday:
                     sum_corrs_by_pday[age] = corr_matrix.flatten()
                     num_corrs[age] = 1
                 else:
-                    sum_corrs_by_pday[age] = np.append(sum_corrs_by_pday[age], corr_matrix)
+                    sum_corrs_by_pday[age] = np.append(
+                        sum_corrs_by_pday[age], corr_matrix
+                    )
                     num_corrs[age] += 1
         if average_by_pday:
             for age, sum_corrs in sum_corrs_by_pday.items():
-                corr_matrix = sum_corrs/num_corrs[age]
-                sns.kdeplot(data=corr_matrix, color=self.colors[(age-min_age)*colorsteps], linewidth=1)
+                corr_matrix = sum_corrs / num_corrs[age]
+                sns.kdeplot(
+                    data=corr_matrix,
+                    color=self.colors[(age - min_age) * colorsteps],
+                    linewidth=1,
+                )
         handles = []
         line_plot_steps = 1
         if len(unique_sorted_ages) > 17:
-            line_plot_steps = round(len(unique_sorted_ages)/17)
+            line_plot_steps = round(len(unique_sorted_ages) / 17)
 
         for age in np.unique(unique_sorted_ages[::line_plot_steps]):
-            handles.append(Line2D([0], [0], color=self.colors[(age-min_age)*colorsteps], linewidth=2, linestyle='-', label=f"Age {age}"))
-        #handles=[Patch(color="tab:red", label="Bad=mean+sigma > 0.3"), Patch(color="tab:blue", label="Good=mean+sigma < 0.3")]
+            handles.append(
+                Line2D(
+                    [0],
+                    [0],
+                    color=self.colors[(age - min_age) * colorsteps],
+                    linewidth=2,
+                    linestyle="-",
+                    label=f"Age {age}",
+                )
+            )
+        # handles=[Patch(color="tab:red", label="Bad=mean+sigma > 0.3"), Patch(color="tab:blue", label="Good=mean+sigma < 0.3")]
         plt.xlabel("Correlation")
         plt.ylabel("Frequency")
         plt.title(title)
@@ -1707,14 +2262,23 @@ class Vizualizer:
         if y_axes_range:
             plt.ylim(bottom=y_axes_range[0], top=y_axes_range[1])
         plt.legend(handles=handles)
-        plt.savefig(os.path.join(self.save_dir,title.replace(" ", "_")+".png"), dpi=300)
+        plt.savefig(
+            os.path.join(self.save_dir, title.replace(" ", "_") + ".png"), dpi=300
+        )
         plt.show()
 
-    def plot_means_stds(self, filters=[], unit_id="", dpi=300, 
-                        x_tick_jumps = 4, generate_corr=False, 
-                        remove_geldrying=True, show_print=False):
+    def plot_means_stds(
+        self,
+        filters=[],
+        unit_id="",
+        dpi=300,
+        x_tick_jumps=4,
+        generate_corr=False,
+        remove_geldrying=True,
+        show_print=False,
+    ):
         filters = make_list_ifnot(filters)
-        
+
         mean_threshold = Analyzer.mean_threshold
         std_threshold = Analyzer.std_threshold
 
@@ -1729,87 +2293,140 @@ class Vizualizer:
             stds = []
             for session_id, session in animal.sessions.items():
                 show_prints(show=show_print)
-                corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(unit_id, 
-                                                                                    generate=generate_corr, 
-                                                                                    remove_geldrying=remove_geldrying)
+                corr_matrix, pval_matrix, z_score_matrix = session.load_corr_matrix(
+                    unit_id, generate=generate_corr, remove_geldrying=remove_geldrying
+                )
                 show_prints(show=True)
                 if type(corr_matrix) != np.ndarray:
                     continue
                 ages.append(session.pday)
                 means.append(np.nanmean(corr_matrix))
                 stds.append(np.nanstd(corr_matrix))
-          
+
                 drawn_animal_ids.append(animal_id)
             sort_ages_ids = np.argsort(ages)
             sorted_ages = np.array(ages)[sort_ages_ids]
             sorted_means = np.array(means)[sort_ages_ids]
             sorted_stds = np.array(stds)[sort_ages_ids]
             if animal_id in drawn_animal_ids:
-                ax1.plot(sorted_ages, sorted_means, color=self.colors[number*colorsteps], marker=".")
-                ax2.plot(sorted_ages, sorted_stds, color=self.colors[number*colorsteps], marker=".")
+                ax1.plot(
+                    sorted_ages,
+                    sorted_means,
+                    color=self.colors[number * colorsteps],
+                    marker=".",
+                )
+                ax2.plot(
+                    sorted_ages,
+                    sorted_stds,
+                    color=self.colors[number * colorsteps],
+                    marker=".",
+                )
 
-        age_labels = [str(age) if num%x_tick_jumps==0 else "" for num, age in enumerate(unique_sorted_ages)]
+        age_labels = [
+            str(age) if num % x_tick_jumps == 0 else ""
+            for num, age in enumerate(unique_sorted_ages)
+        ]
         unique_draws_animal_ids = np.unique(drawn_animal_ids)
-        lines = [Line2D([0], [0], color=self.colors[number*colorsteps], linewidth=3, linestyle='-', label=unique_draws_animal_ids[number]) for number in range(len(unique_draws_animal_ids))]
-        unit_text = "Suite2P" if unit_id=="all" else unit_id
+        lines = [
+            Line2D(
+                [0],
+                [0],
+                color=self.colors[number * colorsteps],
+                linewidth=3,
+                linestyle="-",
+                label=unique_draws_animal_ids[number],
+            )
+            for number in range(len(unique_draws_animal_ids))
+        ]
+        unit_text = "Suite2P" if unit_id == "all" else unit_id
         title = f"{filters}{unit_text} Means and Standard Deviations"
         fig.suptitle(title)
 
-        ax1.axhline(y = mean_threshold, color = 'r', linestyle = '--', label="Mean Threshold")
-        ax1.set_xticks(unique_sorted_ages, age_labels, rotation=40, ha='right', rotation_mode='anchor')
+        ax1.axhline(y=mean_threshold, color="r", linestyle="--", label="Mean Threshold")
+        ax1.set_xticks(
+            unique_sorted_ages,
+            age_labels,
+            rotation=40,
+            ha="right",
+            rotation_mode="anchor",
+        )
         ax1.set_xlabel("pday")
         ax1.set_ylabel("Mean")
-        ax1.set_title(f'Means of pearson correlations')
-        mean_threshold_legend_object = Line2D([0], [0], color='r', linewidth=2, linestyle='--', label=f"Mean thr={mean_threshold}")
-        ax1_handles= lines+[mean_threshold_legend_object]
+        ax1.set_title(f"Means of pearson correlations")
+        mean_threshold_legend_object = Line2D(
+            [0],
+            [0],
+            color="r",
+            linewidth=2,
+            linestyle="--",
+            label=f"Mean thr={mean_threshold}",
+        )
+        ax1_handles = lines + [mean_threshold_legend_object]
 
-
-        ax2.axhline(y=std_threshold, color = 'r', linestyle = '--', label="Std Threshold")
-        ax2.set_xticks(unique_sorted_ages, age_labels, rotation=40, ha='right', rotation_mode='anchor')
+        ax2.axhline(y=std_threshold, color="r", linestyle="--", label="Std Threshold")
+        ax2.set_xticks(
+            unique_sorted_ages,
+            age_labels,
+            rotation=40,
+            ha="right",
+            rotation_mode="anchor",
+        )
         ax2.set_xlabel("pday")
         ax2.set_ylabel("Standard Deviation")
         ax2.set_title(f"Std of pearson correlations")
-        std_threshold_legend_object = Line2D([0], [0], color='r', linewidth=2, linestyle='--', label=f"Std thr={std_threshold}")
-        ax2_handles= lines+[std_threshold_legend_object]
+        std_threshold_legend_object = Line2D(
+            [0],
+            [0],
+            color="r",
+            linewidth=2,
+            linestyle="--",
+            label=f"Std thr={std_threshold}",
+        )
+        ax2_handles = lines + [std_threshold_legend_object]
 
-        
         ax1.legend(handles=ax1_handles)
         ax2.legend(handles=ax2_handles)
-        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")+".png"), dpi=300)
+        plt.savefig(
+            os.path.join(self.save_dir, title.replace(" ", "_") + ".png"), dpi=300
+        )
         plt.show()
 
     def sanky_diagram(self):
         """
         Not implemented, only example
         """
-        #TODO: implement
-        #https://plotly.com/python/sankey-diagram/
+        # TODO: implement
+        # https://plotly.com/python/sankey-diagram/
         import plotly.graph_objects as go
 
-        fig = go.Figure(go.Sankey(
-            arrangement = "snap",
-            node = {
-                "label": ["A", "B", "C", "D", "E", "F"],
-                "x": [0.2, 0.1, 0.5, 0.7, 0.3, 0.5],
-                "y": [0.7, 0.5, 0.2, 0.4, 0.2, 0.3],
-                'pad':10},  # 10 Pixels
-            link = {
-                "source": [0, 0, 1, 2, 5, 4, 3, 5],
-                "target": [5, 3, 4, 3, 0, 2, 2, 3],
-                "value": [1, 2, 1, 1, 1, 1, 1, 2]}))
+        fig = go.Figure(
+            go.Sankey(
+                arrangement="snap",
+                node={
+                    "label": ["A", "B", "C", "D", "E", "F"],
+                    "x": [0.2, 0.1, 0.5, 0.7, 0.3, 0.5],
+                    "y": [0.7, 0.5, 0.2, 0.4, 0.2, 0.3],
+                    "pad": 10,
+                },  # 10 Pixels
+                link={
+                    "source": [0, 0, 1, 2, 5, 4, 3, 5],
+                    "target": [5, 3, 4, 3, 0, 2, 2, 3],
+                    "value": [1, 2, 1, 1, 1, 1, 1, 2],
+                },
+            )
+        )
 
         fig.show()
         pass
 
-    def unit_footprints(self, unit, rot90_times=1, 
-                        remove_geldrying=False, cmap=None):
+    def unit_footprints(self, unit, rot90_times=1, remove_geldrying=False, cmap=None):
         # plot footprints of a unit
         plt.figure()
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
-        
-        if remove_geldrying and unit.unit_id=="merged":
+
+        if remove_geldrying and unit.unit_id == "merged":
             geldrying = unit.cell_geldrying
-            footprints = np.array(unit.footprints)[geldrying==False]
+            footprints = np.array(unit.footprints)[geldrying == False]
         else:
             footprints = unit.footprints
         plt.title(f"{len(footprints)} footprints {title}")
@@ -1819,24 +2436,29 @@ class Vizualizer:
     def footprints(self, footprints, rot90_times=1, cmap=None):
         # plot all footprints
         for footprint in footprints:
-            idx = np.where(footprint==0)
+            idx = np.where(footprint == 0)
             footprint[idx] = np.nan
             plt.imshow(np.rot90(footprint, k=rot90_times), cmap=cmap)
 
-    def unit_contours(self, unit, figsize=(10,10), 
-                      color=None, plot_center=False, 
-                      remove_geldrying=False,
-                      comment=""):
+    def unit_contours(
+        self,
+        unit,
+        figsize=(10, 10),
+        color=None,
+        plot_center=False,
+        remove_geldrying=False,
+        comment="",
+    ):
         # Plot Contours
-        plt.figure(figsize=(10,10))
+        plt.figure(figsize=(10, 10))
         title = f"{unit.animal_id}_{unit.session_id}_MUnit_{unit.unit_id}"
 
         geldrying = None
-        contours = unit.contours 
+        contours = unit.contours
         drawn_cells = len(contours)
-        if remove_geldrying and unit.unit_id=="merged":
+        if remove_geldrying and unit.unit_id == "merged":
             geldrying = unit.cell_geldrying
-            drawn_cells = sum(geldrying==False)
+            drawn_cells = sum(geldrying == False)
         self.contours(contours, geldrying, color, plot_center, comment)
         plt.title(f"{drawn_cells} contours {title}")
         plt.savefig(os.path.join(self.save_dir, f"Contours_{title}.png"), dpi=300)
@@ -1846,8 +2468,12 @@ class Vizualizer:
         y_mean = np.mean(contour[:, 1])
         return np.array([x_mean, y_mean])
 
-    def contours(self, contours, geldrying=None, color=None, plot_center=False, comment=""): #plot_contours_points
-        geldrying = [False]*len(contours) if type(geldrying)!=np.ndarray else geldrying
+    def contours(
+        self, contours, geldrying=None, color=None, plot_center=False, comment=""
+    ):  # plot_contours_points
+        geldrying = (
+            [False] * len(contours) if type(geldrying) != np.ndarray else geldrying
+        )
         drawn_cells = 0
         for contour, cell_geldrying in zip(contours, geldrying):
             if cell_geldrying:
@@ -1855,17 +2481,24 @@ class Vizualizer:
             drawn_cells += 1
             y_corr = contour[:, 0]
             x_corr = contour[:, 1]
-            plt.plot(x_corr, y_corr, color = color)
+            plt.plot(x_corr, y_corr, color=color)
             if plot_center:
                 xy_mean = self.contour_to_point(contour)
-                plt.plot(xy_mean[1], xy_mean[0], ".", color = color)
+                plt.plot(xy_mean[1], xy_mean[0], ".", color=color)
         plt.title(f"{drawn_cells} Contours{comment}")
 
-    def multi_contours(self, multi_contours, plot_center=False, colors=["red", "green", "blue", "yellow", "purple", "orange", "cyan"]):
+    def multi_contours(
+        self,
+        multi_contours,
+        plot_center=False,
+        colors=["red", "green", "blue", "yellow", "purple", "orange", "cyan"],
+    ):
         for contours, col in zip(multi_contours, colors):
             self.contours(contours, color=col, plot_center=plot_center)
 
-    def multi_unit_contours(self, units, combination=None, plot_center=False, shift=False, figsize=(20,20)):
+    def multi_unit_contours(
+        self, units, combination=None, plot_center=False, shift=False, figsize=(20, 20)
+    ):
         """
         units : dict
         combination : list of dict keys
@@ -1874,14 +2507,18 @@ class Vizualizer:
         handles = []
         plot_contours = []
         plot_colors = []
-        combination = list(units.keys()) if combination==None else combination
+        combination = list(units.keys()) if combination == None else combination
         colors = ["red", "green", "blue", "yellow", "purple", "orange", "cyan"]
         for (unit_id, unit), col in zip(units.items(), colors):
             if unit_id not in combination:
                 continue
-            good_cell_contours = np.array(unit.contours)[unit.cell_geldrying==False] if len(unit.cell_geldrying)==len(unit.contours) else np.array(unit.contours)
-            
-            #FIXME: Integrate rotation
+            good_cell_contours = (
+                np.array(unit.contours)[unit.cell_geldrying == False]
+                if len(unit.cell_geldrying) == len(unit.contours)
+                else np.array(unit.contours)
+            )
+
+            # FIXME: Integrate rotation
             """
             #shift, rotate contours
             all_shifted_rotated_contour_points = []
@@ -1899,23 +2536,46 @@ class Vizualizer:
                 contours = all_shifted_rotated_contour_points
                 shift_label = f" yx_shift: {yx_shift}  yx_center: {rot_center_yx}  angle: {rot_angle}"
             """
-            #shift contours
-            good_cell_contours = [good_cell_contour - unit.yx_shift for good_cell_contour in good_cell_contours] if shift else good_cell_contours
+            # shift contours
+            good_cell_contours = (
+                [
+                    good_cell_contour - unit.yx_shift
+                    for good_cell_contour in good_cell_contours
+                ]
+                if shift
+                else good_cell_contours
+            )
             plot_colors.append(col)
             plot_contours.append(good_cell_contours)
-            shift_label = f" y: {unit.yx_shift[0]}  x: {unit.yx_shift[1]}" if shift else ""
-            
-            
-            handles.append(Line2D([0], [0], color=col, linewidth=2, linestyle='-', label=f"MUnit: {unit_id}{shift_label}"))
+            shift_label = (
+                f" y: {unit.yx_shift[0]}  x: {unit.yx_shift[1]}" if shift else ""
+            )
+
+            handles.append(
+                Line2D(
+                    [0],
+                    [0],
+                    color=col,
+                    linewidth=2,
+                    linestyle="-",
+                    label=f"MUnit: {unit_id}{shift_label}",
+                )
+            )
         self.multi_contours(plot_contours, colors=plot_colors, plot_center=plot_center)
         plt.title(f"Contours for MUnits: {combination}")
         plt.legend(handles=handles, fontsize=20)
         shift_label = f"_shifted" if shift else ""
-        plt.savefig(os.path.join(self.save_dir, f"Contours_MUnits_{combination}{shift_label}.png"), dpi=300)
-        #plt.show()
+        plt.savefig(
+            os.path.join(
+                self.save_dir, f"Contours_MUnits_{combination}{shift_label}.png"
+            ),
+            dpi=300,
+        )
+        # plt.show()
 
-    def unit_fluorescence_good_bad(self, unit, batch_size=10, starting=0, interactive=False, plot_duplicates=True):
-        
+    def unit_fluorescence_good_bad(
+        self, unit, batch_size=10, starting=0, interactive=False, plot_duplicates=True
+    ):
         cell_geldrying = unit.get_geldrying_cells()
         fluorescence = unit.fluorescence
 
@@ -1932,69 +2592,93 @@ class Vizualizer:
         fluorescence_batches = split_array(fluorescence, batch_size)
         num_batches = len(fluorescence_batches)
 
-        for i, (cell_geldrying_batch, fluorescence_batch) in enumerate(zip(cell_geldrying_batches, fluorescence_batches)):
+        for i, (cell_geldrying_batch, fluorescence_batch) in enumerate(
+            zip(cell_geldrying_batches, fluorescence_batches)
+        ):
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 10))
 
-            for num, (cell_geldrying, neuron_data) in enumerate(zip(cell_geldrying_batch, fluorescence_batch)):
-                cell_number = (i)*batch_size + num if batch_size != "all" else num
+            for num, (cell_geldrying, neuron_data) in enumerate(
+                zip(cell_geldrying_batch, fluorescence_batch)
+            ):
+                cell_number = (i) * batch_size + num if batch_size != "all" else num
                 cell_number += starting
                 if not cell_geldrying:
-                    ax1.plot(neuron_data, label=f"Cell: {cell_number}")# {unit.cell_geldrying_reasons[cell_number]}")
+                    ax1.plot(
+                        neuron_data, label=f"Cell: {cell_number}"
+                    )  # {unit.cell_geldrying_reasons[cell_number]}")
                 else:
-                    ax2.plot(neuron_data, label=f"Cell: {cell_number}")# {unit.cell_geldrying_reasons[cell_number]}")
+                    ax2.plot(
+                        neuron_data, label=f"Cell: {cell_number}"
+                    )  # {unit.cell_geldrying_reasons[cell_number]}")
 
             bad = sum(cell_geldrying_batch)
-            good = len(cell_geldrying_batch)-bad
+            good = len(cell_geldrying_batch) - bad
 
             seconds = 5
-            num_frames = 30*seconds
+            num_frames = 30 * seconds
             x_pos = np.arange(0, len(neuron_data), num_frames)
-            x_time = [int(frame/num_frames)*seconds for frame in range(len(neuron_data)) if frame%num_frames==0] 
-            num_written_labels = round(len(x_time)/100)
-            x_labels = [time if time%num_written_labels==0 else "" for time in x_time]
+            x_time = [
+                int(frame / num_frames) * seconds
+                for frame in range(len(neuron_data))
+                if frame % num_frames == 0
+            ]
+            num_written_labels = round(len(x_time) / 100)
+            x_labels = [
+                time if time % num_written_labels == 0 else "" for time in x_time
+            ]
             ax1.set_xticks(x_pos, x_labels, rotation=40, fontsize=8)
             ax2.set_xticks(x_pos, x_labels, rotation=40, fontsize=8)
 
             batch_title = f"Batch_{i+1}_of_{num_batches}"
             legend_fontsize = 10
             fig.suptitle(f"F of {good+bad} Cells {title} {batch_title}", fontsize=20)
-            ax1.set_title(f'Good Cells: {good}')
+            ax1.set_title(f"Good Cells: {good}")
             ax1.set_ylim(bottom=-0.1, top=0.8)
             ax2.set_ylabel("F_filtered")
             ax2.set_xlabel("seconds")
-            ax2.set_title(f'Bad Cells: {bad}')
+            ax2.set_title(f"Bad Cells: {bad}")
             ax2.set_ylim(bottom=-0.1, top=0.8)
 
             if not batch_size == "all" and not batch_size > 16:
                 ax1.legend(fontsize=legend_fontsize)
-                ax2.legend(fontsize=legend_fontsize) 
+                ax2.legend(fontsize=legend_fontsize)
 
-            plt.savefig(os.path.join(self.save_dir, f"F_slide_{title}_{batch_title}.png"), dpi=300)
-            #plt.show()
-            dir_exist_create(os.path.join(self.save_dir,"html"))
-            #interactive html
-            
+            plt.savefig(
+                os.path.join(self.save_dir, f"F_slide_{title}_{batch_title}.png"),
+                dpi=300,
+            )
+            # plt.show()
+            dir_exist_create(os.path.join(self.save_dir, "html"))
+            # interactive html
+
             if interactive:
-                mpld3.save_html(fig, os.path.join(self.save_dir, "html", f"F_slide_{title}_{batch_title}.html"))
+                mpld3.save_html(
+                    fig,
+                    os.path.join(
+                        self.save_dir, "html", f"F_slide_{title}_{batch_title}.html"
+                    ),
+                )
 
     def binary_frames(self, frames, num_images_x=2):
         num_frames = frames.shape[0]
-        num_rows = round(num_frames/num_images_x)
-        fig, ax = plt.subplots(num_rows, num_images_x, figsize =(5*num_images_x, 5*num_rows))
+        num_rows = round(num_frames / num_images_x)
+        fig, ax = plt.subplots(
+            num_rows, num_images_x, figsize=(5 * num_images_x, 5 * num_rows)
+        )
         fig.suptitle(f"{num_frames} Binary Frames", fontsize=20)
         for i, image in enumerate(frames):
-            x = int(i/num_images_x)
-            y = i%num_images_x
+            x = int(i / num_images_x)
+            y = i % num_images_x
             if len(ax.shape) == 2:
                 ax[x, y].imshow(image)
                 ax[x, y].invert_yaxis()
-                ax[x, y].set_title(f'Frame {i}')
+                ax[x, y].set_title(f"Frame {i}")
             else:
                 ax[i].imshow(image)
                 ax[i].invert_yaxis()
-                ax[i].set_title(f'Frame {i}')
-        #plt.show()
-    
+                ax[i].set_title(f"Frame {i}")
+        # plt.show()
+
     def show_survived_cell_percentage(self, animals=None, pipeline_stats=None):
         if type(pipeline_stats) != pd.DataFrame:
             if not animals:
@@ -2007,17 +2691,28 @@ class Vizualizer:
         fig, (ax1) = plt.subplots(1, 1, figsize=(18, 4))
         ax1.bar(pipeline_stats.index, pipeline_stats.survived_cells)
 
-        #fig.suptitle('Survived cell percentages')
+        # fig.suptitle('Survived cell percentages')
         ax1.set_ylabel("% Cells")
         ax1.set_xlabel("Animal")
-        ax1.set_title(f'Survived cell: {np.mean(pipeline_stats.survived_cells):.2%}')
+        ax1.set_title(f"Survived cell: {np.mean(pipeline_stats.survived_cells):.2%}")
         animal_ids = list(pipeline_stats.index)
-        ax1.set_xticks(range(len(animal_ids)), animal_ids, rotation=40, ha='right', rotation_mode='anchor')
+        ax1.set_xticks(
+            range(len(animal_ids)),
+            animal_ids,
+            rotation=40,
+            ha="right",
+            rotation_mode="anchor",
+        )
         for i, v in enumerate(pipeline_stats.survived_cells):
             plt.text(range(len(pipeline_stats.index))[i] - 0.2, v + 0.01, f"{v:.2%}")
-        plt.savefig(os.path.join(self.save_dir, f"Survived_cells_after_removing_geldrying.png"), dpi=300)
+        plt.savefig(
+            os.path.join(self.save_dir, f"Survived_cells_after_removing_geldrying.png"),
+            dpi=300,
+        )
 
-    def show_survived_cell_numbers(self, animals=None, cell_numbers_dict=None, min_num_cells=200):
+    def show_survived_cell_numbers(
+        self, animals=None, cell_numbers_dict=None, min_num_cells=200
+    ):
         if not cell_numbers_dict:
             if not animals:
                 animals = self.animals
@@ -2026,29 +2721,54 @@ class Vizualizer:
             cell_numbers_dict = extract_cell_numbers(animals)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
         for animal_id, animal in cell_numbers_dict.items():
-            ages, iscells, notgeldrying, corrs, gel_corrs = get_sorted_cells_notgeldyring_lists(animal)
+            (
+                ages,
+                iscells,
+                notgeldrying,
+                corrs,
+                gel_corrs,
+            ) = get_sorted_cells_notgeldyring_lists(animal)
             usefull_iscells = iscells >= min_num_cells
             usefull_notgeldrying = notgeldrying >= min_num_cells
             if len(usefull_iscells) > 0:
-                ax1.plot(ages[usefull_iscells], iscells[usefull_iscells], label=f"{animal_id}", marker=".")
+                ax1.plot(
+                    ages[usefull_iscells],
+                    iscells[usefull_iscells],
+                    label=f"{animal_id}",
+                    marker=".",
+                )
             if len(usefull_notgeldrying) > 0:
-                ax2.plot(ages[usefull_notgeldrying], notgeldrying[usefull_notgeldrying], label=f"{animal_id}", marker=".", )
+                ax2.plot(
+                    ages[usefull_notgeldrying],
+                    notgeldrying[usefull_notgeldrying],
+                    label=f"{animal_id}",
+                    marker=".",
+                )
 
-        title = f'Compare Cell Numbers before, after Geldrying Detector with at least {min_num_cells} Cells'
+        title = f"Compare Cell Numbers before, after Geldrying Detector with at least {min_num_cells} Cells"
         fig.suptitle(title)
         ax1.set_ylabel("# Cells")
         ax1.set_xlabel("pday")
         ax1.set_ylim(bottom=0, top=1300)
-        ax1.set_title('Suite2P iscell')
+        ax1.set_title("Suite2P iscell")
         ax1.legend()
         ax2.set_ylabel("# Cells")
         ax2.set_xlabel("pday")
         ax2.set_ylim(bottom=0, top=1300)
-        ax2.set_title('Not Geldrying Cells (Own Pipeline)')
+        ax2.set_title("Not Geldrying Cells (Own Pipeline)")
         ax2.legend()
-        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_")+".png"), dpi=300)
+        plt.savefig(
+            os.path.join(self.save_dir, title.replace(" ", "_") + ".png"), dpi=300
+        )
 
-    def show_usefull_sessions_comparisson(self, animals=None, cell_numbers_dict=None, min_num_cells=200, dpi=300, facecolor="tab:blue"):
+    def show_usefull_sessions_comparisson(
+        self,
+        animals=None,
+        cell_numbers_dict=None,
+        min_num_cells=200,
+        dpi=300,
+        facecolor="tab:blue",
+    ):
         if not cell_numbers_dict:
             if not animals:
                 animals = self.animals
@@ -2058,12 +2778,22 @@ class Vizualizer:
 
         pday_usefull_session_count = {}
         for animal_id, animal in cell_numbers_dict.items():
-            ages, iscells, notgeldrying, corrs, gel_corrs = get_sorted_cells_notgeldyring_lists(animal)
+            (
+                ages,
+                iscells,
+                notgeldrying,
+                corrs,
+                gel_corrs,
+            ) = get_sorted_cells_notgeldyring_lists(animal)
             for age, num_iscells, num_notgeldrying in zip(ages, iscells, notgeldrying):
                 if age not in pday_usefull_session_count:
-                    pday_usefull_session_count[age] = {"s2p" : 0, "notgeldrying" : 0}
-                pday_usefull_session_count[age]["s2p"] += 1 if num_iscells >= min_num_cells else 0
-                pday_usefull_session_count[age]["notgeldrying"] += 1 if num_notgeldrying >= min_num_cells else 0
+                    pday_usefull_session_count[age] = {"s2p": 0, "notgeldrying": 0}
+                pday_usefull_session_count[age]["s2p"] += (
+                    1 if num_iscells >= min_num_cells else 0
+                )
+                pday_usefull_session_count[age]["notgeldrying"] += (
+                    1 if num_notgeldrying >= min_num_cells else 0
+                )
         pdays = sorted(list(pday_usefull_session_count.keys()))
         pday_usefull_session_count = sorted(pday_usefull_session_count.items())
 
@@ -2072,44 +2802,63 @@ class Vizualizer:
         for age, counts in pday_usefull_session_count:
             s2p_count_list.append(counts["s2p"])
             notgeldrying_count_list.append(counts["notgeldrying"])
-        xticks = range(15, max(pdays)+5, 5)
+        xticks = range(15, max(pdays) + 5, 5)
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 4))
         title = f"Number of Sessions distributed across pdays with cell numbers > {min_num_cells}"
         fig.suptitle(title)
-        minx, maxx = min(pdays)-1, max(pdays)+1
-        ax1.set_title(f'{sum(s2p_count_list)} Sessions after Suite2P')
+        minx, maxx = min(pdays) - 1, max(pdays) + 1
+        ax1.set_title(f"{sum(s2p_count_list)} Sessions after Suite2P")
         ax1.bar(pdays, s2p_count_list)
         ax1.set_xlim(minx, maxx)
         ax1.set_ylabel("# Sessions")
         ax1.set_xlabel("pday")
-        ax1.grid(color='gray', linestyle='-', linewidth=0.3)
-        ax1.set_xticks(xticks, labels=xticks, rotation=40, ha='right', rotation_mode='anchor')
+        ax1.grid(color="gray", linestyle="-", linewidth=0.3)
+        ax1.set_xticks(
+            xticks, labels=xticks, rotation=40, ha="right", rotation_mode="anchor"
+        )
         miny, maxy = ax1.get_ylim()
 
         ax2.bar(pdays, notgeldrying_count_list)
-        ax2.set_title(f'{sum(notgeldrying_count_list)} Sessions after removing geldrying cells')
+        ax2.set_title(
+            f"{sum(notgeldrying_count_list)} Sessions after removing geldrying cells"
+        )
         ax2.set_xlim(minx, maxx)
         ax2.set_ylim(miny, maxy)
         ax2.set_ylabel("# Sessions")
         ax2.set_xlabel("pday")
-        ax2.set_xticks(xticks, labels=xticks, rotation=40, ha='right', rotation_mode='anchor')
-        ax2.grid(color='gray', linestyle='-', linewidth=0.3)
-        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
+        ax2.set_xticks(
+            xticks, labels=xticks, rotation=40, ha="right", rotation_mode="anchor"
+        )
+        ax2.grid(color="gray", linestyle="-", linewidth=0.3)
+        plt.savefig(
+            os.path.join(
+                self.save_dir,
+                title.replace(" ", "_").replace(">", "bigger than") + ".png",
+            ),
+            dpi=300,
+        )
 
-    def plot_usefull_session_pdays(self, animals=None, cell_numbers_dict=None, 
-                                   min_num_cells=200, suite2p_cells=False,
-                                   different_color_after_k_green = None):
+    def plot_usefull_session_pdays(
+        self,
+        animals=None,
+        cell_numbers_dict=None,
+        min_num_cells=200,
+        suite2p_cells=False,
+        different_color_after_k_green=None,
+    ):
         if not cell_numbers_dict:
             if not animals:
                 animals = self.animals
             else:
                 raise ValueError("No data was given.")
             cell_numbers_dict = extract_cell_numbers(animals)
-        pday_cell_count_df = get_cells_pdays_df(cell_numbers_dict, suite2p_cells=suite2p_cells)
-        #from pandas import *
-        #display(pday_cell_count_df)
-        vals = np.around(pday_cell_count_df.values,2)
+        pday_cell_count_df = get_cells_pdays_df(
+            cell_numbers_dict, suite2p_cells=suite2p_cells
+        )
+        # from pandas import *
+        # display(pday_cell_count_df)
+        vals = np.around(pday_cell_count_df.values, 2)
         red = mlp.colors.TABLEAU_COLORS["tab:red"]
         green = mlp.colors.TABLEAU_COLORS["tab:green"]
         blue = mlp.colors.TABLEAU_COLORS["tab:blue"]
@@ -2125,32 +2874,43 @@ class Vizualizer:
                     col = red
                 elif val >= min_num_cells:
                     num_green += 1
-                    if different_color_after_k_green!=None:
-                        col = blue if num_green > different_color_after_k_green else green
-                    else: 
+                    if different_color_after_k_green != None:
+                        col = (
+                            blue if num_green > different_color_after_k_green else green
+                        )
+                    else:
                         col = green
                 col = mlp.colors.to_rgba(col)
                 colours[-1].append(col)
             # color all green cells in blue if the number of blue cells is above 15
-            #colours[-1] = colours[-1] if num_green<16 else [blue if col==mlp.colors.to_rgba(green) else col 
+            # colours[-1] = colours[-1] if num_green<16 else [blue if col==mlp.colors.to_rgba(green) else col
             #                                                for col in colours[-1]]
 
-        fig = plt.figure(figsize=(15,3))
+        fig = plt.figure(figsize=(15, 3))
         title = "Usefull Sessions by Animal ID and pday"
         fig.suptitle(title)
         ax = fig.add_subplot(111, frameon=False, xticks=[], yticks=[])
         ax.set_frame_on = False
-        table=plt.table(#cellText=vals, 
-                        rowLabels=pday_cell_count_df.index, 
-                        rowColours=[black]*len(pday_cell_count_df.index),
-                        colLabels=pday_cell_count_df.columns,  
-                        colColours=[black]*len(pday_cell_count_df.columns),
-                        colWidths = [0.02]*vals.shape[1], loc='center', 
-                        cellColours=colours)
-        plt.savefig(os.path.join(self.save_dir, title.replace(" ", "_").replace(">","bigger than")+".png"), dpi=300)
+        table = plt.table(  # cellText=vals,
+            rowLabels=pday_cell_count_df.index,
+            rowColours=[black] * len(pday_cell_count_df.index),
+            colLabels=pday_cell_count_df.columns,
+            colColours=[black] * len(pday_cell_count_df.columns),
+            colWidths=[0.02] * vals.shape[1],
+            loc="center",
+            cellColours=colours,
+        )
+        plt.savefig(
+            os.path.join(
+                self.save_dir,
+                title.replace(" ", "_").replace(">", "bigger than") + ".png",
+            ),
+            dpi=300,
+        )
         plt.show()
         return pday_cell_count_df
-        
+
+
 class Binary_loader:
     """
     A class for loading binary data and converting it into an animation.
@@ -2160,7 +2920,10 @@ class Binary_loader:
     Attributes:
         None
     """
-    def load_binary(self, fpath, n_frames_to_be_acquired, image_x_size=512, image_y_size=512):
+
+    def load_binary(
+        self, fpath, n_frames_to_be_acquired, image_x_size=512, image_y_size=512
+    ):
         """
         Loads binary data from a file.
 
@@ -2177,14 +2940,18 @@ class Binary_loader:
             np.ndarray: A NumPy array containing the loaded binary data.
         """
         # load binary file from suite2p_folder from unit
-        binary = np.memmap(fpath,
-                            dtype='uint16',
-                            mode='r',
-                            shape=(n_frames_to_be_acquired, image_x_size, image_y_size))
+        binary = np.memmap(
+            fpath,
+            dtype="uint16",
+            mode="r",
+            shape=(n_frames_to_be_acquired, image_x_size, image_y_size),
+        )
         binary_frames = copy.deepcopy(binary)
         return binary_frames
-    
-    def binary_frames_to_gif(self, frames, frame_range=[0, -1], fps=30, save_dir="animation", comment=""):
+
+    def binary_frames_to_gif(
+        self, frames, frame_range=[0, -1], fps=30, save_dir="animation", comment=""
+    ):
         """
         Converts a sequence of binary frames into an animated GIF.
 
@@ -2201,29 +2968,34 @@ class Binary_loader:
         import matplotlib.animation as animation
 
         range_start, range_end = frame_range
-        comment = comment+"_" if comment != "" else comment
+        comment = comment + "_" if comment != "" else comment
         save_dir = os.path.join(save_dir, "animation")
-        gif_save_path = os.path.join(save_dir, f"{comment}{range_start}-{range_end}.gif")
+        gif_save_path = os.path.join(
+            save_dir, f"{comment}{range_start}-{range_end}.gif"
+        )
 
-        delay_between_frames = int(1000/fps)# ms
+        delay_between_frames = int(1000 / fps)  # ms
         images = []
         fig = plt.figure()
         ax = fig.add_subplot(111)
         for i, frame in enumerate(frames):
-            if i%1000 == 0:
+            if i % 1000 == 0:
                 print(i)
-            p1 = ax.text(512/2-50, 0, f"Frame {i}", animated=True)
+            p1 = ax.text(512 / 2 - 50, 0, f"Frame {i}", animated=True)
             p2 = ax.imshow(frame, animated=True)
             images.append([p1, p2])
-        ani = animation.ArtistAnimation(fig, images, interval=delay_between_frames, blit=True,
-                                        repeat_delay=1000)
+        ani = animation.ArtistAnimation(
+            fig, images, interval=delay_between_frames, blit=True, repeat_delay=1000
+        )
         ani.save(gif_save_path)
         return ani
-    
+
+
 class Merger:
     """
     Merges indiviual MUnits/Subsession of a Session
     """
+
     """
     #FIXME: add rotation
     def create_points_from_stat(self, cell_stat: np.ndarray):
@@ -2351,59 +3123,83 @@ class Merger:
         for num, cell_stat in enumerate(new_stat):
             y_shifted = []
             for y in cell_stat["ypix"]:
-                y_shifted.append(y-yx_shift[0])
+                y_shifted.append(y - yx_shift[0])
             cell_stat["ypix"] = np.array(y_shifted)
-            
+
             x_shifted = []
             for x in cell_stat["xpix"]:
-                x_shifted.append(x-yx_shift[1])
+                x_shifted.append(x - yx_shift[1])
             cell_stat["xpix"] = np.array(x_shifted)
 
-            #center of cell_stat
+            # center of cell_stat
             med = cell_stat["med"]
-            med_shifted = [med[0]-yx_shift[0], med[1]-yx_shift[1]]
+            med_shifted = [med[0] - yx_shift[0], med[1] - yx_shift[1]]
             cell_stat["med"] = med_shifted
         return new_stat
-    
-    def merge_stat(self, units, best_unit, parallel=True, image_x_size=512, image_y_size=512):
+
+    def merge_stat(
+        self, units, best_unit, parallel=True, image_x_size=512, image_y_size=512
+    ):
         """
         shift and merge, deduplicate, stat files with best_unit as reference position
         """
         num_batches = get_num_batches_based_on_available_ram()
-        
-        shifted_unit_stat_no_abroad = self.remove_abroad_cells(best_unit.c.stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
+
+        shifted_unit_stat_no_abroad = self.remove_abroad_cells(
+            best_unit.c.stat,
+            units,
+            image_x_size=image_x_size,
+            image_y_size=image_y_size,
+        )
         merged_footprints = self.stat_to_footprints(shifted_unit_stat_no_abroad)
         merged_stat = shifted_unit_stat_no_abroad
         for unit_id, unit in units.items():
             if unit_id == best_unit.unit_id:
-                continue    
-            shifted_unit_stat = self.shift_stat_cells(unit.c.stat, yx_shift=unit.yx_shift, image_x_size=image_x_size, image_y_size=image_y_size)
-            #FIXME: add to code """moved_session_stat = self.shift_rotate_stat_cells(session) from bmi"""
-            shifted_unit_stat_no_abroad = self.remove_abroad_cells(shifted_unit_stat, units, image_x_size=image_x_size, image_y_size=image_y_size)
+                continue
+            shifted_unit_stat = self.shift_stat_cells(
+                unit.c.stat,
+                yx_shift=unit.yx_shift,
+                image_x_size=image_x_size,
+                image_y_size=image_y_size,
+            )
+            # FIXME: add to code """moved_session_stat = self.shift_rotate_stat_cells(session) from bmi"""
+            shifted_unit_stat_no_abroad = self.remove_abroad_cells(
+                shifted_unit_stat,
+                units,
+                image_x_size=image_x_size,
+                image_y_size=image_y_size,
+            )
             shifted_footprints = self.stat_to_footprints(shifted_unit_stat_no_abroad)
-            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(merged_footprints, shifted_footprints, parallel=parallel, num_batches=num_batches)
-            merged_stat = np.concatenate([merged_stat, shifted_unit_stat_no_abroad])[clean_cell_ids]
+            clean_cell_ids, merged_footprints = self.merge_deduplicate_footprints(
+                merged_footprints,
+                shifted_footprints,
+                parallel=parallel,
+                num_batches=num_batches,
+            )
+            merged_stat = np.concatenate([merged_stat, shifted_unit_stat_no_abroad])[
+                clean_cell_ids
+            ]
         return merged_stat
-    
+
     def remove_abroad_cells(self, stat, units, image_x_size=512, image_y_size=512):
-        # removing out of bound cells 
+        # removing out of bound cells
         remove_cells = []
         for cell_num, cell in enumerate(stat):
             abroad = False
-            #check for every shift 
+            # check for every shift
             for unit_id, unit in units.items():
                 if abroad:
                     break
                 yx_shift = unit.yx_shift
                 for axis in ["ypix", "xpix"]:
-                    shift = yx_shift[0] if axis=="ypix" else yx_shift[1]
-                    shifted = cell[axis]+shift
+                    shift = yx_shift[0] if axis == "ypix" else yx_shift[1]
+                    shifted = cell[axis] + shift
 
                     # check if cell is out of bound
-                    max_location = image_y_size if axis=="ypix" else image_x_size
-                    if sum(shifted>=max_location)>0 or sum(shifted<0)>0:
+                    max_location = image_y_size if axis == "ypix" else image_x_size
+                    if sum(shifted >= max_location) > 0 or sum(shifted < 0) > 0:
                         abroad = True
-                        break    
+                        break
             if abroad:
                 remove_cells.append(cell_num)
         """
@@ -2446,27 +3242,27 @@ class Merger:
         """
         path = units[list(units.keys())[0]].suite2p_path
         merged_F = np.load(os.path.join(path, "F.npy"))
-        merged_Fneu = np.load(os.path.join(path,   "Fneu.npy"))
-        merged_spks = np.load(os.path.join(path,   "spks.npy"))
+        merged_Fneu = np.load(os.path.join(path, "Fneu.npy"))
+        merged_spks = np.load(os.path.join(path, "spks.npy"))
         merged_iscell = np.load(os.path.join(path, Session.iscell_fname))
         for unit_id, unit in units.items():
             if unit_id == list(units.keys())[0]:
                 continue
             path = unit.suite2p_path
-            F =  np.load(os.path.join(path, "F.npy"))
+            F = np.load(os.path.join(path, "F.npy"))
             merged_F = np.concatenate([merged_F, F], axis=1)
-            Fneu =  np.load(os.path.join(path, "Fneu.npy"))
+            Fneu = np.load(os.path.join(path, "Fneu.npy"))
             merged_Fneu = np.concatenate([merged_Fneu, Fneu], axis=1)
-            spks =  np.load(os.path.join(path, "spks.npy"))
+            spks = np.load(os.path.join(path, "spks.npy"))
             merged_spks = np.concatenate([merged_spks, spks], axis=1)
             # sum iscells
             is_cell = np.load(os.path.join(path, Session.iscell_fname))
             merged_iscell += is_cell
-        
-        #let cells life if one of the cells is detected as cell. Average probabilities for ifcell
+
+        # let cells life if one of the cells is detected as cell. Average probabilities for ifcell
         merged_iscell /= len(list(units.keys()))
         merged_iscell[:, 0] = np.ceil(merged_iscell[:, 0])
-        
+
         root = path.split("suite2p")[0]
         merged_s2p_path = create_dirs([root, "suite2p_merged", "plane0"])
 
@@ -2477,18 +3273,20 @@ class Merger:
         np.save(os.path.join(merged_s2p_path, "stat.npy"), stat)
         np.save(os.path.join(merged_s2p_path, "ops.npy"), ops)
         return merged_F, merged_Fneu, merged_spks, merged_iscell
-    
+
     def stat_to_footprints(self, stat, dims=[512, 512]):
         imgs = []
         for k in range(len(stat)):
-            x = stat[k]['xpix']
-            y = stat[k]['ypix']
+            x = stat[k]["xpix"]
+            y = stat[k]["ypix"]
 
             # save footprint
             img_temp = np.zeros((dims[0], dims[1]))
-            img_temp[x, y] = stat[k]['lam']
+            img_temp[x, y] = stat[k]["lam"]
 
-            img_temp_norm = (img_temp - np.min(img_temp)) / (np.max(img_temp) - np.min(img_temp))
+            img_temp_norm = (img_temp - np.min(img_temp)) / (
+                np.max(img_temp) - np.min(img_temp)
+            )
             imgs.append(img_temp_norm)
 
         imgs = np.array(imgs)
@@ -2517,31 +3315,46 @@ class Merger:
         #
         return intersections
 
-    def generate_batch_cell_overlaps(self, footprints, parallel=True, recompute_overlap=False, n_cores=16, num_batches=3):
+    def generate_batch_cell_overlaps(
+        self,
+        footprints,
+        parallel=True,
+        recompute_overlap=False,
+        n_cores=16,
+        num_batches=3,
+    ):
         # this computes spatial overlaps between cells; doesn't take into account temporal correlations
-            
-        print ("... computing cell overlaps ...")
-        
+
+        print("... computing cell overlaps ...")
+
         num_footprints = footprints.shape[0]
         num_min_cells_per_process = 10
-        num_parallel_processes = 30 if num_footprints/30>num_min_cells_per_process else int(num_footprints/num_min_cells_per_process)
-        ids = np.array_split(np.arange(num_footprints, dtype="int64"), num_parallel_processes)
+        num_parallel_processes = (
+            30
+            if num_footprints / 30 > num_min_cells_per_process
+            else int(num_footprints / num_min_cells_per_process)
+        )
+        ids = np.array_split(
+            np.arange(num_footprints, dtype="int64"), num_parallel_processes
+        )
 
         if num_batches > num_parallel_processes:
             num_batches = num_parallel_processes
 
-        #TODO: will results in an error, if np.array_split is used on inhomogeneouse data like ids on Scicore
-        batches = np.array_split(ids, num_batches) if num_batches!=1 else [ids]
+        # TODO: will results in an error, if np.array_split is used on inhomogeneouse data like ids on Scicore
+        batches = np.array_split(ids, num_batches) if num_batches != 1 else [ids]
         results = np.array([])
         num_cells = 0
         for batch in batches:
-            res = parmap.map(find_overlaps1,
-                            batch,
-                            footprints,
-                            #c.footprints_bin,
-                            pm_processes=16,
-                            pm_pbar=True,
-                            pm_parallel=parallel)
+            res = parmap.map(
+                find_overlaps1,
+                batch,
+                footprints,
+                # c.footprints_bin,
+                pm_processes=16,
+                pm_pbar=True,
+                pm_parallel=parallel,
+            )
             for cell_batch in res:
                 num_cells += len(cell_batch)
                 for cell in cell_batch:
@@ -2551,12 +3364,17 @@ class Merger:
         df = make_overlap_database(res)
         return df
 
-    def find_candidate_neurons_overlaps(self, df_overlaps: pd.DataFrame, 
-                                        corr_array=None, deduplication_use_correlations=False, 
-                                        corr_max_percent_overlap=0.25, corr_threshold=0.3):
+    def find_candidate_neurons_overlaps(
+        self,
+        df_overlaps: pd.DataFrame,
+        corr_array=None,
+        deduplication_use_correlations=False,
+        corr_max_percent_overlap=0.25,
+        corr_threshold=0.3,
+    ):
         """
         This function finds candidate neurons based on overlaps and correlations.
-        
+
         Parameters:
         df_overlaps (DataFrame): DataFrame containing overlap information.
         corr_array (numpy array): Array containing correlation information. Default is None.
@@ -2569,13 +3387,12 @@ class Merger:
         """
         dist_corr_matrix = []
         for index, row in df_overlaps.iterrows():
-            cell1 = int(row['cell1'])
-            cell2 = int(row['cell2'])
-            percent1 = row['percent_cell1']
-            percent2 = row['percent_cell2']
+            cell1 = int(row["cell1"])
+            cell2 = int(row["cell2"])
+            percent1 = row["percent_cell1"]
+            percent2 = row["percent_cell2"]
 
             if deduplication_use_correlations:
-
                 if cell1 < cell2:
                     corr = corr_array[cell1, cell2, 0]
                 else:
@@ -2587,11 +3404,13 @@ class Merger:
         #####################################################
         # check max overlap
         idx1 = np.where(dist_corr_matrix[:, 3] >= corr_max_percent_overlap)[0]
-        
+
         # skipping correlations is not a good idea
         #   but is a requirement for computing deduplications when correlations data cannot be computed first
         if deduplication_use_correlations:
-            idx2 = np.where(dist_corr_matrix[idx1, 2] >= corr_threshold)[0]   # note these are zscore thresholds for zscore method
+            idx2 = np.where(dist_corr_matrix[idx1, 2] >= corr_threshold)[
+                0
+            ]  # note these are zscore thresholds for zscore method
             idx3 = idx1[idx2]
         else:
             idx3 = idx1
@@ -2599,7 +3418,9 @@ class Merger:
         candidate_neurons = dist_corr_matrix[idx3][:, :2]
         return candidate_neurons
 
-    def make_correlated_neuron_graph(self, num_cells: int, candidate_neurons: np.ndarray):
+    def make_correlated_neuron_graph(
+        self, num_cells: int, candidate_neurons: np.ndarray
+    ):
         """
         This function creates a graph of correlated neurons.
 
@@ -2618,7 +3439,9 @@ class Merger:
         G.remove_nodes_from(list(nx.isolates(G)))
         return G
 
-    def delete_duplicate_cells(self, num_cells: int, G, corr_delete_method='highest_connected_no_corr'):
+    def delete_duplicate_cells(
+        self, num_cells: int, G, corr_delete_method="highest_connected_no_corr"
+    ):
         """
         This function deletes duplicate cells from the graph.
 
@@ -2632,12 +3455,11 @@ class Merger:
         """
         # delete multi node networks
         #
-        if corr_delete_method=='highest_connected_no_corr':
+        if corr_delete_method == "highest_connected_no_corr":
             connected_cells, removed_cells = del_highest_connected_nodes_without_corr(G)
-        # 
-        print ("Removed duplicated cells: ", len(removed_cells))
-        clean_cells = np.delete(np.arange(num_cells),
-                                removed_cells)
+        #
+        print("Removed duplicated cells: ", len(removed_cells))
+        clean_cells = np.delete(np.arange(num_cells), removed_cells)
 
         #
         clean_cell_ids = clean_cells
@@ -2645,8 +3467,13 @@ class Merger:
         connected_cell_ids = connected_cells
         return clean_cell_ids
 
-    def merge_deduplicate_footprints(self, footprints1: np.ndarray, footprints2: np.ndarray,
-                                      parallel=True, num_batches=4):
+    def merge_deduplicate_footprints(
+        self,
+        footprints1: np.ndarray,
+        footprints2: np.ndarray,
+        parallel=True,
+        num_batches=4,
+    ):
         """
         This function merges and deduplicates footprints.
 
@@ -2662,25 +3489,52 @@ class Merger:
         merged_footprints = np.concatenate([footprints1, footprints2])
         num_cells = len(merged_footprints)
 
-        df_overlaps = self.generate_batch_cell_overlaps(merged_footprints, recompute_overlap=True, parallel=parallel, num_batches=num_batches)
-        candidate_neurons = self.find_candidate_neurons_overlaps(df_overlaps, corr_array=None, deduplication_use_correlations=False, corr_max_percent_overlap=0.25, corr_threshold=0.3)
+        df_overlaps = self.generate_batch_cell_overlaps(
+            merged_footprints,
+            recompute_overlap=True,
+            parallel=parallel,
+            num_batches=num_batches,
+        )
+        candidate_neurons = self.find_candidate_neurons_overlaps(
+            df_overlaps,
+            corr_array=None,
+            deduplication_use_correlations=False,
+            corr_max_percent_overlap=0.25,
+            corr_threshold=0.3,
+        )
         G = self.make_correlated_neuron_graph(num_cells, candidate_neurons)
         clean_cell_ids = self.delete_duplicate_cells(num_cells, G)
         cleaned_merged_footprints = merged_footprints[clean_cell_ids]
         return clean_cell_ids, cleaned_merged_footprints
-    
-    def shift_update_unit_s2p_files(self, unit, new_stat, image_x_size=512, image_y_size=512):
+
+    def shift_update_unit_s2p_files(
+        self, unit, new_stat, image_x_size=512, image_y_size=512
+    ):
         data_path = unit.suite2p_path
         # shift merged mask
         shift_to_unit = np.array([-1]) * unit.yx_shift
-        shifted_unit_stat = self.shift_stat_cells(new_stat, yx_shift=shift_to_unit, image_x_size=image_x_size, image_y_size=image_y_size)
+        shifted_unit_stat = self.shift_stat_cells(
+            new_stat,
+            yx_shift=shift_to_unit,
+            image_x_size=image_x_size,
+            image_y_size=image_y_size,
+        )
 
         backup_path_files(data_path)
         unit.update_s2p_files(shifted_unit_stat)
 
-def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"], 
-             restore=False, generate=False, regenerate=False, 
-             unit_ids="all", delete=False, print_loading=True):
+
+def load_all(
+    root_dir,
+    wanted_animal_ids=["all"],
+    wanted_session_ids=["all"],
+    restore=False,
+    generate=False,
+    regenerate=False,
+    unit_ids="all",
+    delete=False,
+    print_loading=True,
+):
     """
     Loads animal data from the specified root directory for the given animal IDs.
 
@@ -2710,21 +3564,34 @@ def load_all(root_dir, wanted_animal_ids=["all"], wanted_session_ids=["all"],
             for session in present_sessions:
                 if session in wanted_session_ids or "all" in wanted_session_ids:
                     session_path = os.path.join(sessions_root_path, session)
-                    animal.get_session_data(session_path, restore=restore,
-                                            unit_ids=unit_ids, 
-                                            delete=delete, 
-                                            print_loading=print_loading)
+                    animal.get_session_data(
+                        session_path,
+                        restore=restore,
+                        unit_ids=unit_ids,
+                        delete=delete,
+                        print_loading=print_loading,
+                    )
             animals_dict[animal_id] = animal
-    animals_dict = {animal_id: animal for animal_id, animal in sorted(animals_dict.items())}
+    animals_dict = {
+        animal_id: animal for animal_id, animal in sorted(animals_dict.items())
+    }
     return animals_dict
 
-def run_cabin_corr(root_dir, data_dir, animal_id, session_id, 
-                   compute_corrs=False, regenerate=False, parallel=True):
-    #Init
+
+def run_cabin_corr(
+    root_dir,
+    data_dir,
+    animal_id,
+    session_id,
+    compute_corrs=False,
+    regenerate=False,
+    parallel=True,
+):
+    # Init
     current_fluorescence_data_path = search_file(data_dir, Session.fluoresence_fname)
     if current_fluorescence_data_path == None:
         print(f"Failed to run CaBinCorr \n No Suite2P data found: {data_dir}")
-        return None 
+        return None
     cabincorr_path = os.path.join(data_dir, "binarized_traces.npz")
     if regenerate:
         del_file_dir(cabincorr_path)
@@ -2734,12 +3601,12 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id,
     c = calcium.Calcium(root_dir, animal_id, session_name=session_id, data_dir=data_dir)
 
     c.parallel_flag = parallel
-    c.animal_id = animal_id 
+    c.animal_id = animal_id
     c.detrend_model_order = 1
     c.recompute_binarization = False
     c.remove_ends = False
     c.detrend_filter_threshold = 0.001
-    c.mode_window = 30*30
+    c.mode_window = 30 * 30
     c.percentile_threshold = 0.000001
     c.dff_min = 0.02
     c.data_type = "2p"
@@ -2750,13 +3617,13 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id,
     c.load_footprints()
     if compute_corrs:
         c.corr_parallel_flag = True
-        c.zscore = True 
+        c.zscore = True
         c.n_tests_zscore = 1000
         c.n_cores = 32
         c.recompute_correlation = regenerate
-        c.binning_window = 30        # binning window in frames
-        c.subsample = 1              # subsample traces by this factor
-        c.scale_by_DFF = True        # scale traces by DFF
+        c.binning_window = 30  # binning window in frames
+        c.subsample = 1  # subsample traces by this factor
+        c.scale_by_DFF = True  # scale traces by DFF
         c.shuffle_data = False
         c.subselect_moving_only = False
         c.subselect_quiescent_only = False
@@ -2764,54 +3631,58 @@ def run_cabin_corr(root_dir, data_dir, animal_id, session_id,
         c.compute_correlations()
     return c
 
+
 def run_compute_correlations(c, parallel=True, min_number_bursts=0):
     c.corr_parallel_flag = parallel
-    c.zscore = True 
+    c.zscore = True
     c.n_tests_zscore = 1000
     c.n_cores = 32
     c.recompute_correlation = False
-    c.binning_window = 30        # binning window in frames
-    c.subsample = 1              # subsample traces by this factor
-    c.scale_by_DFF = True        # scale traces by DFF
+    c.binning_window = 30  # binning window in frames
+    c.subsample = 1  # subsample traces by this factor
+    c.scale_by_DFF = True  # scale traces by DFF
     c.shuffle_data = False
     c.subselect_moving_only = False
     c.subselect_quiescent_only = False
     c.make_correlation_dirs()
     c.compute_correlations(min_number_bursts=min_number_bursts)
 
-def delete_bin_tiff_s2p_intermediate(session, binary=True, tiff=True, intermediate_s2p=True):
-    #Delete binaries
+
+def delete_bin_tiff_s2p_intermediate(
+    session, binary=True, tiff=True, intermediate_s2p=True
+):
+    # Delete binaries
     del_tiff = True
     for s2p_folder in session.suite2p_paths:
         s2p_folder_ending = s2p_folder.split("suite2p")[-1]
         iscell_path = os.path.join(s2p_folder, "plane0", Session.iscell_fname)
         iscell_count = -1
         if os.path.exists(iscell_path):
-            iscell = np.load(iscell_path)[:,0]
+            iscell = np.load(iscell_path)[:, 0]
             iscell_count = sum(iscell)
-        
+
         notgel_path = os.path.join(s2p_folder, "plane0", Session.cell_geldrying_fname)
         notgel_count = -1
         if os.path.exists(notgel_path):
-            notgel = np.load(notgel_path)==0
+            notgel = np.load(notgel_path) == 0
             notgel_count = sum(notgel)
         if s2p_folder_ending == "":
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
             if binary:
                 del_file_dir(binary_path)
-        elif iscell_count != -1 and notgel_count !=-1:
+        elif iscell_count != -1 and notgel_count != -1:
             binary_path = os.path.join(s2p_folder, "plane0", "data.bin")
             if binary:
                 del_file_dir(binary_path)
         else:
             del_tiff = False
 
-    #Delete Tiffs
+    # Delete Tiffs
     if del_tiff and tiff and session.tiff_data_paths:
         for tiff_path in session.tiff_data_paths:
             del_file_dir(tiff_path)
 
-    #delete not needed suite2p MUnits
+    # delete not needed suite2p MUnits
     if del_tiff and intermediate_s2p:
         keep_endings = ["", "_merged"]
         for s2p_path in session.suite2p_paths:
