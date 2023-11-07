@@ -1412,6 +1412,7 @@ class Session:
         >>> print(merged_data)
         [merged_wheel_data, merged_velocity_data]
         """
+        self.convert_movement_data()
         usefull_units = self.get_usefull_units(
             min_num_usefull_cells=min_num_usefull_cells
         )
