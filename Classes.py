@@ -1180,6 +1180,8 @@ class Session:
         :return: A dictionary of useful units where the keys are unit IDs and the values are unit objects.
         :rtype: dict
         """
+        #if not self.units:
+        #    self.get_units(restore=True, generate=False, unit_type=unit_type)
         for unit_id, unit in self.units.items():
             if unit.unit_type != unit_type:
                 unit.usefull = False
@@ -1386,6 +1388,7 @@ class Session:
 
     def merge_movements(
         self,
+        merged=True,
         min_num_usefull_cells=80,
         movement_data_types=["wheel", "triggers", "velocity"],
     ):
@@ -1413,35 +1416,61 @@ class Session:
         [merged_wheel_data, merged_velocity_data]
         """
         self.convert_movement_data()
-        usefull_units = self.get_usefull_units(
-            min_num_usefull_cells=min_num_usefull_cells
+        usefull_units = (
+            self.get_usefull_units(min_num_usefull_cells=min_num_usefull_cells)
+            if merged
+            else self.units
         )
         print(f"Merging MUnit order: {usefull_units.keys()}")
 
+        movement_data_types = make_list_ifnot(movement_data_types)
         for movement_data_type in movement_data_types:
-            merged_movement_name = f"merged_{movement_data_type}"
+            merged_movement_name = (
+                f"merged_{movement_data_type}" if merged else f"{movement_data_type}"
+            )
             save_path = os.path.join(self.movement_dir, f"{merged_movement_name}.npy")
             if os.path.exists(save_path):
-                continue
-            setattr(self, merged_movement_name, None)
-            merged_movement = None
-            for unit_id, unit in usefull_units.items():
-                data = unit.load_movement(movement_data_types=movement_data_type)[0]
-                if type(data) == np.ndarray:
-                    merged_movement = (
-                        np.concatenate([merged_movement, data])
-                        if type(merged_movement) == np.ndarray
-                        else data
-                    )
-                else:
-                    print(f"No data for {movement_data_type}")
+                merged_movement = np.load(save_path)
+            else:
+                setattr(self, merged_movement_name, None)
+                merged_movement = None
+                for unit_id, unit in usefull_units.items():
+                    data = unit.load_movement(movement_data_types=movement_data_type)[0]
+                    if type(data) == np.ndarray:
+                        merged_movement = (
+                            np.concatenate([merged_movement, data])
+                            if type(merged_movement) == np.ndarray
+                            else data
+                        )
+                    else:
+                        print(f"No data for {movement_data_type}")
+                np.save(save_path, merged_movement)
 
-            np.save(save_path, merged_movement)
+            setattr(self, merged_movement_name, merged_movement)
+
         merged_data = [
             getattr(self, f"merged_{movement_data_type}")
             for movement_data_type in movement_data_types
         ]
         return merged_data
+
+    def load_movements(
+        self,
+        merged=True,
+        min_num_usefull_cells=80,
+        movement_data_types=["wheel", "triggers", "velocity"],
+    ):
+        movements = []
+        for movement_data_type in movement_data_types:
+            attribute_name = f"merged_{movement_data_type}"
+            if attribute_name not in self.__dict__.keys():
+                self.merge_movements(
+                    merged=merged,
+                    min_num_usefull_cells=min_num_usefull_cells,
+                    movement_data_types=movement_data_type,
+                )
+            movements.append(getattr(self, attribute_name))
+        return movements
 
 
 class Unit:
