@@ -1384,6 +1384,64 @@ class Session:
             w.load_track(session_part=session_part)
             w.compute_velocity(session_part=session_part)
 
+    def merge_movements(
+        self,
+        min_num_usefull_cells=80,
+        movement_data_types=["wheel", "triggers", "velocity"],
+    ):
+        """
+        Merge movement data for specified data types and store the results in attributes.
+
+        Parameters:
+        - self (object): The instance of the class calling this method.
+        - min_num_useful_cells (int, optional): The minimum number of useful cells required
+        for a unit to be considered. Default is 80.
+        - movement_data_types (list, optional): A list of movement data types to merge.
+        Default is ["wheel", "triggers", "velocity"].
+
+        Returns:
+        - list: A list containing the merged movement data arrays in the order of the
+        specified data types.
+
+        This function merges movement data for the specified data types and stores the
+        results as attributes with names like "merged_wheel," "merged_triggers," etc.
+        It also saves the merged data as numpy files in the 'movement_dir' directory.
+
+        Example usage:
+        >>> merged_data = obj.merge_movements(min_num_useful_cells=100, movement_data_types=["wheel", "velocity"])
+        >>> print(merged_data)
+        [merged_wheel_data, merged_velocity_data]
+        """
+        usefull_units = self.get_usefull_units(
+            min_num_usefull_cells=min_num_usefull_cells
+        )
+        print(f"Merging MUnit order: {usefull_units.keys()}")
+
+        for movement_data_type in movement_data_types:
+            merged_movement_name = f"merged_{movement_data_type}"
+            save_path = os.path.join(self.movement_dir, f"{merged_movement_name}.npy")
+            if os.path.exists(save_path):
+                continue
+            setattr(self, merged_movement_name, None)
+            merged_movement = None
+            for unit_id, unit in usefull_units.items():
+                data = unit.load_movement(movement_data_types=movement_data_type)[0]
+                if type(data) == np.ndarray:
+                    merged_movement = (
+                        np.concatenate([merged_movement, data])
+                        if type(merged_movement) == np.ndarray
+                        else data
+                    )
+                else:
+                    print(f"No data for {movement_data_type}")
+
+            np.save(save_path, merged_movement)
+        merged_data = [
+            getattr(self, f"merged_{movement_data_type}")
+            for movement_data_type in movement_data_types
+        ]
+        return merged_data
+
 
 class Unit:
     def __init__(
@@ -1434,7 +1492,7 @@ class Unit:
         self.yx_shift = [0, 0]
         self.usefull = None
         self.wheel = None
-        self.galvo = None
+        self.triggers = None
         self.velocity = None
         self.updated = self.old_backup_files(self.suite2p_dir)
 
@@ -1496,6 +1554,8 @@ class Unit:
                             self.session_part = mesc_session_parts[munit_index]
                             propertie_values = [
                                 getattr(session, propertie)[munit_index]
+                                if propertie in session.__dict__.keys()
+                                else None
                                 for propertie in properties
                             ]
                             set_object_attributes(
@@ -1537,6 +1597,19 @@ class Unit:
             regenerate=regenerate,
             parallel=parallel,
         )
+        """
+Merging cell footprints and computing correlation data.
+
+Parameters:
+    compute_corrs (bool): Whether to compute correlations.
+    regenerate (bool): Whether to regenerate data.
+    parallel (bool): Whether to run computations in parallel.
+
+Returns:
+    Tuple of (c_object, contours, footprints), where c_object is the computed correlation data,
+    contours are the cell contours, and footprints are the cell footprints.
+"""
+
         if c:
             c_object, contours, footprints = c, c.contours, c.footprints
         return c_object, contours, footprints
@@ -1549,6 +1622,20 @@ class Unit:
         not_bad_minutes=0.5,
         mode="mean",
     ):
+        """
+        Detect gel drying in cells using sliding mean change analysis.
+
+        Parameters:
+            regenerate (bool): Whether to regenerate data.
+            parallel (bool): Whether to run computations in parallel.
+            bad_minutes (float): Duration threshold for labeling cells as "bad."
+            not_bad_minutes (float): Duration threshold for labeling cells as "not bad."
+            mode (str): Mode of analysis.
+
+        Returns:
+            numpy.ndarray: Boolean array where True indicates cells labeled as drying.
+        """
+
         # detect gel_drying with sliding mean change. Too long increase of mean = bad
         # returns boolean list of cells, where True is a cell labeled as drying
         if type(self.cell_geldrying) is np.ndarray and not regenerate:
@@ -1571,22 +1658,51 @@ class Unit:
         self.geldrying_to_npy()
         return self.cell_geldrying
 
-    def load_movement(self, movement_data_types=["wheel", "galvo", "velocity"]):
+    def load_movement(self, movement_data_types=["wheel", "triggers", "velocity"]):
+        """
+        Load movement data from saved files.
+
+        Parameters:
+            movement_data_types (list): List of movement data types to load.
+
+        Returns:
+            List of numpy arrays containing the specified movement data."""
+
+        movement_data_types = make_list_ifnot(movement_data_types)
+        session_part = "merged" if self.unit_id == "merged" else self.session_part
         for movement_data_type in movement_data_types:
-            fname = f"{self.session_part}_{movement_data_type}.npy"
-            fpath = os.path.join(self.movement_dir, fname)
-            if os.path.exists(fpath):
-                data = np.load(fpath)
-                setattr(self, movement_data_type, data)
-            else:
-                print(f"No {movement_data_type} data found: {fpath}")
-        return self.wheel, self.galvo, self.velocity
+            variable = getattr(self, movement_data_type)
+            if not type(variable) == np.ndarray:
+                fname = f"{session_part}_{movement_data_type}.npy"
+                fpath = os.path.join(self.movement_dir, fname)
+                if os.path.exists(fpath):
+                    data = np.load(fpath)
+                    setattr(self, movement_data_type, data)
+                else:
+                    print(f"No {movement_data_type} data found: {fpath}")
+
+        loaded_data = [
+            getattr(self, movement_data_type)
+            for movement_data_type in movement_data_types
+        ]
+        return loaded_data
 
     def geldrying_to_npy(self):
+        """
+        Save the geldrying data to a NumPy file.
+
+        This function saves the geldrying data to a NumPy file for future use."""
+
         fpath = os.path.join(self.suite2p_dir, Session.cell_geldrying_fname)
         np.save(fpath, self.cell_geldrying)
 
     def load_geldrying(self):
+        """
+        Load geldrying data from a saved NumPy file.
+
+        Returns:
+            numpy.ndarray: Loaded geldrying data or None if the file doesn't exist."""
+
         self.cell_geldrying = None
         fpath = os.path.join(self.suite2p_dir, Session.cell_geldrying_fname)
         if os.path.exists(fpath):
