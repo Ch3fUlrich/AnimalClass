@@ -50,7 +50,7 @@ import pathlib
 
 # run matlab code
 # octave needs to be installed in your PATH environment variable https://octave.org/download
-from oct2py import octave
+#from oct2py import octave
 
 # add root directory to be able to import packages
 # todo: make all packages installable so they can be called/imported by environment
@@ -1180,7 +1180,7 @@ class Session:
         :return: A dictionary of useful units where the keys are unit IDs and the values are unit objects.
         :rtype: dict
         """
-        # if not self.units:
+        #if not self.units:
         #    self.get_units(restore=True, generate=False, unit_type=unit_type)
         for unit_id, unit in self.units.items():
             if unit.unit_type != unit_type:
@@ -1415,7 +1415,7 @@ class Session:
         >>> print(merged_data)
         [merged_wheel_data, merged_velocity_data]
         """
-        self.convert_movement_data()
+        #self.convert_movement_data()
         usefull_units = (
             self.get_usefull_units(min_num_usefull_cells=min_num_usefull_cells)
             if merged
@@ -1433,14 +1433,19 @@ class Session:
             merged_movement = None
             for unit_id, unit in usefull_units.items():
                 data = unit.load_movement(movement_data_types=movement_data_type)[0]
-                if type(data) == np.ndarray:
-                    merged_movement = (
-                        np.concatenate([merged_movement, data])
-                        if type(merged_movement) == np.ndarray
-                        else data
-                    )
-                else:
+                if not type(data) == np.ndarray:
                     print(f"No data for {movement_data_type}")
+                    print(f"Assuming no movement: Creating dummy data")
+                    num_fluoresence_frames = unit.c.dff.shape[1]
+                    num_fluoresence_frames *= 0.0030211382113821137 if movement_data_type == "wheel" else 1
+                    dummy_shape = [int(num_fluoresence_frames), 1] if movement_data_type == "wheel" else [int(num_fluoresence_frames)] 
+                    data = np.full(dummy_shape, np.nan)
+
+                merged_movement = (
+                    np.concatenate([merged_movement, data])
+                    if type(merged_movement) == np.ndarray
+                    else data
+                )
             np.save(save_path, merged_movement)
 
             setattr(self, merged_movement_name, merged_movement)
@@ -1455,7 +1460,8 @@ class Session:
         self,
         merged=True,
         min_num_usefull_cells=80,
-        movement_data_types=["wheel", "triggers", "velocity"],
+        regenerate=False,
+        movement_data_types=["wheel", "triggers", "velocity"]
     ):
         movements = []
         for movement_data_type in movement_data_types:
@@ -1466,7 +1472,7 @@ class Session:
                 setattr(self, movement_name, None)
 
             save_path = os.path.join(self.movement_dir, f"{movement_name}.npy")
-            if os.path.exists(save_path):
+            if os.path.exists(save_path) and not regenerate:
                 print(f"Loading {movement_name} from {save_path}")
                 data = np.load(save_path, allow_pickle=True)
                 setattr(self, movement_name, data)
@@ -1567,11 +1573,11 @@ class Unit:
         if self.unit_type == "single":
             # get mesc file name and munit combinations
             mesc_munit_combinations = session.get_all_unique_mesc_munit_combinations()
-            suite2p_folder_ending = self.suite2p_dir.split("suite2p")[-1].split("\\")[0]
-            suie2p_session_parts, suite2p_munit = suite2p_folder_ending.split("_M")
+            suite2p_folder_ending = os.path.split(self.suite2p_dir.split("suite2p")[-1])[0]
+            suite2p_session_parts, suite2p_munit = suite2p_folder_ending.split("_M")
             for mesc_munit_combination in mesc_munit_combinations:
                 if (
-                    suie2p_session_parts in mesc_munit_combination
+                    suite2p_session_parts in mesc_munit_combination
                     and suite2p_munit in mesc_munit_combination
                 ):
                     mesc_fname_session_parts, munit = mesc_munit_combination.split(
@@ -1582,9 +1588,9 @@ class Unit:
                     )
 
                     # get munit index and set metadata based on parts
-                    mesc_data_fname = os.path.split(self.mesc_data_path)[-1]
-                    for mesc_fname, munits in session.mesc_munit_pairs:
-                        if mesc_data_fname == mesc_fname:
+                    for mesc_data_fpath, munits in session.mesc_munit_pairs:
+                        if self.mesc_data_path == mesc_data_fpath:
+                            mesc_fname = os.path.split(self.mesc_data_path)[-1]
                             munit_id = int(self.unit_id.split("MUnit_")[-1])
                             munit_index = munits.index(munit_id)
                             mesc_session_parts = re.findall("S[0-9]", mesc_fname)
@@ -1635,18 +1641,17 @@ class Unit:
             parallel=parallel,
         )
         """
-Merging cell footprints and computing correlation data.
+        Merging cell footprints and computing correlation data.
 
-Parameters:
-    compute_corrs (bool): Whether to compute correlations.
-    regenerate (bool): Whether to regenerate data.
-    parallel (bool): Whether to run computations in parallel.
+        Parameters:
+            compute_corrs (bool): Whether to compute correlations.
+            regenerate (bool): Whether to regenerate data.
+            parallel (bool): Whether to run computations in parallel.
 
-Returns:
-    Tuple of (c_object, contours, footprints), where c_object is the computed correlation data,
-    contours are the cell contours, and footprints are the cell footprints.
-"""
-
+        Returns:
+            Tuple of (c_object, contours, footprints), where c_object is the computed correlation data,
+            contours are the cell contours, and footprints are the cell footprints.
+        """
         if c:
             c_object, contours, footprints = c, c.contours, c.footprints
         return c_object, contours, footprints
@@ -2295,7 +2300,6 @@ class Vizualizer:
         fluorescence = (
             np.transpose(fluorescence) if len(fluorescence.shape) == 2 else fluorescence
         )
-        plt.figure()
         plt.figure(figsize=(12, 7))
         if num_cells != "all":
             plt.plot(fluorescence[:, : int(num_cells)])
@@ -3159,6 +3163,25 @@ class Vizualizer:
         plt.show()
         return pday_cell_count_df
 
+    def plot_velocity(self, velocity, average=False, window_size=30):
+        velocity_lable = "Velocity"
+        plot_velocity = velocity
+        if average:
+            anz = Analyzer()
+            plot_velocity = anz.sliding_mean_std(velocity, window_size=window_size)[:, 0]
+            velocity_lable = 'Averaged Velocity'
+
+        plt.figure(figsize=(40, 40))  # Adjust the figure size as needed
+
+        # Plot the averaged velocity data with labels
+        plt.plot(plot_velocity, label=velocity_lable)
+        plt.xlabel('Frames')
+        plt.ylabel('Velocity')
+        plt.title('Velocity Data')
+        plt.legend()
+        plt.grid(True, color="gray")
+
+        plt.show()
 
 class Binary_loader:
     """

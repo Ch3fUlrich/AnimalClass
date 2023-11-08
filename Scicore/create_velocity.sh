@@ -1,13 +1,12 @@
 #!/bin/bash
 
-#SBATCH --job-name=corr            #This is the name of your job
-#SBATCH --cpus-per-task=32             #This is the number of cores reserved
-#SBATCH --mem-per-cpu=1G              #This is the memory reserved per core.
+#SBATCH --job-name=cleaning            #This is the name of your job
+#SBATCH --cpus-per-task=10                  #This is the number of cores reserved
+#SBATCH --mem-per-cpu=8G              #This is the memory reserved per core.
 
-
-#SBATCH --time=3-00:00:00         #This is the time that your task will run 01:00:00 or 1-00:00:00
-#SBATCH --qos=1week	        #You will run in this queue 6hours or 1day 
-#SBATCH --array=1-30        #This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks: 1-200
+#SBATCH --time=00:10:00         #This is the time that your task will run 01:00:00 or 1-00:00:00
+#SBATCH --qos=30min          #You will run in this queue 6hours or 1day  or 1week
+#SBATCH --array=1-461          #1-200%20: This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory
 #SBATCH --output=outputs/animal_session%A_%a.o     #These are the STDOUT and STDERR files #j for jobID
@@ -29,5 +28,5 @@ conda activate animal_sergej
 #python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/create_commands_list.py DON-009191
 
 # Run the corresponding commands from the file commands.cmd one by one
-#python create_corr.py
-$(head -$SLURM_ARRAY_TASK_ID commands_create_corr.cmd | tail -1) 
+# File should be filled with python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py animal_id session_id
+$(head -$SLURM_ARRAY_TASK_ID commands_create_velocity.cmd | tail -1) 
