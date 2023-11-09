@@ -1432,7 +1432,9 @@ class Session:
             setattr(self, merged_movement_name, None)
             merged_movement = None
             for unit_id, unit in usefull_units.items():
-                data = unit.load_movement(movement_data_types=movement_data_type)[0]
+                data = unit.load_movement(movement_data_types=movement_data_type)[0] 
+                if unit.underground != "platform":
+                    data = None if np.nanmean(data) > 1 else data 
                 if not type(data) == np.ndarray:
                     print(f"No data for {movement_data_type}")
                     print(f"Assuming no movement: Creating dummy data")
@@ -1594,6 +1596,7 @@ class Unit:
                             munit_id = int(self.unit_id.split("MUnit_")[-1])
                             munit_index = munits.index(munit_id)
                             mesc_session_parts = re.findall("S[0-9]", mesc_fname)
+                            munit_index = munit_index if len(mesc_session_parts)>1 else 0
                             self.session_part = mesc_session_parts[munit_index]
                             propertie_values = [
                                 getattr(session, propertie)[munit_index]
@@ -3171,7 +3174,7 @@ class Vizualizer:
             plot_velocity = anz.sliding_mean_std(velocity, window_size=window_size)[:, 0]
             velocity_lable = 'Averaged Velocity'
 
-        plt.figure(figsize=(40, 40))  # Adjust the figure size as needed
+        plt.figure(figsize=(10, 10))  # Adjust the figure size as needed
 
         # Plot the averaged velocity data with labels
         plt.plot(plot_velocity, label=velocity_lable)

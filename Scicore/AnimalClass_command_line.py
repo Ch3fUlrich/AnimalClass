@@ -100,18 +100,20 @@ def clean_animals(animals, skip_animal=[], skip_session=[], regenerate=False, de
             print(f"-----------------------------------Generating standard Suite2P Files-----------------------------------")
             """session.generate_cabincorr(generate=True, regenerate=regenerate, 
                                        unit_ids="all", compute_corrs=True)"""
+            print(f"-----------------------------------Merging Units-----------------------------------")
+            delete_bin_tiff_s2p_intermediate(session, binary=True, tiff=True, intermediate_s2p=False)
+            merged_unit = session.merge_units(generate=True, 
+                                              regenerate=True, 
+                                              #regenerate=regenerate, 
+                                              compute_corrs=True,
+                                              delete_used_subsessions=delete_used_subsessions)
             print(f"-----------------------------------Loading Units-----------------------------------")
             units = session.get_units(restore=True, get_geldrying=True, 
                                       unit_type="single", generate=True, 
                                       regenerate=False)
                                       #FIXME: regenerate=regenerate)
-            """print(f"-----------------------------------Merging Units-----------------------------------")
-            merged_unit = session.merge_units(generate=True, 
-                                              regenerate=regenerate, 
-                                              compute_corrs=True,
-                                              delete_used_subsessions=delete_used_subsessions)
             print(f"-----------------------------------Creating correlations matrices-----------------------------------")
-            session.load_corr_matrix(generate=True, regenerate=regenerate, unit_id="all")
+            """session.load_corr_matrix(generate=True, regenerate=regenerate, unit_id="all")
             session.load_corr_matrix(generate=True, regenerate=regenerate, unit_id="merged")"""
             
             delete_bin_tiff_s2p_intermediate(session, binary=True, tiff=True, intermediate_s2p=False)

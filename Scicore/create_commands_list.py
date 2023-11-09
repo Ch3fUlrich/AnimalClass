@@ -31,7 +31,7 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"], skip_animal=[]
 
 if __name__ == "__main__":
     print("Command line usage: <animal_id> <session_id>, multiple parameters can be used seperated by spaces")
-    print("Animal_id must start with ´DON´")
+    print("Animal_id must start with 'DON'")
     print("If an argument is not specified the corresponding argument is set to 'all'")
 
     arguments = sys.argv[1:]
@@ -52,4 +52,4 @@ if __name__ == "__main__":
     print(wanted_animal_ids)
     wanted_session_ids = wanted_session_ids if len(wanted_session_ids) > 0 else ["all"]
     print(f"Creating commands.cmd for {wanted_animal_ids}, {wanted_session_ids}")
-    main(wanted_animal_ids, wanted_session_ids)#skip_animal=["DON-009191"], skip_session=["20220225"]
+    main(wanted_animal_ids, wanted_session_ids) #skip_animal=["DON-009191"], skip_session=["20220225"]

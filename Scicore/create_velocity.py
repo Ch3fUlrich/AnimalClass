@@ -29,14 +29,14 @@ def main(wanted_animal_ids = ["all"], wanted_session_ids=["all"]):
 
 def create_velo(animals):
     for animal_id, session_id, session in yield_animal_session(animals):
-        min_usefull_cells = 100 if session.animal_id in mice21+mice22 else 80 if session.animal_id in mice23 else None
-        if not min_usefull_cells:
-            print(f"{animal_id} {session_id} No min_usefull_cells Skipping...")
+        min_num_usefull_cells = 100 if session.animal_id in mice21+mice22 else 80 if session.animal_id in mice23 else None
+        if not min_num_usefull_cells:
+            print(f"{animal_id} {session_id} No min_num_usefull_cells Skipping...")
             continue
-        session.get_units(restore=True, get_geldrying=False, unit_type="summary", generate=False, regenerate=False)
+        session.get_units(restore=False, get_geldrying=False, unit_type="summary", generate=False, regenerate=False, min_needed_cells_per_unit=min_num_usefull_cells)
         #session.convert_movement_data() # Already done in merge_movements
-        session.get_units(restore=True, get_geldrying=False, unit_type="single", generate=False, regenerate=False)
-        wheel, triggers, velocity = session.load_movements(merged=True, min_num_usefull_cells=80, regenerate=True,
+        session.get_units(restore=False, get_geldrying=False, unit_type="single", generate=False, regenerate=False, min_needed_cells_per_unit=min_num_usefull_cells)
+        wheel, triggers, velocity = session.load_movements(merged=True, min_num_usefull_cells=min_num_usefull_cells, regenerate=True,
                                                            movement_data_types=["wheel", "triggers", "velocity"])
         if "merged" not in session.units.keys():
             continue
