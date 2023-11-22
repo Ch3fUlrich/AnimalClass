@@ -597,7 +597,7 @@ def backup_path_files(
         print("Data path does not exist. Skipping Backup")
 
 
-def set_object_attributes(
+def copy_object_attributes_to_object(
     propertie_name_list, set_object, get_object=None, propertie_values=None
 ):
     """
@@ -625,10 +625,10 @@ def set_object_attributes(
 
     Example Usage:
         # Example 1: Set attributes directly with values
-        set_object_attributes(["attr1", "attr2"], my_object, propertie_values=[value1, value2])
+        copy_object_attributes_to_object(["attr1", "attr2"], my_object, propertie_values=[value1, value2])
 
         # Example 2: Retrieve attribute values from another object
-        set_object_attributes(["attr1", "attr2"], my_object, get_object=source_object)
+        copy_object_attributes_to_object(["attr1", "attr2"], my_object, get_object=source_object)
     """
     propertie_name_list = list(propertie_name_list)
     if propertie_values:

@@ -50,7 +50,7 @@ import pathlib
 
 # run matlab code
 # octave needs to be installed in your PATH environment variable https://octave.org/download
-#from oct2py import octave
+# from oct2py import octave
 
 # add root directory to be able to import packages
 # todo: make all packages installable so they can be called/imported by environment
@@ -81,7 +81,7 @@ class Animal:
             animal_metadata_dict = yaml.safe_load(yaml_file)
 
         # Load any additional metadata into session object
-        set_object_attributes(
+        copy_object_attributes_to_object(
             propertie_name_list=animal_metadata_dict.keys(),
             set_object=self,
             propertie_values=animal_metadata_dict.values(),
@@ -201,7 +201,7 @@ class Session:
         self.yaml_file_path = yaml_file_path
         self.image_x_size = 512
         self.image_y_size = 512
-        self.functional_chan = 1
+        self.fucntional_channel = 1
 
         # Initiate session properties
         properties = [
@@ -232,7 +232,7 @@ class Session:
             "cell_geldrying",
             "cells",
         ]
-        set_object_attributes(properties, self)
+        copy_object_attributes_to_object(properties, self)
 
         # FIXME: start working on using different datasets and splitting up if needed...
         self.load_metadata(yaml_file_path)
@@ -259,7 +259,7 @@ class Session:
             session_metadata_dict = yaml.safe_load(yaml_file)
 
         # Load any additional metadata into session object
-        set_object_attributes(
+        copy_object_attributes_to_object(
             propertie_name_list=session_metadata_dict.keys(),
             set_object=self,
             propertie_values=session_metadata_dict.values(),
@@ -538,8 +538,8 @@ class Session:
     def generate_tiff_from_mesc(
         self, wanted_combination=None, generate=False, regenerate=False, delete=False
     ):
-        mesc_functional_chan = (
-            self.functional_chan - 1
+        mesc_fucntional_channel = (
+            self.fucntional_channel - 1
         )  # mesc starts with 0, suite2p with 1
         delete = False  # TODO: Mesc is probably always usefull.
         self.tiff_data_paths = [] if generate and regenerate else self.tiff_data_paths
@@ -572,7 +572,7 @@ class Session:
                     with h5py.File(mesc_path, "r") as file:
                         print(f"processing: {munit_naming}")
                         temp = file["MSession_0"][munit_naming][
-                            f"Channel_{mesc_functional_chan}"
+                            f"Channel_{mesc_fucntional_channel}"
                         ][()]
                         print("    data loaded size: ", temp.shape)
                         data.append(temp)
@@ -741,7 +741,7 @@ class Session:
             "fs": fps,  # sampling rate of recording, determines binning for cell detection
             "look_one_level_down": False,  # whether to look in ALL subfolders when searching for tiffs
             "data_path": [self.suite2p_root_dir],  # a list of folders with tiffs
-            #'functional_chan': self.functional_chan,
+            #'fucntional_channel': self.fucntional_channel,
             # (or folder of folders with tiffs if look_one_level_down is True, or subfolders is not empty)
             "save_folder": save_folder,
             #'threshold_scaling': 2.0, # we are increasing the threshold for finding ROIs to limit the number of non-cell ROIs found (sometimes useful in gcamp injections)
@@ -1180,7 +1180,7 @@ class Session:
         :return: A dictionary of useful units where the keys are unit IDs and the values are unit objects.
         :rtype: dict
         """
-        #if not self.units:
+        # if not self.units:
         #    self.get_units(restore=True, generate=False, unit_type=unit_type)
         for unit_id, unit in self.units.items():
             if unit.unit_type != unit_type:
@@ -1415,7 +1415,7 @@ class Session:
         >>> print(merged_data)
         [merged_wheel_data, merged_velocity_data]
         """
-        #self.convert_movement_data()
+        # self.convert_movement_data()
         usefull_units = (
             self.get_usefull_units(min_num_usefull_cells=min_num_usefull_cells)
             if merged
@@ -1432,15 +1432,19 @@ class Session:
             setattr(self, merged_movement_name, None)
             merged_movement = None
             for unit_id, unit in usefull_units.items():
-                data = unit.load_movement(movement_data_types=movement_data_type)[0] 
-                if unit.underground != "platform":
-                    data = None if np.nanmean(data) > 1 else data 
+                data = unit.load_movement(movement_data_types=movement_data_type)[0]
                 if not type(data) == np.ndarray:
                     print(f"No data for {movement_data_type}")
                     print(f"Assuming no movement: Creating dummy data")
                     num_fluoresence_frames = unit.c.dff.shape[1]
-                    num_fluoresence_frames *= 0.0030211382113821137 if movement_data_type == "wheel" else 1
-                    dummy_shape = [int(num_fluoresence_frames), 1] if movement_data_type == "wheel" else [int(num_fluoresence_frames)] 
+                    num_fluoresence_frames *= (
+                        0.0030211382113821137 if movement_data_type == "wheel" else 1
+                    )
+                    dummy_shape = (
+                        [int(num_fluoresence_frames), 1]
+                        if movement_data_type == "wheel"
+                        else [int(num_fluoresence_frames)]
+                    )
                     data = np.full(dummy_shape, np.nan)
 
                 merged_movement = (
@@ -1463,7 +1467,7 @@ class Session:
         merged=True,
         min_num_usefull_cells=80,
         regenerate=False,
-        movement_data_types=["wheel", "triggers", "velocity"]
+        movement_data_types=["wheel", "triggers", "velocity"],
     ):
         movements = []
         for movement_data_type in movement_data_types:
@@ -1519,7 +1523,7 @@ class Unit:
 
         if print_loading:
             print(f"Loading Unit {self.animal_id} {self.session_id} {self.unit_id}")
-        self.functional_chan = session.functional_chan
+        self.fucntional_channel = session.fucntional_channel
         self.c, self.contours, self.footprints = self.get_c(
             compute_corrs=compute_corrs, regenerate=regenerate, parallel=parallel
         )
@@ -1558,7 +1562,7 @@ class Unit:
             None
 
         Note:
-            - This function relies on the 'set_object_attributes' function to set the attributes
+            - This function relies on the 'copy_object_attributes_to_object' function to set the attributes
             in the current object based on the properties defined in the 'properties' list.
             - It also relies on the 'get_all_unique_mesc_munit_combinations' function to
             determine the 'mesc_data_path' and other related attributes.
@@ -1569,13 +1573,15 @@ class Unit:
             obj.get_attributes_from_session(session)
         """
         properties = ["duration", "underground", "movement_data", "cam_data"]
-        set_object_attributes(properties, self)
+        copy_object_attributes_to_object(properties, self)
 
         # Define mesc_data_path
         if self.unit_type == "single":
             # get mesc file name and munit combinations
             mesc_munit_combinations = session.get_all_unique_mesc_munit_combinations()
-            suite2p_folder_ending = os.path.split(self.suite2p_dir.split("suite2p")[-1])[0]
+            suite2p_folder_ending = os.path.split(
+                self.suite2p_dir.split("suite2p")[-1]
+            )[0]
             suite2p_session_parts, suite2p_munit = suite2p_folder_ending.split("_M")
             for mesc_munit_combination in mesc_munit_combinations:
                 if (
@@ -1596,7 +1602,6 @@ class Unit:
                             munit_id = int(self.unit_id.split("MUnit_")[-1])
                             munit_index = munits.index(munit_id)
                             mesc_session_parts = re.findall("S[0-9]", mesc_fname)
-                            munit_index = munit_index if len(mesc_session_parts)>1 else 0
                             self.session_part = mesc_session_parts[munit_index]
                             propertie_values = [
                                 getattr(session, propertie)[munit_index]
@@ -1604,14 +1609,14 @@ class Unit:
                                 else None
                                 for propertie in properties
                             ]
-                            set_object_attributes(
+                            copy_object_attributes_to_object(
                                 properties, self, propertie_values=propertie_values
                             )
 
         elif self.unit_type == "summary":  # set to session metadata
             self.mesc_data_path = session.mesc_data_paths
             self.session_part = session.session_parts
-            set_object_attributes(properties, self, get_object=session)
+            copy_object_attributes_to_object(properties, self, get_object=session)
         else:
             print(f"Unknown unit_type: {self.unit_type}")
 
@@ -1652,7 +1657,7 @@ class Unit:
             parallel (bool): Whether to run computations in parallel.
 
         Returns:
-            Tuple of (c_object, contours, footprints), where c_object is the computed correlation data,
+            Tuple of (c_object, contours, footprints), where c_object is the computed correlation data,f
             contours are the cell contours, and footprints are the cell footprints.
         """
         if c:
@@ -3171,20 +3176,23 @@ class Vizualizer:
         plot_velocity = velocity
         if average:
             anz = Analyzer()
-            plot_velocity = anz.sliding_mean_std(velocity, window_size=window_size)[:, 0]
-            velocity_lable = 'Averaged Velocity'
+            plot_velocity = anz.sliding_mean_std(velocity, window_size=window_size)[
+                :, 0
+            ]
+            velocity_lable = "Averaged Velocity"
 
-        plt.figure(figsize=(10, 10))  # Adjust the figure size as needed
+        plt.figure(figsize=(40, 40))  # Adjust the figure size as needed
 
         # Plot the averaged velocity data with labels
         plt.plot(plot_velocity, label=velocity_lable)
-        plt.xlabel('Frames')
-        plt.ylabel('Velocity')
-        plt.title('Velocity Data')
+        plt.xlabel("Frames")
+        plt.ylabel("Velocity")
+        plt.title("Velocity Data")
         plt.legend()
         plt.grid(True, color="gray")
 
         plt.show()
+
 
 class Binary_loader:
     """
@@ -3259,6 +3267,8 @@ class Binary_loader:
             p1 = ax.text(512 / 2 - 50, 0, f"Frame {i}", animated=True)
             p2 = ax.imshow(frame, animated=True)
             images.append([p1, p2])
+            if i > range_end:
+                break
         ani = animation.ArtistAnimation(
             fig, images, interval=delay_between_frames, blit=True, repeat_delay=1000
         )
