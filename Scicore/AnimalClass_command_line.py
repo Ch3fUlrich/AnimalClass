@@ -76,7 +76,7 @@ def main(wanted_animal_ids=["all"], wanted_session_ids=["all"], generate=True):
     mesc_tiff_suite2p_binarize_correlate(
         animals,
         regenerate=False,
-        compute_corrs=False,
+        compute_corrs=True,
         get_geldrying=False,
         delete_intermediate_files=True,
         plotting=True,

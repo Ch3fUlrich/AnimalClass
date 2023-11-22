@@ -13,8 +13,11 @@ sys.path.append(module_path)
 from Classes import Animal, load_all
 from Helper import *
 
+# set correct root directory for your animal data
 # root_dir = "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments"
 root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"
+
+
 Animal.root_dir = root_dir
 mice_dict = {
     "mice21": [
@@ -63,8 +66,9 @@ def main(
             if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
                 for session_id, session in animal.sessions.items():
                     if session_id in wanted_session_ids or "all" in wanted_session_ids:
+                        python_path = os.path.join(os.getcwd(), "AnimalClass_command_line.py")
                         f.write(
-                            f"python /scicore/home/donafl00/mauser00/code/AnimalClass/Scicore/AnimalClass_command_line.py {animal_id} {session_id}\n"
+                            f"python {python_path} {animal_id} {session_id}\n"
                         )
 
 
