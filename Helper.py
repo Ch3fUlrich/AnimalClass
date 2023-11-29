@@ -649,7 +649,8 @@ def copy_object_attributes_to_object(
         propertie_values if propertie_values else [None] * len(propertie_name_list)
     )
     for propertie, value in zip(propertie_name_list, propertie_values):
-        setattr(set_object, propertie, value)
+        if value or not value and propertie not in set_object.__dict__.keys():
+            setattr(set_object, propertie, value)
 
 
 def del_file_dir(fpath):
