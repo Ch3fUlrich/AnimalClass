@@ -1,0 +1,10 @@
+manifolds/
+Scicore/outputs*
+Scicore/data*
+Scicore/core*
+**/.pyc
+__pycache__/
+**.ipynb_checkpoints
+F:**
+**D:**
+**.log

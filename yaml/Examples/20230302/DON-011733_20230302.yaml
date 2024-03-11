@@ -1,0 +1,12 @@
+animal_id: DON-011733
+date: 20230302
+day0: True
+yx_shift: [0, 0]
+rot_center: [0, 0]
+rot_angle: 12
+method: 2P
+daytime: ''
+weight: ''
+notes: ''
+functional_channel: 1
+UseMUnits: ""

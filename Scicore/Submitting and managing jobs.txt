@@ -1,0 +1,64 @@
+https://slurm.schedmd.com/job_array.html
+https://hpc-unibe-ch.github.io/slurm/array-jobs.html
+
+submitting job:
+    sbatch launch.sh
+see queued jobs:
+    squeue -u mauser00
+    while true;do squeue -u mauser00; sleep 5; done
+
+
+
+cancel job:
+    scancel JOBID
+cancel all jobs:
+    scancel -u mauser00
+
+
+
+
+
+array jobs:
+    #SBATCH --array=1-200%20        #This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
+    # Run the corresponding commands from the file commands.cmd one by one
+    # File should be filled with python /scicore/projects/donafl00-calcium/Users/Sergej/AnimalClass_command_line.py animal_id session_id
+    $(head -$SLURM_ARRAY_TASK_ID commands.cmd | tail -1) 
+
+
+# Submit a job array with index values between 0 and 31
+$ sbatch --array=0-31    -N1 tmp
+
+# Submit a job array with index values of 1, 3, 5 and 7
+$ sbatch --array=1,3,5,7 -N1 tmp
+
+# Submit a job array with index values between 1 and 7
+# with a step size of 2 (i.e. 1, 3, 5 and 7)
+$ sbatch --array=1-7:2   -N1 tmp
+
+
+# Cancel array ID 1 to 3 from job array 20
+$ scancel 20_[1-3]
+
+# Cancel array ID 4 and 5 from job array 20
+$ scancel 20_4 20_5
+
+# Cancel all elements from job array 20
+$ scancel 20
+
+# Cancel the current job or job array element (if job array)
+if [[-z $SLURM_ARRAY_JOB_ID]]; then
+  scancel $SLURM_JOB_ID
+else
+  scancel ${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}
+fi
+
+
+
+
+Locations:
+/scicore/home/donafl00/mauser00/
+/scicore/projects/donafl00-calcium/Users/Sergej/
+
+
+run code:
+python /scicore/projects/donafl00-calcium/Users/Sergej/AnimalClass_command_line.py DON-009191 20220221; sbatch run_animal_session_merge.sh
