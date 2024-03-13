@@ -24,24 +24,6 @@ conda create -n animal_env python=3.8
 conda install --file ..\requirements.txt
 ```
 ### Run on Scicore 
-#### Usefull Information + Terminal Commands
-1. If the jobs stop fast look at the output/error files in the AnimalClass/Scicore/Outputs Folder
-2. Check in the Terminal if the jobs are running
-``` bash
-squeue -u <username> -s
-```
-3. Check every 60 seconds if the pipeline is running
-```bash
-   while true;do squeue -u <username> -s; sleep 60; done
-```
-4. Cancel running job
-```bash
-    # by Job ID
-    scancel <jobID>
-    # by username
-    scancel -u <username>
-```
-
 #### Jupyter Notebook
 1. Open ```run_scicore_pipeline_helper.ipynb``` 
 2. Set your Environment
@@ -65,6 +47,24 @@ conda activate your_animalclass_environment
 python create_commands_list.py ANIMALS SESSIONS #alls session from DON-009191
 # 4. run sbatch script
 sbatch run_pipeline.sh
+```
+
+#### Usefull Information + Terminal Commands
+1. If the jobs stop fast look at the output/error files in the AnimalClass/Scicore/Outputs Folder
+2. Check in the Terminal if the jobs are running
+``` bash
+squeue -u <username> -s
+```
+1. Check every 60 seconds if the pipeline is running
+```bash
+   while true;do squeue -u <username> -s; sleep 60; done
+```
+1. Cancel running job
+```bash
+    # by Job ID
+    scancel <jobID>
+    # by username
+    scancel -u <username>
 ```
 
 ## General Workflow
