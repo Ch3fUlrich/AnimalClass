@@ -2,8 +2,8 @@
 Tool for working with brain imaging datasets.
 
 ## Run MESC to TIFF to Suite2P + BINARIZATION on Scicore
-
-# Init Environment
+#TODO: continue creating an easier code
+### Init Environment
 1. clone AnimalClass git repository 
 2. go into AnimalClass directory
 3. clone manifolds git repository 
@@ -25,7 +25,7 @@ cd Scicore
 # if you want to eddit files in the terminal: vim create_commands_list.py
 # create_commands_list.py #root_dir set correctly
 ```
-# Run Scicore 
+### Run Scicore 
 1. Define Animals and Sessions to be used: Only the Session will be used where Animal-ID and Sesssion-Date match
 2. conda activate animal_sergej
 3. create commands for sbatch script: Data is located in Project folder. Examples:
