@@ -1,5 +1,4 @@
 import os
-from string import Template
 from datetime import timedelta
 from create_commands_list import create_commands_file
 
@@ -34,8 +33,8 @@ def create_sbatch_file(
     commands_fname="commands.cmd",
     pipeline="pipeline",
     job_name="converting",
-    n_cores=10,
-    memory_per_core=8,
+    n_cpus=10,
+    memory_per_cpu=8,
     days=0,
     n_hours=6,
     n_minutes=00,
@@ -55,11 +54,15 @@ def create_sbatch_file(
         abs(int(n_minutes)),
         abs(int(n_seconds)),
     )
-    time = f"{days}-{n_hours}:{n_minutes}:{n_seconds}"
+    time = f"{days}-{n_hours:02d}:{n_minutes:02d}:{n_seconds:02d}"
 
     qos = time_to_qos(days, n_hours, n_minutes, n_seconds)
 
     n_jobs = 0
+    if not os.path.exists(commands_fname):
+        raise FileNotFoundError(
+            f"File {commands_fname} does not exist. It is crucial for the pipeline to run."
+        )
     with open(commands_fname, "r") as file:
         n_jobs = len(file.readlines())
 
@@ -69,11 +72,25 @@ def create_sbatch_file(
 
     mail_user = '"' + mail_user + '"'
 
+    settings_dict = {
+        "job_name": job_name,
+        "n_cpus": n_cpus,
+        "memory_per_cpu": memory_per_cpu,
+        "time": time,
+        "qos": qos,
+        "array": array,
+        "output_name": output_name,
+        "mail_user": mail_user,
+        "conda_env_name": conda_env_name,
+        "username": username,
+        "commands_fname": commands_fname,
+    }
+
     # load the template file
     with open("sbatch_file_template.txt", "r") as file:
-        sbatch_template = Template(file.read())
+        sbatch_template = file.read()
 
-    sbatch_text = sbatch_template.substitute(.....)
+    sbatch_text = sbatch_template.format(**settings_dict)
 
     sbatch_fname = f"run_{pipeline}.sh"
     # write the sbatch file
@@ -94,8 +111,8 @@ def main(
     wanted_animal_ids=["all"],
     wanted_session_ids=["all"],
     job_name="converting",
-    n_cores=10,
-    memory_per_core=8,
+    n_cpus=10,
+    memory_per_cpu=8,
     days=0,
     n_hours=6,
     n_minutes=00,
@@ -106,6 +123,10 @@ def main(
     mail_user="",
     conda_env_name="animal_sergej",
     username="mauser00",
+    mesc_to_tiff=True,
+    suite2p=True,
+    binarize=True,
+    pairwise_correlate=False
 ):
 
     commands_fname = create_commands_file(
@@ -113,24 +134,28 @@ def main(
         wanted_animal_ids=wanted_animal_ids,
         wanted_session_ids=wanted_session_ids,
         project_root_dir=project_root_dir,
+        mesc_to_tiff=mesc_to_tiff,
+        suite2p=suite2p,
+        binarize=binarize,
+        pairwise_correlate=pairwise_correlate,
     )
 
     sbatch_fname = create_sbatch_file(
-        commands_fname,
-        pipeline,
-        job_name,
-        n_cores,
-        memory_per_core,
-        days,
-        n_hours,
-        n_minutes,
-        n_seconds,
-        start_line,
-        end_line,
-        output_name,
-        mail_user,
-        conda_env_name,
-        username,
+        commands_fname=commands_fname,
+        pipeline=pipeline,
+        job_name=job_name,
+        n_cpus=n_cpus,
+        memory_per_cpu=memory_per_cpu,
+        days=days,
+        n_hours=n_hours,
+        n_minutes=n_minutes,
+        n_seconds=n_seconds,
+        start_line=start_line,
+        end_line=end_line,
+        output_name=output_name,
+        mail_user=mail_user,
+        conda_env_name=conda_env_name,
+        username=username,
     )
 
     run_pipeline(sbatch_fname)

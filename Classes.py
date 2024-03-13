@@ -97,7 +97,10 @@ class GlobalLogger:
         old_handler = self.logger.handlers[0]
 
         # Create a new handler with the updated filename
-        new_handler = logging.FileHandler(save_dir + "/Global_log.log")
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        log_save_location = os.path.join(save_dir, "Global_log.log")
+        new_handler = logging.FileHandler(log_save_location)
         new_handler.setLevel(old_handler.level)
         new_handler.setFormatter(old_handler.formatter)
 
@@ -4322,6 +4325,8 @@ def load_all(
     animals_dict = {}
 
     # Search for animal_ids
+    if not present_animal_ids:
+        raise ImportError(f"No animal_ids found in {root_dir}")
     for animal_id in present_animal_ids:
         if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
             sessions_root_path = os.path.join(root_dir, animal_id)

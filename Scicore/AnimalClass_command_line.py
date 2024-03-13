@@ -64,11 +64,18 @@ mice23 = [
     "DON-019213",
     "DON-019542",
     "DON-019545",
-
 ]
 
 
-def main(wanted_animal_ids=["all"], wanted_session_ids=["all"], generate=True):
+def main(
+    wanted_animal_ids=["all"],
+    wanted_session_ids=["all"],
+    generate=True,
+    mesc_to_tiff=True,
+    suite2p=True,
+    binarize=True,
+    pairwise_correlate=False,
+):
     # TODO: skipping option is not integrated
     # generate=False
     animals = load_all(
@@ -80,33 +87,37 @@ def main(wanted_animal_ids=["all"], wanted_session_ids=["all"], generate=True):
     for animal_id, animal in animals.items():
         print(f"{animal_id}: {list(animal.sessions.keys())}")
 
-    # mesc_tiff_suite2p_binarize_correlate(
-    #    animals,
-    #    regenerate=False,
-    #    compute_corrs=True,
-    #    get_geldrying=False,
-    #    delete_intermediate_files=True,
-    #    plotting=True,
-    # )
-
-    # Merging pipeline used for steffens Data
-    for animal_id, animal in animals.items():
-        for session_id, session in animal.sessions.items():
-            mesc_folder = os.path.join(session.session_dir, "002P-F")
-            del_file_dir(os.path.join(mesc_folder, "tif"))
-            del_file_dir(os.path.join(mesc_folder, "suite2p"))
-            tif_files = get_files(directory=os.path.join(mesc_folder), ending=".tiff")
-            for fname in tif_files:
-                del_file_dir(os.path.join(mesc_folder, fname))
-    animals = load_all(
-        root_dir,
-        wanted_animal_ids=wanted_animal_ids,
-        wanted_session_ids=wanted_session_ids,
-    )  # Load all animals
-
-    analyze_munits_remove_geldrying_merge_sessions_binarize_compute_correlations(
-        animals, regenerate=False, compute_corrs=True, delete_intermediate=True
+    mesc_tiff_suite2p_binarize_correlate(
+        animals,
+        mesc_to_tiff=mesc_to_tiff,
+        suite2p=suite2p,
+        binarize=binarize,
+        pairwise_correlate=pairwise_correlate,
+        regenerate=False,
+        compute_corrs=True,
+        get_geldrying=False,
+        delete_intermediate_files=True,
+        plotting=True,
     )
+
+    ## Merging pipeline used for steffens Data
+    # for animal_id, animal in animals.items():
+    #    for session_id, session in animal.sessions.items():
+    #        mesc_folder = os.path.join(session.session_dir, "002P-F")
+    #        del_file_dir(os.path.join(mesc_folder, "tif"))
+    #        del_file_dir(os.path.join(mesc_folder, "suite2p"))
+    #        tif_files = get_files(directory=os.path.join(mesc_folder), ending=".tiff")
+    #        for fname in tif_files:
+    #            del_file_dir(os.path.join(mesc_folder, fname))
+    # animals = load_all(
+    #    root_dir,
+    #    wanted_animal_ids=wanted_animal_ids,
+    #    wanted_session_ids=wanted_session_ids,
+    # )  # Load all animals
+
+    # analyze_munits_remove_geldrying_merge_sessions_binarize_compute_correlations(
+    #    animals, regenerate=False, compute_corrs=True, delete_intermediate=True
+    # )
 
     # create velocities
     # !!!! currently only for cleaned up version !!!!!
@@ -155,7 +166,7 @@ def analyze_munits_remove_geldrying_merge_sessions_binarize_compute_correlations
             session.load_corr_matrix(
                 generate=True, regenerate=regenerate, unit_id="merged"
             )
-#
+            #
             print(
                 f"-----------------------------------Delete intermediate files (tiff, binary, MUnit suite2p folders)-----------------------------------"
             )
@@ -358,6 +369,10 @@ def analyze_munits_remove_geldrying_merge_sessions_binarize_compute_correlations
 
 def mesc_tiff_suite2p_binarize_correlate(
     animals,
+    mesc_to_tiff=True,
+    suite2p=True,
+    binarize=True,
+    pairwise_correlate=True,
     regenerate=False,
     compute_corrs=False,
     get_geldrying=False,
@@ -383,7 +398,9 @@ def mesc_tiff_suite2p_binarize_correlate(
             global_logger_object.logger.info(
                 f"-----------------------------------Generating TIFF from MESC-----------------------------------"
             )
-            session.generate_tiff_from_mesc(generate=True, regenerate=regenerate)
+            session.generate_tiff_from_mesc(
+                generate=mesc_to_tiff, regenerate=regenerate
+            )
 
             print(
                 f"-----------------------------------Generating Binarization Files-----------------------------------"
@@ -392,7 +409,7 @@ def mesc_tiff_suite2p_binarize_correlate(
                 f"-----------------------------------Generating Binarization Files-----------------------------------"
             )
             session.generate_suite2p(
-                generate=True, regenerate=regenerate, unit_ids="all"
+                generate=suite2p, regenerate=regenerate, unit_ids="all"
             )
 
             print(
@@ -402,7 +419,7 @@ def mesc_tiff_suite2p_binarize_correlate(
                 f"-----------------------------------Generating Binarization Files-----------------------------------"
             )
             session.generate_cabincorr(
-                generate=True,
+                generate=binarize,
                 regenerate=regenerate,
                 unit_ids="all",
                 compute_corrs=compute_corrs,
@@ -415,7 +432,7 @@ def mesc_tiff_suite2p_binarize_correlate(
                 f"-----------------------------------Creating correlations matrices-----------------------------------"
             )
             session.load_corr_matrix(
-                generate=True, regenerate=regenerate, unit_id="all"
+                generate=pairwise_correlate, regenerate=regenerate, unit_id="all"
             )
 
             print(
@@ -440,7 +457,7 @@ def mesc_tiff_suite2p_binarize_correlate(
                     restore=False,
                     get_geldrying=get_geldrying,
                     unit_type="summary",
-                    generate=True,
+                    generate=False,
                     regenerate=regenerate,
                 )
                 dir_exist_create(os.path.join(viz.save_dir, animal_id))
@@ -544,58 +561,79 @@ def mesc_tiff_suite2p_binarize_correlate(
 
 
 def create_velo(animals):
-    for animal_id, session_id, session in yield_animal_session(animals):
-        min_usefull_cells = 80  # if session.animal_id in mice23 else 100
-        if not min_usefull_cells:
-            print(f"{animal_id} {session_id} No min_usefull_cells Skipping...")
-            continue
-        session.get_units(
-            restore=True,
-            get_geldrying=False,
-            unit_type="summary",
-            generate=False,
-            regenerate=False,
-        )
-        # session.convert_movement_data() # Already done in merge_movements
-        session.get_units(
-            restore=True,
-            get_geldrying=False,
-            unit_type="single",
-            generate=False,
-            regenerate=False,
-        )
-        wheel, triggers, velocity = session.load_movements(
-            merged=True,
-            min_num_usefull_cells=80,
-            regenerate=True,
-            movement_data_types=["wheel", "triggers", "velocity"],
-        )
-        if "merged" not in session.units.keys():
-            continue
-        fluor_fpath = os.path.join(
-            session.units["merged"].suite2p_dir, Session.fluoresence_fname
-        )
-        if os.path.exists(fluor_fpath) and type(velocity) == np.ndarray:
-            fluoresence = np.load(fluor_fpath)
-            print(f"Fluoresence shape: {fluoresence.shape}")
-            print(f"velocity shape: {velocity.shape}")
-            global_logger_object.logger.info(f"Fluoresence shape: {fluoresence.shape}")
-            global_logger_object.logger.info(f"velocity shape: {velocity.shape}")
-        else:
-            print(f"not os.path.exists(fluor_fpath) and type(velocity) == np.ndarray")
-            global_logger_object.logger.error(
-                f"not os.path.exists(fluor_fpath) and type(velocity) == np.ndarray"
+    # FIXME: using matlab and python at the same time not working on scicore
+    if False:
+        for animal_id, session_id, session in yield_animal_session(animals):
+            min_usefull_cells = 80  # if session.animal_id in mice23 else 100
+            if not min_usefull_cells:
+                print(f"{animal_id} {session_id} No min_usefull_cells Skipping...")
+                continue
+            session.get_units(
+                restore=True,
+                get_geldrying=False,
+                unit_type="summary",
+                generate=False,
+                regenerate=False,
             )
+            # session.convert_movement_data() # Already done in merge_movements
+            session.get_units(
+                restore=True,
+                get_geldrying=False,
+                unit_type="single",
+                generate=False,
+                regenerate=False,
+            )
+            wheel, triggers, velocity = session.load_movements(
+                merged=True,
+                min_num_usefull_cells=80,
+                regenerate=True,
+                movement_data_types=["wheel", "triggers", "velocity"],
+            )
+            if "merged" not in session.units.keys():
+                continue
+            fluor_fpath = os.path.join(
+                session.units["merged"].suite2p_dir, Session.fluoresence_fname
+            )
+            if os.path.exists(fluor_fpath) and type(velocity) == np.ndarray:
+                fluoresence = np.load(fluor_fpath)
+                print(f"Fluoresence shape: {fluoresence.shape}")
+                print(f"velocity shape: {velocity.shape}")
+                global_logger_object.logger.info(
+                    f"Fluoresence shape: {fluoresence.shape}"
+                )
+                global_logger_object.logger.info(f"velocity shape: {velocity.shape}")
+            else:
+                print(
+                    f"not os.path.exists(fluor_fpath) and type(velocity) == np.ndarray"
+                )
+                global_logger_object.logger.error(
+                    f"not os.path.exists(fluor_fpath) and type(velocity) == np.ndarray"
+                )
 
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
     wanted_animal_ids = sys.argv[1:2] if len(arguments) >= 1 else ["all"]
     wanted_session_ids = sys.argv[2:3] if len(arguments) >= 2 else ["all"]
+
+    mesc_to_tiff = sys.argv[3:4] if len(arguments) >= 3 else True
+    suite2p = sys.argv[4:5] if len(arguments) >= 4 else True
+    binarize = sys.argv[5:6] if len(arguments) >= 5 else True
+    pairwise_correlate = sys.argv[6:7] if len(arguments) >= 6 else True
+
     if len(arguments) > 3:
         print("Command line usage: <animal_id> <session_id>")
         print(
             "If an argument is not specified the corresponding argument is set to 'all'"
         )
-    print(f"Start Cleaning {wanted_animal_ids}, {wanted_session_ids}")
-    main(wanted_animal_ids=wanted_animal_ids, wanted_session_ids=wanted_session_ids)
+
+    ...
+    print(f"Start {wanted_animal_ids}, {wanted_session_ids}: ")
+    main(
+        wanted_animal_ids=wanted_animal_ids,
+        wanted_session_ids=wanted_session_ids,
+        mesc_to_tiff=mesc_to_tiff,
+        suite2p=suite2p,
+        binarize=binarize,
+        pairwise_correlate=pairwise_correlate,
+    )

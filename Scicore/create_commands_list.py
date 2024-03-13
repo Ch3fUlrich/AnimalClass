@@ -27,6 +27,7 @@ mice_dict = {
     ],
 }
 
+
 def create_commands_file(
     commands_fname="commands.cmd",
     wanted_animal_ids=["all"],
@@ -34,9 +35,18 @@ def create_commands_file(
     skip_animal=[],
     skip_session=[],
     project_root_dir=None,
+    mesc_to_tiff=True,
+    suite2p=True,
+    binarize=True,
+    pairwise_correlate=False,
 ):
     Animal.root_dir = project_root_dir
     # TODO: skipping option is not integrated
+
+    pipeline_settings = str([mesc_to_tiff, suite2p, binarize, pairwise_correlate])[
+        1:-1
+    ].replace(",", "")
+
     with open(commands_fname, "w") as f:
         animals = load_all(
             project_root_dir,
@@ -50,7 +60,11 @@ def create_commands_file(
                         python_path = os.path.join(
                             os.getcwd(), "AnimalClass_command_line.py"
                         )
-                        f.write(f"python {python_path} {animal_id} {session_id}\n")
+                        f.write(
+                            f"python {python_path} {animal_id} {session_id} {pipeline_settings}\n"
+                        )
+
+    return commands_fname
 
 
 def main(

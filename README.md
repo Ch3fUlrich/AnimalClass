@@ -1,17 +1,15 @@
 # AnimalClass
 Tool for working with brain imaging datasets.
 
-## Run MESC to TIFF to Suite2P + BINARIZATION on Scicore
-#TODO: continue creating an easier code
+## Run MESC to TIFF to Suite2P + BINARIZATION + Pairwise Correlation
 ### Init Environment
 1. clone AnimalClass git repository 
 2. go into AnimalClass directory
 3. clone manifolds git repository 
 4. go into Scicore directory
-5. open and eddit create_commands_list.py
-    a. change root_dir to your project root directory: eg. ```root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"```
+5. create conda environment and install packages
 
-This have do be done only 1 time:
+This has do be done only 1 time:
 ```bash
 # 1. clone AnimalClass git repository 
 git clone https://github.com/Ch3fUlrich/AnimalClass.git
@@ -21,13 +19,38 @@ cd AnimalClass
 git clone https://github.com/Ch3fUlrich/manifolds.git
 # 4. go into Scicore directory
 cd Scicore
-# 5. open and eddit create_commands_list.py
-# if you want to eddit files in the terminal: vim create_commands_list.py
-# create_commands_list.py #root_dir set correctly
+# 5. create conda environment
+conda create -n animal_env python=3.8
+conda install --file ..\requirements.txt
 ```
-### Run Scicore 
+### Run on Scicore 
+#### Usefull Information + Terminal Commands
+1. If the jobs stop fast look at the output/error files in the AnimalClass/Scicore/Outputs Folder
+2. Check in the Terminal if the jobs are running
+``` bash
+squeue -u <username> -s
+```
+3. Check every 60 seconds if the pipeline is running
+```bash
+   while true;do squeue -u <username> -s; sleep 60; done
+```
+4. Cancel running job
+```bash
+    # by Job ID
+    scancel <jobID>
+    # by username
+    scancel -u <username>
+```
+
+#### Jupyter Notebook
+1. Open ```run_scicore_pipeline_helper.ipynb``` 
+2. Set your Environment
+3. Run Pipeline
+
+#### Terminal
+If you run it in Terminal this procedure will be used **MESC-->TIFF-->Suite2p-->Binarize-->Pairwise Correlate**
 1. Define Animals and Sessions to be used: Only the Session will be used where Animal-ID and Sesssion-Date match
-2. conda activate animal_sergej
+2. conda activate your_animalclass_environment
 3. create commands for sbatch script: Data is located in Project folder. Examples:
 4. run sbatch script
 This have do be done every time you want to run new sessions:
@@ -36,14 +59,13 @@ This have do be done every time you want to run new sessions:
 # writing "all" or "" will run all animals/sessions
 ANIMALS="DON-009191 DON-009192" 
 SESSIONS="20220303 20220304"
-# 2. conda activate animal_sergej
-conda activate animal_sergej
+# 2. conda activate your_animalclass_environment
+conda activate your_animalclass_environment
 # 3. create commands for sbatch script
 python create_commands_list.py ANIMALS SESSIONS #alls session from DON-009191
 # 4. run sbatch script
 sbatch run_pipeline.sh
 ```
-
 
 ## General Workflow
 ### Folder Structure
@@ -96,7 +118,7 @@ sex: male
 date: '20210211'
 method: 2P
 ```
-#### Convert Excell sheet to yaml files
+#### Convert Excell sheet to yaml files (For more experienced users)
 - Run ```Tools/yaml/Make_yaml.ipynb```
 or
 - Run command line ```Tools/yaml/yaml_creator.py``` inside the folder within [this folder structur](#Yaml Creation Folder Structures)
@@ -123,7 +145,7 @@ or
         │   ...
        ...
 ```
-### Run Pipeline
+### Run Pipeline (For more experienced users)
 Run Notebook ```OwnClass.ipynb```
 #### Summary
 ```python
