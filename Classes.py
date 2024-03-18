@@ -646,7 +646,7 @@ class Session:
             #                      compute_corrs=True, delete_used_subsessions=False)
             # session.load_corr_matrix(generate=True, regenerate=False, unit_id="merged")
 
-    def get_unique_fout_names(self, wanted_combination):
+    def get_unique_fout_names(self, wanted_combination=None):
         """
         Raw data is used, then the raw data paths present
         Decides if all unique mesc_munit_combinations or specific combination is used for generating tiff files.
@@ -732,8 +732,8 @@ class Session:
                     global_logger.info("Finished generating TIFF from MESC data.")
 
                 else:
-                    print(f".mesc -> .tiff file already done")
-                    global_logger.info(f".mesc -> .tiff file already done")
+                    print(f" -> .tiff file already done")
+                    global_logger.info(f" -> .tiff file already done")
                     print(f"{tiff_path}")
                     print(f"... skipping conversion...")
                     global_logger.info(f"... skipping conversion...")
@@ -1047,6 +1047,28 @@ class Session:
                         # print("No CaBincorrPath found")
                         global_logger.error("No CaBincorrPath found")
         return bin_traces_zip
+
+    def load_fluoresence_from_cabincorr(
+        self, unit_id="all", fluorescence_type="F_detrended"
+    ):
+        fluorescence = None
+        bin_traces_zip = self.load_cabincorr_data(unit_id=unit_id)
+        if bin_traces_zip:
+            if fluorescence_type in list(bin_traces_zip.keys()):
+                fluorescence = bin_traces_zip[fluorescence_type]
+            else:
+                print(
+                    f"{self.animal_id} {self.session_id} No fluorescence data of type {fluorescence_type} in binarized_traces.npz"
+                )
+                global_logger.error(
+                    f"{self.animal_id} {self.session_id} No fluorescence data of type {fluorescence_type} in binarized_traces.npz"
+                )
+        else:
+            print(f"{self.animal_id} {self.session_id} no binarized_traces.npz found")
+            global_logger.error(
+                f"{self.animal_id} {self.session_id} no binarized_traces.npz found"
+            )
+        return fluorescence
 
     def get_cells(self, merged=True, generate=False, regenerate=False):
         if self.cells and not regenerate:
@@ -2591,23 +2613,11 @@ class Vizualizer:
     ):
         # for s2p_folder in self.animals[animal_id].sessions[session].suite2p_dirs:
         session = self.animals[animal_id].sessions[session_id]
-        bin_traces_zip = session.load_cabincorr_data(unit_id=unit_id)
-        fluorescence = None
-        if bin_traces_zip:
-            if fluorescence_type in list(bin_traces_zip.keys()):
-                fluorescence = bin_traces_zip[fluorescence_type]
-            else:
-                print(
-                    f"{animal_id} {session_id} No fluorescence data of type {fluorescence_type} in binarized_traces.npz"
-                )
-                global_logger.error(
-                    f"{animal_id} {session_id} No fluorescence data of type {fluorescence_type} in binarized_traces.npz"
-                )
-        else:
-            print(f"{animal_id} {session_id} no binarized_traces.npz found")
-            global_logger.error(
-                f"{animal_id} {session_id} no binarized_traces.npz found"
-            )
+
+        fluorescence = session.load_fluoresence_from_cabincorr(
+            unit_id=unit_id, fluorescence_type=fluorescence_type
+        )
+
         if (
             remove_geldrying
             and unit_id == "merged"
@@ -4398,27 +4408,40 @@ def load_all(
         raise ImportError(f"No animal_ids found in {root_dir}")
     for animal_id in present_animal_ids:
         if animal_id in wanted_animal_ids or "all" in wanted_animal_ids:
-            sessions_root_path = os.path.join(root_dir, animal_id)
-            present_sessions = get_directories(sessions_root_path)
-            yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
-            animal = Animal(yaml_file_name, print_loading=print_loading)
-            Animal.root_dir = root_dir
-            # Search for 2P Sessions
-            for session in present_sessions:
-                if session in wanted_session_ids or "all" in wanted_session_ids:
-                    session_path = os.path.join(sessions_root_path, session)
-                    animal.get_session_data(
-                        session_path,
-                        restore=restore,
-                        unit_ids=unit_ids,
-                        delete=delete,
-                        print_loading=print_loading,
-                    )
+            animal = load_animal(root_dir, animal_id, wanted_session_ids, restore)
             animals_dict[animal_id] = animal
     animals_dict = {
         animal_id: animal for animal_id, animal in sorted(animals_dict.items())
     }
     return animals_dict
+
+
+def load_animal(
+    root_dir,
+    animal_id,
+    wanted_session_ids=["all"],
+    restore=False,
+    unit_ids="all",
+    delete=False,
+    print_loading=True,
+):
+    sessions_root_path = os.path.join(root_dir, animal_id)
+    present_sessions = get_directories(sessions_root_path)
+    yaml_file_name = os.path.join(root_dir, animal_id, f"{animal_id}.yaml")
+    animal = Animal(yaml_file_name, print_loading=print_loading)
+    Animal.root_dir = root_dir
+    # Search for 2P Sessions
+    for session in present_sessions:
+        if session in wanted_session_ids or "all" in wanted_session_ids:
+            session_path = os.path.join(sessions_root_path, session)
+            animal.get_session_data(
+                session_path,
+                restore=restore,
+                unit_ids=unit_ids,
+                delete=delete,
+                print_loading=print_loading,
+            )
+    return animal
 
 
 def run_cabin_corr(
