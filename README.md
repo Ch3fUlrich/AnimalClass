@@ -23,13 +23,13 @@ cd Scicore
 conda create -n animal_env python=3.8
 conda install --file ..\requirements.txt
 ```
-### Run on Scicore 
+### Run on Scicore or Locally
 #### Jupyter Notebook
-1. Open ```run_scicore_pipeline_helper.ipynb``` 
+1. Open ```run_scicore_pipeline_helper.ipynb``` to run on scicora or ```Usage_Example.ipynb``` locally for local usage
 2. Set your Environment
 3. Run Pipeline
 
-#### Terminal
+#### Terminal on Scicore
 If you run it in Terminal this procedure will be used **MESC-->TIFF-->Suite2p-->Binarize-->Pairwise Correlate**
 1. Define Animals and Sessions to be used: Only the Session will be used where Animal-ID and Sesssion-Date match
 2. conda activate your_animalclass_environment
