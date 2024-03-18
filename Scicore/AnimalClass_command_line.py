@@ -627,7 +627,6 @@ if __name__ == "__main__":
             "If an argument is not specified the corresponding argument is set to 'all'"
         )
 
-    ...
     print(f"Start {wanted_animal_ids}, {wanted_session_ids}: ")
     main(
         wanted_animal_ids=wanted_animal_ids,

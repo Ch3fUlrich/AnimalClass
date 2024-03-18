@@ -79,13 +79,17 @@ squeue -u <username> -s
     │   ├───002P-F
     │   │   │     DON-019608_20240126_002P-F_S1-S2-ACQ.mesc
     │   │   │   
-    │   │   └───plane0
-    │   │           F.npy
-    │   │           Fneu.npy
-    │   │           iscell.npy
-    │   │           ops.npy
-    │   │           spks.npy
-    │   │           stat.npy
+    │   │   └───tif
+    │   │       │      
+    │   │       └───suite2p
+    │   │           │      
+    │   │           └───plane0
+    │   │               F.npy
+    │   │               Fneu.npy
+    │   │               iscell.npy
+    │   │               ops.npy
+    │   │               spks.npy
+    │   │               stat.npy
     │   └───TRD-2P
     │            DON-019608_202401261_TRD-2P_S1-ACQ.mat
     │

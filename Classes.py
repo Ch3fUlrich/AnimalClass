@@ -241,6 +241,7 @@ class Session:
     cell_geldrying_fname = "cell_drying.npy"
     iscell_fname = "iscell.npy"
     binary_fname = "data.bin"
+    raw_fname = "Image_001_001.raw"
     vr_root_folder = "0000VR"  # VR
     cam_root_folder = "0000MC"  # Cam Data
     cam_top_root_folder = "000BSM"  # Top View Mousecam
@@ -250,6 +251,7 @@ class Session:
     inscopix_root_folder = "001P-I"  # 1P Inscopix
     s2p_root_folder = "002P-F"  # 2P Femtonics
     s2p_Torlabs_root_folder = "002P-T"  # 2P Torlabs
+    s2p_Bscope_data_folder = "data"  # 2P Bscope raw data folder
 
     def __init__(
         self,
@@ -284,6 +286,7 @@ class Session:
             "units",
             "session_dir",
             "suite2p_root_dir",
+            "raw_data_dir",
             "movement_dir",
             "binary_path",
             "refImg",
@@ -366,6 +369,7 @@ class Session:
             if not self.session_dir
             else self.session_dir
         )
+
         self.suite2p_root_dir = (
             os.path.join(
                 Animal.root_dir,
@@ -376,6 +380,18 @@ class Session:
             if not self.suite2p_root_dir
             else self.suite2p_root_dir
         )
+
+        self.raw_data_dir = (
+            os.path.join(
+                Animal.root_dir,
+                self.animal_id,
+                str(self.session_id),
+                Session.s2p_Bscope_data_folder,
+            )
+            if not self.raw_data_dir
+            else self.raw_data_dir
+        )
+
         self.movement_dir = (
             os.path.join(
                 Animal.root_dir,
@@ -386,11 +402,29 @@ class Session:
             if not self.movement_dir
             else self.movement_dir
         )
-        self.mesc_data_paths = self.get_data_paths(ending="mesc")
+
+        # TODO: Change below for multiple raw files for single day
+        self.raw_data_paths = self.get_data_paths(
+            directories=self.raw_data_dir, ending=".raw"
+        )
+
+        # setting suite2p root dir to raw data dir if there are raw data paths (Bscope setting)
+        if self.raw_data_paths:
+            self.suite2p_root_dir = self.raw_data_dir
+            self.session_parts = self.get_session_parts(self.raw_data_paths)
+
+        self.s2p_output_folder = os.path.join(self.suite2p_root_dir, "tif")
+        self.mesc_data_paths = self.get_data_paths(
+            directories=self.suite2p_root_dir, ending=".mesc"
+        )
         self.mesc_munit_pairs = self.define_mesc_munit_pairs()
-        self.tiff_data_paths = self.get_data_paths(ending="tiff")
+        self.tiff_data_paths = self.get_data_paths(
+            directories=self.suite2p_root_dir, ending=".tiff"
+        )
         self.session_parts = self.get_session_parts()
-        self.suite2p_dirs = self.get_data_paths(regex_search="suite2p", folder=True)
+        self.suite2p_dirs = self.get_data_paths(
+            directories=self.s2p_output_folder, regex_search="suite2p", folder=True
+        )
         self.suite2p_plane0_paths = (
             [os.path.join(s2p_fpath, "plane0") for s2p_fpath in self.suite2p_dirs]
             if self.suite2p_dirs
@@ -404,22 +438,21 @@ class Session:
         self, directories=None, ending="", regex_search=None, folder=False
     ):
         # Search for file names with specific ending and naming content
-        directories = make_list_ifnot(directories)
+        directories = make_list_ifnot(directories) if directories else []
         fpaths = None
         for directory in directories:
-            if not directory:
-                directory = self.suite2p_root_dir
             if not regex_search:
-                regex_search = (
-                    "S[0-9]"
-                    if ending == "mesc"
-                    else "MUnit" if ending == "tiff" else ""
-                )
-            if folder:
-                if regex_search == "suite2p":
-                    directory = os.path.join(directory, "tif")
+                if ending == ".mesc":
+                    regex_search = "S[0-9]"
+                elif ending == ".tiff":
+                    regex_search = "MUnit"
+                elif ending == ".suite2p":
+                    regex_search = "suite2p"
+                elif ending == ".raw":
+                    regex_search = "Image"
                 else:
-                    directory = os.path.join(directory)
+                    regex_search = ""
+            if folder:
                 fnames = get_directories(directory, regex_search=regex_search)
             else:
                 fnames = get_files(directory, ending=ending, regex_search=regex_search)
@@ -449,6 +482,7 @@ class Session:
         # get session parts from MESC file name if available
         if not self.session_parts:
             file_names = file_names if file_names else self.mesc_data_paths
+
             file_names = make_list_ifnot(file_names)
             session_parts = []
             for file_name in file_names:
@@ -456,7 +490,10 @@ class Session:
                 last_fname_part = (
                     file_name.split(splitter)[-1].split("_")[-1].split(".")[0]
                 )
+                # get session parts from mesc file
                 session_parts += re.findall("S[0-9]", last_fname_part)
+                # get session parts from raw
+                session_parts += [last_fname_part]
 
             self.session_parts = np.unique(session_parts).tolist()
         return self.session_parts
@@ -527,22 +564,23 @@ class Session:
         if "UseMUnits" in self.__dict__:
             predefined_pairs = self.UseMUnits
         mesc_munit_pairs = []
-        for mesc_data_path in self.mesc_data_paths:
-            splitter = "\\" if "\\" in mesc_data_path else "/"
-            mesc_fnames = mesc_data_path.split(splitter)[-1]
-            undefined_mesc_munit_pair = True
-            for mesc_munit_pair in predefined_pairs:
-                predef_mesc_name = mesc_munit_pair[0]
-                # skip if mesc file name munits are already defined
-                if mesc_fnames in predef_mesc_name:
-                    undefined_mesc_munit_pair = False
-                    break
-            if undefined_mesc_munit_pair:
-                # define usefull munit to merge
-                usefull_munits, number_channels = self.get_recording_munits(
-                    mesc_data_path
-                )
-                mesc_munit_pairs.append([mesc_fnames, usefull_munits])
+        if self.mesc_data_paths:
+            for mesc_data_path in self.mesc_data_paths:
+                splitter = "\\" if "\\" in mesc_data_path else "/"
+                mesc_fnames = mesc_data_path.split(splitter)[-1]
+                undefined_mesc_munit_pair = True
+                for mesc_munit_pair in predefined_pairs:
+                    predef_mesc_name = mesc_munit_pair[0]
+                    # skip if mesc file name munits are already defined
+                    if mesc_fnames in predef_mesc_name:
+                        undefined_mesc_munit_pair = False
+                        break
+                if undefined_mesc_munit_pair:
+                    # define usefull munit to merge
+                    usefull_munits, number_channels = self.get_recording_munits(
+                        mesc_data_path
+                    )
+                    mesc_munit_pairs.append([mesc_fnames, usefull_munits])
         if predefined_pairs:
             mesc_munit_pairs += predefined_pairs
         return mesc_munit_pairs  # , number_channels
@@ -586,9 +624,7 @@ class Session:
             )
         else:
             # Merging, generating cabincorr. suite2p, tiff from mesc
-            self.generate_tiff_from_mesc(
-                generate=generate, regenerate=regenerate, delete=delete
-            )
+            self.generate_tiff(generate=generate, regenerate=regenerate, delete=delete)
             self.generate_suite2p(
                 generate=generate,
                 regenerate=regenerate,
@@ -610,59 +646,91 @@ class Session:
             #                      compute_corrs=True, delete_used_subsessions=False)
             # session.load_corr_matrix(generate=True, regenerate=False, unit_id="merged")
 
-    def generate_tiff_from_mesc(
-        self, wanted_combination=None, generate=False, regenerate=False, delete=False
-    ):
+    def get_unique_fout_names(self, wanted_combination):
+        """
+        Raw data is used, then the raw data paths present
+        Decides if all unique mesc_munit_combinations or specific combination is used for generating tiff files.
+        Or if raw data is used, then the raw data paths are used.
+        """
+        unique_fout_names = None
+        if wanted_combination:
+            unique_fout_names = wanted_combination
+
+        elif self.raw_data_dir == self.suite2p_root_dir:  # raw data is used
+            unique_fout_names = [
+                raw_data_path.split(".")[0] + f"_MUnit_{i}"
+                for i, raw_data_path in enumerate(self.raw_data_paths)
+            ]
+        else:  # mesc data is used
+            mesc_munit_combinations = self.get_all_unique_mesc_munit_combinations()
+            unique_fout_names = mesc_munit_combinations
+        return unique_fout_names
+
+    def generate_tiff_from_raw(self, raw_data_path, tiff_out_path):
+        data = np.fromfile(raw_data_path, dtype=np.uint16).reshape(-1, 512, 512)
+        print("Tiff data shape:", data.shape)
+        tifffile.imwrite(tiff_out_path, data)
+
+    def mesc_to_tiff(self, mesc_path, tiff_out_path, munit_naming):
         mesc_fucntional_channel = (
             self.fucntional_channel - 1
         )  # mesc starts with 0, suite2p with 1
-        delete = False  # TODO: Mesc is probably always usefull.
+
+        print("Mesc to Tiff...")
+        global_logger.info("Mesc to Tiff...")
+        data = []
+        with h5py.File(mesc_path, "r") as file:
+            temp = file["MSession_0"][munit_naming][
+                f"Channel_{mesc_fucntional_channel}"
+            ][()]
+            print("    data loaded size: ", temp.shape)
+            global_logger.info(f"    data loaded size: {temp.shape}")
+            data.append(temp)
+        data = np.vstack(data)
+        print("Tiff data shape:", data.shape)
+
+        tifffile.imwrite(tiff_out_path, data)
+
+    def generate_tiff(
+        self, wanted_combination=None, generate=False, regenerate=False, delete=False
+    ):
+        delete = False  # Raw is probably always usefull.
         self.tiff_data_paths = [] if generate and regenerate else self.tiff_data_paths
         self.tiff_data_paths = [] if not self.tiff_data_paths else self.tiff_data_paths
 
         if generate:
-            # get all possible tiff file names or create specific tiff file
-            mesc_munit_combinations = (
-                [wanted_combination]
-                if wanted_combination
-                else self.get_all_unique_mesc_munit_combinations()
+            unique_fout_names = self.get_unique_fout_names(wanted_combination)
+            data_format = (
+                ".raw" if self.raw_data_dir == self.suite2p_root_dir else ".mesc"
             )
-            for mesc_munit_combination in mesc_munit_combinations:
+
+            for tiff_fout_name in unique_fout_names:
                 # if tiff file name is not in tiff_data_paths, generate it
-                mesc_fname_session_parts, munit = mesc_munit_combination.split(
-                    "_MUnit_"
-                )
+                fname_session_parts, munit = tiff_fout_name.split("_MUnit_")
                 tiff_path = os.path.join(
-                    self.suite2p_root_dir, mesc_munit_combination + ".tiff"
+                    self.suite2p_root_dir, tiff_fout_name + ".tiff"
                 )
                 if tiff_path not in self.tiff_data_paths:
+
+                    # define data path
                     splitter = "\\" if "\\" in tiff_path else "/"
-                    mesc_path = os.path.join(
+                    data_path = os.path.join(
                         splitter.join(tiff_path.split(splitter)[:-1]),
-                        mesc_fname_session_parts + ".mesc",
+                        fname_session_parts + data_format,
                     )
+
                     munit_naming = f"MUnit_{munit}"
+                    print(f"converting {munit_naming} to tiff")
+                    if data_format == ".mesc":
+                        self.mesc_to_tiff(data_path, tiff_path, munit_naming)
+                    else:
+                        self.generate_tiff_from_raw(data_path, tiff_path)
 
-                    print("Merging Mesc to Tiff...")
-                    global_logger.info("Merging Mesc to Tiff...")
-                    data = []
-                    with h5py.File(mesc_path, "r") as file:
-                        print(f"processing: {munit_naming}")
-                        global_logger.info(f"processing: {munit_naming}")
-                        temp = file["MSession_0"][munit_naming][
-                            f"Channel_{mesc_fucntional_channel}"
-                        ][()]
-                        print("    data loaded size: ", temp.shape)
-                        global_logger.info(f"    data loaded size: {temp.shape}")
-                        data.append(temp)
-                    data = np.vstack(data)
-                    print(data.shape)
-
-                    tifffile.imwrite(tiff_path, data)
                     if delete:
-                        os.remove(mesc_path)
+                        os.remove(data_path)
                     print("Finished generating TIFF from MESC data.")
                     global_logger.info("Finished generating TIFF from MESC data.")
+
                 else:
                     print(f".mesc -> .tiff file already done")
                     global_logger.info(f".mesc -> .tiff file already done")
@@ -670,7 +738,9 @@ class Session:
                     print(f"... skipping conversion...")
                     global_logger.info(f"... skipping conversion...")
 
-            self.tiff_data_paths = self.get_data_paths(ending="tiff")
+        self.tiff_data_paths = self.get_data_paths(
+            directories=self.suite2p_root_dir, ending="tiff"
+        )
         return tiff_path if wanted_combination else self.tiff_data_paths
 
     def fname_extract_sessparts_munits(
@@ -685,7 +755,10 @@ class Session:
         )  # find corresponding session parts
         munit_parts = re.findall(munit_regex, fname)  # find MUnit naming
         if return_string:
-            unique_name = f"{'-'.join(session_parts)}_{munit_parts[0]}"  # TODO: not suieted for multiple munit naming
+            if len(session_parts) == 0 or len(munit_parts) != 0:
+                unique_name = f"{fname}"
+            else:
+                unique_name = f"{'-'.join(session_parts)}_{munit_parts[0]}"
             return unique_name
         return session_parts, munit_parts
 
@@ -698,46 +771,45 @@ class Session:
         delete=False,
     ):
         self.suite2p_dirs = [] if generate and regenerate else self.suite2p_dirs
-        s2p_root_dir = os.path.join(self.suite2p_root_dir, "tif")
 
         if generate:
             if not self.suite2p_dirs:
-                dir_exist_create(s2p_root_dir)
+                dir_exist_create(self.s2p_output_folder)
                 self.suite2p_dirs = []
-            standard_s2p_path_naming = os.path.join(s2p_root_dir, "suite2p")
+            standard_s2p_path_naming = os.path.join(self.s2p_output_folder, "suite2p")
 
             # create specific tiff file or all combinations + empty empty string to get suite2p_dir for standard suite2p analysis
             if wanted_combination:
-                mesc_munit_combinations = [wanted_combination]
+                unique_fout_names = [wanted_combination]
             elif unit_ids == "single":
-                mesc_munit_combinations = self.get_all_unique_mesc_munit_combinations()
+                unique_fout_names = self.get_unique_fout_names(wanted_combination)
             elif unit_ids == "all":
-                mesc_munit_combinations = [""]
+                unique_fout_names = [""]
             else:
                 global_logger.critical(
                     f"Only options single or all are allowed for unit_ids"
                 )
                 raise ValueError("Only options single or all are allowed for unit_ids")
 
-            for mesc_munit_combination in mesc_munit_combinations:
+            for unique_fout_name in unique_fout_names:
                 # if s2p_path is not in suite2p_dirs, generate it
                 unique_s2p_folder_ending = (
-                    "_" + self.fname_extract_sessparts_munits(mesc_munit_combination)
-                    if mesc_munit_combination != ""
+                    "_" + self.fname_extract_sessparts_munits(unique_fout_name)
+                    if unique_fout_name != ""
                     else ""
                 )
                 suite2p_dir = standard_s2p_path_naming + unique_s2p_folder_ending
                 if suite2p_dir not in self.suite2p_dirs:
                     dir_exist_create(suite2p_dir)
                     # standard suite2p run
-                    if mesc_munit_combination == "":
+                    if unique_fout_name == "":
                         print(
                             f"Generating all possible and missing tiff files for {suite2p_dir}"
                         )
                         global_logger.info(
                             f"Generating all possible and missing tiff files for {suite2p_dir}"
                         )
-                        tiff_data_paths = self.generate_tiff_from_mesc(
+                        tiff_data_paths = self.generate_tiff(
                             generate=generate, delete=delete
                         )
                         tiff_fnames = []
@@ -746,7 +818,6 @@ class Session:
                             tiff_fname = tiff_data_path.split(splitter)[-1]
                             tiff_fnames.append(tiff_fname)
 
-                        # TODO: how to decide which files first?
                         self.run_suite2p(
                             tiff_fnames,
                             save_folder=suite2p_dir,
@@ -761,19 +832,19 @@ class Session:
                             [] if not self.tiff_data_paths else self.tiff_data_paths
                         )
                         for tiff_data_path in self.tiff_data_paths:
-                            if mesc_munit_combination in tiff_data_path:
+                            if unique_fout_name in tiff_data_path:
                                 splitter = "\\" if "\\" in tiff_data_path else "/"
                                 tiff_fname = tiff_data_path.split(splitter)[-1]
                                 break
                         if not tiff_fname:
                             print(
-                                f"Generating missing tiff file for {mesc_munit_combination}"
+                                f"Generating missing tiff file for {unique_fout_name}"
                             )
                             global_logger.info(
-                                f"Generating missing tiff file for {mesc_munit_combination}"
+                                f"Generating missing tiff file for {unique_fout_name}"
                             )
-                            tiff_data_path = self.generate_tiff_from_mesc(
-                                wanted_combination=mesc_munit_combination,
+                            tiff_data_path = self.generate_tiff(
+                                wanted_combination=unique_fout_name,
                                 generate=generate,
                                 delete=delete,
                             )
@@ -788,14 +859,18 @@ class Session:
                     print(f"... skipping conversion...")
                     global_logger.info(f"... skipping conversion...")
 
-        self.suite2p_dirs = self.get_data_paths(regex_search="suite2p", folder=True)
+        self.suite2p_dirs = self.get_data_paths(
+            directories=self.s2p_output_folder, regex_search="suite2p", folder=True
+        )
 
         if delete:
             print("Removing Tiff...")
             global_logger.info("Removing Tiff...")
             for data_path in self.tiff_data_paths:
                 os.remove(data_path)
-        self.tiff_data_paths = self.get_data_paths(ending="tiff")
+        self.tiff_data_paths = self.get_data_paths(
+            directories=self.suite2p_root_dir, ending="tiff"
+        )
         return self.suite2p_dirs
 
     def run_suite2p(
@@ -821,7 +896,7 @@ class Session:
         # deleting binary file from old s2p run
         if delete_old_temp_bin:
             s2p_temp_binary_location = os.path.join(
-                self.suite2p_root_dir, "suite2p", "plane0", "data.bin"
+                self.suite2p_root_dir, "suite2p", "plane0", Session.binary_fname
             )
             print(f"Deleting old binary file from {s2p_temp_binary_location}")
             global_logger.info(
@@ -831,7 +906,7 @@ class Session:
 
         # reusing binary file generated in the past, if present
         if reuse_bin:
-            s2p_binary_file = os.path.join(save_folder, "plane0", "data.bin")
+            s2p_binary_file = os.path.join(save_folder, "plane0", Session.binary_fname)
             if os.path.exists(s2p_binary_file):
                 shutil.copy(s2p_binary_file, s2p_temp_binary_location)
                 print(f"Reusing binary file {s2p_binary_file}")
@@ -883,8 +958,7 @@ class Session:
         )
 
         if generate:
-            s2p_root_dir = os.path.join(self.suite2p_root_dir, "tif")
-            standard_s2p_path_naming = os.path.join(s2p_root_dir, "suite2p")
+            standard_s2p_path_naming = os.path.join(self.s2p_output_folder, "suite2p")
             if wanted_combination:
                 wanted_fname = self.fname_extract_sessparts_munits(wanted_combination)
                 s2p_path = standard_s2p_path_naming + "_" + wanted_fname
@@ -915,19 +989,18 @@ class Session:
                     )
             elif unit_ids == "single":
                 suite2p_dirs = []
-                for (
-                    mesc_munit_combination
-                ) in self.get_all_unique_mesc_munit_combinations():
+                unique_fout_names = self.get_unique_fout_names()
+                for unique_fout_name in unique_fout_names:
                     # if s2p_path is not in suite2p_dirs, generate it
                     unique_s2p_folder_ending = self.fname_extract_sessparts_munits(
-                        mesc_munit_combination
+                        unique_fout_name
                     )
                     suite2p_dir = (
                         standard_s2p_path_naming + "_" + unique_s2p_folder_ending
                     )
                     if suite2p_dir not in self.suite2p_dirs:
                         self.generate_suite2p(
-                            wanted_combination=mesc_munit_combination,
+                            wanted_combination=unique_fout_name,
                             generate=generate,
                             delete=delete,
                         )
@@ -1221,8 +1294,7 @@ class Session:
             raise ValueError(f"unit_type is only defined for {defined_unit_types}")
         units = {}
 
-        s2p_root_dir = os.path.join(self.suite2p_root_dir, "tif")
-        standard_s2p_path_naming = os.path.join(s2p_root_dir, "suite2p")
+        standard_s2p_path_naming = os.path.join(self.s2p_output_folder, "suite2p")
         units_s2p_fpath = []
         summary_suite2p_folder_endings = ["", "merged"]
         for ending in summary_suite2p_folder_endings:
@@ -1231,12 +1303,12 @@ class Session:
             ending = "_" + ending if ending == "merged" else ending
             units_s2p_fpath.append(standard_s2p_path_naming + ending)
 
-        mesc_munit_combinations = self.get_all_unique_mesc_munit_combinations()
-        for mesc_munit_combination in mesc_munit_combinations:
+        unique_fout_names = self.get_unique_fout_names()
+        for unique_fout_name in unique_fout_names:
             if unit_type == "summary":
                 break
             unique_s2p_folder_ending = self.fname_extract_sessparts_munits(
-                mesc_munit_combination
+                unique_fout_name
             )
             s2p_path = standard_s2p_path_naming + "_" + unique_s2p_folder_ending
             units_s2p_fpath.append(s2p_path)
@@ -1254,11 +1326,11 @@ class Session:
                 global_logger.error(f"No s2p folder found for {unit_id}: {s2p_path}.")
                 wanted_combination = None
                 if unit_type != "single":
-                    for mesc_munit_combination in mesc_munit_combinations:
-                        print(f"looking at {mesc_munit_combination}")
-                        global_logger.debug(f"looking at {mesc_munit_combination}")
-                        if unit_id in mesc_munit_combination:
-                            wanted_combination = mesc_munit_combination
+                    for unique_fout_name in unique_fout_names:
+                        print(f"looking at {unique_fout_name}")
+                        global_logger.debug(f"looking at {unique_fout_name}")
+                        if unit_id in unique_fout_name:
+                            wanted_combination = unique_fout_name
                             print(f"found needed combination: {wanted_combination}")
                             global_logger.debug(
                                 f"found needed combination: {wanted_combination}"
@@ -1438,15 +1510,14 @@ class Session:
                         f"recomputing suite2p for Unit {unit.animal_id} {unit.session_id} {unit_id}"
                     )
                     unit_id_session_parts, unit_id_munits = unit_id.split("_MUnit_")
-                    for (
-                        mesc_munit_combination
-                    ) in self.get_all_unique_mesc_munit_combinations():
+                    unique_fout_names = self.get_unique_fout_names()
+                    for unique_fout_name in unique_fout_names:
                         if (
-                            unit_id_session_parts in mesc_munit_combination
-                            and "MUnit_" + unit_id_munits in mesc_munit_combination
+                            unit_id_session_parts in unique_fout_name
+                            and "MUnit_" + unit_id_munits in unique_fout_name
                         ):
                             self.generate_suite2p(
-                                wanted_combination=mesc_munit_combination,
+                                wanted_combination=unique_fout_name,
                                 generate=generate,
                                 regenerate=True,
                                 unit_ids=unit.unit_type,
@@ -1815,7 +1886,7 @@ class Unit:
         Note:
             - This function relies on the 'copy_object_attributes_to_object' function to set the attributes
             in the current object based on the properties defined in the 'properties' list.
-            - It also relies on the 'get_all_unique_mesc_munit_combinations' function to
+            - It also relies on the 'session.get_unique_fout_names()' function to
             determine the 'mesc_data_path' and other related attributes.
 
         Example Usage:
@@ -1829,19 +1900,17 @@ class Unit:
         # Define mesc_data_path
         if self.unit_type == "single":
             # get mesc file name and munit combinations
-            mesc_munit_combinations = session.get_all_unique_mesc_munit_combinations()
+            unique_fout_names = session.get_unique_fout_names()
             suite2p_folder_ending = os.path.split(
                 self.suite2p_dir.split("suite2p")[-1]
             )[0]
             suite2p_session_parts, suite2p_munit = suite2p_folder_ending.split("_M")
-            for mesc_munit_combination in mesc_munit_combinations:
+            for unique_fout_name in unique_fout_names:
                 if (
-                    suite2p_session_parts in mesc_munit_combination
-                    and suite2p_munit in mesc_munit_combination
+                    suite2p_session_parts in unique_fout_name
+                    and suite2p_munit in unique_fout_name
                 ):
-                    mesc_fname_session_parts, munit = mesc_munit_combination.split(
-                        "_MUnit_"
-                    )
+                    mesc_fname_session_parts, munit = unique_fout_name.split("_MUnit_")
                     self.mesc_data_path = os.path.join(
                         self.suite2p_root_dir, mesc_fname_session_parts + ".mesc"
                     )

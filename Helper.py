@@ -736,8 +736,6 @@ def get_directories(directory, regex_search=""):
             if os.path.isdir(os.path.join(directory, name))
             and len(re.findall(regex_search, name)) > 0
         ]
-    else:
-        print(f"Directory does not exist: {directory}")
     return directories
 
 
@@ -762,8 +760,6 @@ def get_files(directory, ending="", regex_search=""):
             and len(re.findall(regex_search, name)) > 0
             and name.endswith(ending)
         ]
-    else:
-        print(f"Directory does not exist: {directory}")
     return files_list
 
 

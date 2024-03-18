@@ -126,7 +126,7 @@ def main(
     mesc_to_tiff=True,
     suite2p=True,
     binarize=True,
-    pairwise_correlate=False
+    pairwise_correlate=False,
 ):
 
     commands_fname = create_commands_file(
