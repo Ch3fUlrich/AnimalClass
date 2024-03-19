@@ -2,7 +2,7 @@
 Tool for working with brain imaging datasets.
 
 ## Run MESC to TIFF to Suite2P + BINARIZATION + Pairwise Correlation
-### Init Environment
+### Init Environment in Terminal
 1. clone AnimalClass git repository 
 2. go into AnimalClass directory
 3. clone manifolds git repository 
