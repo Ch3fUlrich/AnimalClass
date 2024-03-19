@@ -21,7 +21,8 @@ git clone https://github.com/Ch3fUlrich/manifolds.git
 cd Scicore
 # 5. create conda environment
 conda create -n animal_env python=3.8
-conda install --file ..\requirements.txt
+pip install -r ..\requirements.txt
+
 ```
 ### Run on Scicore or Locally
 #### Jupyter Notebook
