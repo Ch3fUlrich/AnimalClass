@@ -483,7 +483,7 @@ class Session:
         if not self.session_parts:
             file_names = file_names if file_names else self.mesc_data_paths
 
-            file_names = make_list_ifnot(file_names)
+            file_names = make_list_ifnot(file_names) if file_names else []
             session_parts = []
             for file_name in file_names:
                 splitter = "\\" if "\\" in file_name else "/"
@@ -720,7 +720,7 @@ class Session:
                     )
 
                     munit_naming = f"MUnit_{munit}"
-                    print(f"converting {munit_naming} to tiff")
+                    print(f"{fname_session_parts} converting {munit_naming} to tiff")
                     if data_format == ".mesc":
                         self.mesc_to_tiff(data_path, tiff_path, munit_naming)
                     else:
@@ -769,6 +769,7 @@ class Session:
         regenerate=False,
         unit_ids="all",
         delete=False,
+        delete_bin=True,
     ):
         self.suite2p_dirs = [] if generate and regenerate else self.suite2p_dirs
 
@@ -822,7 +823,7 @@ class Session:
                             tiff_fnames,
                             save_folder=suite2p_dir,
                             reuse_bin=False,
-                            delete_bin=True,
+                            delete_bin=delete_bin,
                             move_bin=False,
                         )
                     else:
@@ -851,7 +852,11 @@ class Session:
                             splitter = "\\" if "\\" in tiff_data_path else "/"
                             tiff_fname = tiff_data_path.split(splitter)[-1]
                         if tiff_fname:
-                            self.run_suite2p(tiff_fname, save_folder=suite2p_dir)
+                            self.run_suite2p(
+                                tiff_fname,
+                                save_folder=suite2p_dir,
+                                delete_bin=delete_bin,
+                            )
                 else:
                     print(f".tiff -> suite2p folder already done")
                     global_logger.info(f".tiff -> suite2p folder already done")
