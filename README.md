@@ -2,12 +2,11 @@
 Tool for working with brain imaging datasets.
 
 ## Run MESC to TIFF to Suite2P + BINARIZATION + Pairwise Correlation
-### Init Environment
+### Init Environment in Terminal
 1. clone AnimalClass git repository 
 2. go into AnimalClass directory
 3. clone manifolds git repository 
-4. go into Scicore directory
-5. create conda environment and install packages
+4. create conda environment and install packages
 
 This has do be done only 1 time:
 ```bash
@@ -17,15 +16,14 @@ git clone https://github.com/Ch3fUlrich/AnimalClass.git
 cd AnimalClass
 # 3. clone manifolds git repository 
 git clone https://github.com/Ch3fUlrich/manifolds.git
-# 4. go into Scicore directory
-cd Scicore
-# 5. create conda environment
+# 4. create conda environment
 conda create -n animal_env python=3.8
-conda install --file ..\requirements.txt
+pip install -r requirements.txt
+
 ```
 ### Run on Scicore or Locally
 #### Jupyter Notebook
-1. Open ```run_scicore_pipeline_helper.ipynb``` to run on scicora or ```Usage_Example.ipynb``` locally for local usage
+1. Open ```Scicore\run_scicore_pipeline_helper.ipynb``` to run on scicora or ```Usage_Example.ipynb``` locally for local usage
 2. Set your Environment
 3. Run Pipeline
 
