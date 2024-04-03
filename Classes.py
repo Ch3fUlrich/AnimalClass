@@ -250,7 +250,7 @@ class Session:
     movement_train_root_folder = "TRD-TR"  # Treadmil training
     inscopix_root_folder = "001P-I"  # 1P Inscopix
     s2p_root_folder = "002P-F"  # 2P Femtonics
-    s2p_Torlabs_root_folder = "002P-T"  # 2P Torlabs
+    s2p_Thorlabs_root_folder = "002P-T"  # 2P Torlabs
     s2p_Bscope_data_folder = "data"  # 2P Bscope raw data folder
 
     def __init__(
@@ -268,7 +268,7 @@ class Session:
         self.image_x_size = 512
         self.image_y_size = 512
         self.fucntional_channel = 1
-
+        self.ops = None
         # Initiate session properties
         properties = [
             "session_id",
@@ -299,6 +299,7 @@ class Session:
             "cell_geldrying",
             "cells",
         ]
+
         copy_object_attributes_to_object(properties, self)
 
         self.load_metadata(yaml_file_path)
@@ -878,6 +879,27 @@ class Session:
         )
         return self.suite2p_dirs
 
+    def set_ops(self, ops=None):
+        """
+        update ops with default options if "ops.npy" is not provided in
+            - animal_id/session/002P-F or
+            - animal_id/session
+        """
+        if not ops:
+            if not self.ops:
+                ops_path = os.path.join(self.suite2p_root_dir, "ops.npy")
+                if os.path.exists(ops_path):
+                    ops_path = os.path.join(self.session_dir, "ops.npy")
+                    if os.path.exists(ops_path):
+                        ops = np.load(ops_path, allow_pickle=True).item()
+                if ops == None:
+                    ops = default_ops()  # populates ops with the default options
+                self.ops = ops
+        else:
+            self.ops = ops
+        # self.ops["nonrigid"] = False
+        return self.ops
+
     def run_suite2p(
         self,
         tiff_fnames,
@@ -896,7 +918,7 @@ class Session:
             tiff_fnames = [tiff_fnames]
 
         # set your options for running
-        ops = default_ops()  # populates ops with the default options
+        ops = self.set_ops()
 
         # deleting binary file from old s2p run
         if delete_old_temp_bin:
@@ -2134,7 +2156,7 @@ class Unit:
                 if os.path.exists(ops_path):
                     ops = np.load(ops_path, allow_pickle=True).item()
                 if ops == None:
-                    ops = register.default_ops()
+                    ops = default_ops()
                 self.ops = ops
         else:
             self.ops = ops
