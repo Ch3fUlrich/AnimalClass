@@ -220,7 +220,7 @@ def plot_raster(
     xticks_frames_to_seconds(num_time_steps, fps=fps)
 
     file_name = f"{animal_id} {session_id}"
-    title = f"Bursts from {file_name} {fluorescence_type}"
+    title = f"{int(np.nansum(bin_traces))} Bursts from {file_name} {fluorescence_type}"
     xlabel = f"seconds"
     ylabel = "Neuron ID"
 
