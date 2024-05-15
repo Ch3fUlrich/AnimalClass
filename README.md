@@ -23,7 +23,7 @@ pip install -r requirements.txt
 ```
 ### Run on Scicore or Locally
 #### Jupyter Notebook
-1. Open ```Scicore\run_scicore_pipeline_helper.ipynb``` to run on scicora or ```Usage_Example.ipynb``` locally for local usage
+1. Open ```Scicore\run_scicore_pipeline_helper.ipynb``` to run on scicor or ```Usage_Example.ipynb``` locally for local usage
 2. Set your Environment
 3. Run Pipeline
 
