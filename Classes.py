@@ -3697,6 +3697,85 @@ class Vizualizer:
         # plt.show()
         plt.close()
 
+    @staticmethod
+    def plot_raster(
+        binarized_traces,
+        save_dir,
+        animal_id="",
+        session_id="",
+        fluorescence_type="",
+        fps=30,
+        save=True,
+        override=False,
+    ):
+        bin_traces = np.nan_to_num(binarized_traces.transpose(), nan=0.0)
+        num_time_steps, num_neurons = bin_traces.shape
+
+        # set image title, skip if already present
+        file_name = f"{animal_id} {session_id}"
+        burst_percentage = (
+            np.nansum(bin_traces) / (bin_traces.shape[0] * bin_traces.shape[1]) * 100
+        )
+        title = f"Bursts from {file_name} {fluorescence_type} {burst_percentage:.2f}%"
+        save_title = os.path.join(save_dir, title.replace(" ", "_") + ".png")
+        if os.path.exists(save_title) and not override:
+            return
+
+        neurons_per_y = 50
+        y_size = num_neurons / neurons_per_y
+        if y_size < 5:
+            y_size = 5
+        plt.figure(figsize=(20, y_size))
+        # Find spike indices for each neuron
+        spike_indices = np.nonzero(bin_traces)
+        # Creating an empty image grid
+        image = np.zeros((num_neurons, num_time_steps))
+        # Marking spikes as pixels in the image grid
+        image[spike_indices[1], spike_indices[0]] = 1
+        # Plotting the raster plot using pixels
+
+        plt.imshow(image, cmap="binary", aspect="auto", interpolation="none")
+        plt.gca().invert_yaxis()  # Invert y-axis for better visualization of trials/neurons
+
+        xticks_frames_to_seconds(num_time_steps, fps=fps)
+
+        xlabel = f"seconds"
+        ylabel = "Neuron ID"
+
+        plt.title(title)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        if save:
+            plt.savefig(save_title, dpi=300)
+        plt.show()
+        plt.close()
+
+    @staticmethod
+    def plot_traces_shifted(
+        traces, savepath, figsize_x=20, title="Ca traces", save=True, fps=30.97
+    ):
+        """
+        Plots traces shifted up by 10 for each trace
+        """
+        traces_per_y = 2
+        y_size = len(traces) / traces_per_y / 3
+        y_size = 1 if y_size < 1 else y_size
+        figsize = (figsize_x, y_size)
+        fig, ax = plt.subplots()
+        fig.set_size_inches(figsize)
+        for i, trace in enumerate(traces):
+            ax.plot(trace + i / traces_per_y)
+
+        num_neurons, num_time_steps = traces.shape
+        # xticks_frames_to_seconds(num_time_steps, fps=fps)
+        plt.ylim(0, traces.shape[0] / traces_per_y)
+        plt.xlim(0, traces.shape[1])
+        plt.title(title)
+        if save:
+            plt.savefig(savepath)
+        plt.show()
+        plt.close()
+
 
 class Binary_loader:
     """

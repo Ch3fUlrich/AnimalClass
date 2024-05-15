@@ -58,6 +58,30 @@ def gif_to_mp4(path):
     clip.write_videofile(save_path)
 
 
+def xticks_frames_to_seconds(frames, fps=30.95):
+    import matplotlib.pyplot as plt
+
+    seconds = 5
+    num_frames = fps * seconds
+    num_x_ticks = 50
+    written_label_steps = 2
+
+    x_time = [
+        int(frame / num_frames) * seconds
+        for frame in range(frames)
+        if frame % num_frames == 0
+    ]
+    steps = round(len(x_time) / (2 * num_x_ticks))
+    x_time_shortened = x_time[::steps]
+    x_pos = np.arange(0, frames, num_frames)[::steps]
+
+    x_labels = [
+        time if num % written_label_steps == 0 else ""
+        for num, time in enumerate(x_time_shortened)
+    ]
+    plt.xticks(x_pos, x_labels, rotation=40, fontsize=8)
+
+
 def show_mesc_units(path):
     h5 = h5py.File(path, "r")
     for munit_id, MUnits in h5["MSession_0"].items():
