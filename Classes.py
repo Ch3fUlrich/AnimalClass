@@ -1805,6 +1805,7 @@ class Session:
         self,
         merged=True,
         min_num_usefull_cells=0,
+        generate=True,
         regenerate=False,
         movement_data_types=["wheel", "triggers", "velocity"],
     ):
@@ -1822,7 +1823,7 @@ class Session:
                 global_logger.info(f"Loading {movement_name} from {save_path}")
                 data = np.load(save_path, allow_pickle=True)
                 setattr(self, movement_name, data)
-            else:
+            elif generate:
                 self.merge_movements(
                     merged=merged,
                     min_num_usefull_cells=min_num_usefull_cells,
@@ -3660,13 +3661,9 @@ class Vizualizer:
         plt.show()
         return pday_cell_count_df
 
-    def plot_velocity(self, velocity, average=False, window_size=30, comment=""):
-        save_file_name = os.path.join(
-            "C:\\Users\\mauls\\OneDrive\\Desktop\\temp\\velos", f"{comment}.png"
-        )
-        # if os.path.exists(save_file_name):
-        #    return
-
+    def plot_velocity(
+        self, velocity, average=False, window_size=30, comment="", show=True
+    ):
         velocity_lable = "Velocity"
         plot_velocity = velocity
         if average:
@@ -3682,19 +3679,106 @@ class Vizualizer:
         plt.plot(plot_velocity, label=velocity_lable)
         plt.xlabel("Frames")
         plt.ylabel("Velocity m/s")
-        plt.ylim(-0.5, 1)
+        plt.ylim(-0.3, 0.8)
         plt.title(title)
         plt.legend()
         plt.grid(True, color="gray")
-        plt.savefig(save_file_name, dpi=300)
+        to_replace = [
+            [" ", "_"],
+            [">", "bigger than"],
+            ["/", ""],
+            ["|", ""],
+            ["%", "percentage"],
+        ]
+        for character, replacer in to_replace:
+            title = title.replace(character, replacer)
         plt.savefig(
             os.path.join(
                 self.save_dir,
-                title.replace(" ", "_").replace(">", "bigger than") + ".png",
+                title + ".png",
             ),
             dpi=300,
         )
-        # plt.show()
+        if show:
+            plt.show()
+        plt.close()
+
+    def sanitize_filename(self, title):
+        # Remove invalid characters for filenames in Windows
+        return re.sub(r'[<>:"/\\|?*%]', "_", title)
+
+    def plot_value_per_session(
+        self, values_dict, pdays, comment="", show=True, ax=None
+    ):
+        title = f"{comment}"
+        if ax is None:
+            plt.figure(figsize=(20, 5))  # Adjust the figure size as needed
+            ax = plt.gca()
+
+        # Plot the averaged velocity data with labels
+        for label, values in values_dict.items():
+            ax.plot(pdays, values, label=label, linewidth=2, alpha=0.9)  # Thicker lines
+            ax.scatter(pdays, values, s=25, alpha=0.7)  # Dots at every value
+
+        ax.set_xlabel("pday")
+        ax.set_ylabel("value")
+        ax.set_xticks(pdays)
+        ax.set_title(title)
+        if "%" in comment:
+            ax.set_ylim(0, 1)
+        ax.legend()
+        ax.grid(True, color="gray", alpha=0.5)
+
+        if ax is None:  # Only save and show if no external axis is provided
+            sanitized_title = self.sanitize_filename(title)
+            plt.savefig(
+                os.path.join(
+                    self.save_dir,
+                    sanitized_title + ".png",
+                ),
+                dpi=300,
+            )
+
+            # Show the plot
+            if show:
+                plt.show()
+            plt.close()
+
+    def plot_combined_values(
+        self, values_dict1, values_dict2, pdays, comment1="", comment2="", show=True
+    ):
+        title1 = f"{comment1}"
+        title2 = f"{comment2}"
+        fig, axs = plt.subplots(
+            2, 1, figsize=(20, 10)
+        )  # Adjust the figure size as needed
+
+        # Plot the first set of values in the first subplot
+        self.plot_value_per_session(
+            values_dict1, pdays, comment=title1, show=False, ax=axs[0]
+        )
+
+        # Plot the second set of values in the second subplot
+        self.plot_value_per_session(
+            values_dict2, pdays, comment=title2, show=False, ax=axs[1]
+        )
+
+        # Save the combined figure
+        # combined_title = f"{title1.split(" ")[0]}"
+        combined_title = title1.split(" ")[0]
+        sanitized_combined_title = self.sanitize_filename(combined_title)
+        plt.tight_layout()
+        plt.savefig(
+            os.path.join(
+                self.save_dir,
+                sanitized_combined_title + ".png",
+            ),
+            dpi=300,
+        )
+
+        # Show the combined plot
+        if show:
+            plt.show()
         plt.close()
 
     @staticmethod
