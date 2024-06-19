@@ -545,7 +545,7 @@ class Session:
 
     def remove_geldrying_cells(self, cell_array):
         cell_drying = self.load_cell_drying()
-        cleaned_cell_array = np.array(cell_array)[cell_drying == False]
+        cleaned_cell_array = None if cell_array is  None else np.array(cell_array)[cell_drying == False]
         return cleaned_cell_array
 
     def load_traces(self, clean=False):

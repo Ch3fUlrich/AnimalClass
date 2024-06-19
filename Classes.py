@@ -1,5 +1,7 @@
 # imports
 # Statistics
+from typing import List, Union, Dict, Any, Tuple, Optional
+
 import seaborn as sns
 import pandas as pd
 import numpy as np
@@ -4062,9 +4064,9 @@ class Merger:
     def shift_rotate_contour_cloud(
         self,
         stat,
-        yx_shift: [int, int],
+        yx_shift: List[int],
         rot_angle: float,
-        rot_center_yx: [float, float],
+        rot_center_yx: List[float],
         roation_first=False,
     ):
         """
