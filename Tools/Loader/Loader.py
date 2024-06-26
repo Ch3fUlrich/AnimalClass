@@ -2,7 +2,6 @@
 import os
 import numpy as np
 import yaml
-import shutil
 import re
 import matplotlib.pyplot as plt
 from datetime import datetime
