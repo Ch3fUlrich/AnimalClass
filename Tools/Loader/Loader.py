@@ -5,6 +5,8 @@ import yaml
 import re
 import matplotlib.pyplot as plt
 from datetime import datetime
+import scipy.stats as stats
+from scipy.optimize import curve_fit
 
 
 def load_all(
@@ -254,10 +256,36 @@ def plot_velocity(
     plt.show()
 
 
+def is_integer(array):
+    for type in [np.int8, np.int16, np.int32, np.int64, np.integer]:
+        if np.issubdtype(array.dtype, type):
+            return True
+    return False
+
+
+def is_float(array):
+    for type in [np.float32, np.float64]:
+        if np.issubdtype(array.dtype, type):
+            return True
+    return False
+
+
+def calculate_bins(data):
+    """
+    Determine the number of bins using the Freedman-Diaconis rule
+    """
+    data = np.array(data)
+    q25, q75 = np.percentile(data, [25, 75])
+    iqr = q75 - q25
+    bin_width = 2 * iqr / len(data) ** (1 / 3)
+    bins = int(np.ceil((data.max() - data.min()) / bin_width))
+    return bins
+
+
 def subplot_histogram(
     data,
     ax,
-    bins=50,
+    bins=None,
     fit_distribution: str = None,
     label=None,
     title="Histogram",
@@ -270,11 +298,21 @@ def subplot_histogram(
     edgecolor=None,
     density=True,
 ):
+    if bins == "auto":
+        bins = calculate_bins(data)
+
     bins = bins or 50
 
-    count, bins_location = np.histogram(data, bins=bins, density=density)
+    if is_integer(data):
+        bins_location, count = np.unique(data, return_counts=True)
+    elif is_float(data):
+        count, bins_location = np.histogram(data, bins=bins, density=density)
+        bins_location = bins_location[:-1]
+    else:
+        raise ValueError("Data type not supported")
+
     ax.bar(
-        x=bins_location[:-1],
+        x=bins_location,
         height=count,
         width=bins_location[1] - bins_location[0],
         label=label,
@@ -283,19 +321,17 @@ def subplot_histogram(
         alpha=alpha,
     )
 
-    if fit_distribution == "log_normal":
-        import scipy.stats as stats
+    xs, ys, funct_label = fit_function(
+        data, fit_distribution, bins_location=bins_location, count=count
+    )
 
-        try:
-            shape, loc, scale = stats.lognorm.fit(data, floc=0)
-            # Plot the fitted log-normal distribution
-            xmin, xmax = ax.get_xlim()
-            x = np.linspace(xmin, xmax, 100)
-            pdf = stats.lognorm.pdf(x, shape, loc, scale)
-            ax.plot(x, pdf, "k", linewidth=2, label=f"log-normal fit")
-        except:
-            pass
-
+    ax.plot(
+        xs,
+        ys,
+        "k",
+        linewidth=2,
+        label=label or funct_label,
+    )
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -684,5 +720,55 @@ class Session:
     def get_num_coactive_cells(self, clean=True):
         # so here we just count vertically in the raster
         binarized_traces = self.load_binarized_traces(clean=clean)
-        num_coactive_cells = np.sum(binarized_traces, axis=0)
+        num_coactive_cells = np.sum(binarized_traces, axis=0, dtype=int)
         return num_coactive_cells
+
+
+# Math
+def exp_decay(x, a, b):
+    return a * np.exp(-b * x)
+
+
+def fit_function(data, fit_distribution, count, bins_location, x_range=None):
+    if x_range is None:
+        xmin, xmax = bins_location[0], bins_location[-1]
+    else:
+        xmin, xmax = x_range
+    xs = np.linspace(xmin, xmax, 100)
+    if fit_distribution == "log_normal":
+        try:
+            shape, loc, scale = stats.lognorm.fit(data, floc=0)
+            # Plot the fitted log-normal distribution
+            ys = stats.lognorm.pdf(xs, shape, loc, scale)
+            label = f"log-normal: f(x; s, μ, σ) = (1 / (s * x * sqrt(2 * π))) * e^(-((ln(x) - μ)^2) / (2 * σ^2))\n          ,where s={shape:.2f}, μ={loc:.2f}, σ={scale:.2f}"
+        except:
+            pass
+    elif fit_distribution == "exponential":
+        loc, scale = stats.expon.fit(data)
+        # Plot the fitted exponential distribution
+        ys = stats.expon.pdf(xs, loc, scale)
+        # formula f(x; λ) = λ * e^(-λ(x - μ))
+        lambda_ = 1 / scale
+        mean = loc
+        label = f"exp: f(x; λ) = λ * e^(-λ(x - μ))\n          ,where λ={lambda_:.2f}, μ={mean:.2f}"
+    elif fit_distribution == "exponential_decay":
+        try:
+            popt, pcov = curve_fit(exp_decay, bins_location, count, maxfev=1200)
+        except RuntimeError as e:
+            # popt will contain the best-fit parameters found so far
+            print(f"RuntimeError: {e}")
+            popt, pcov = curve_fit(
+                exp_decay,
+                bins_location[:-1],
+                count,
+                maxfev=1200,
+                method="trf",
+                bounds=(-np.inf, np.inf),
+                loss="linear",
+                verbose=2,
+            )
+        a_fit, b_fit = popt
+        ys = exp_decay(xs, a_fit, b_fit)
+        label = f"exp: f(x; a, b) = a * e^(-b * x)\n          ,where a={a_fit:.2f}, b={b_fit:.2f}"
+
+    return xs, ys, label
