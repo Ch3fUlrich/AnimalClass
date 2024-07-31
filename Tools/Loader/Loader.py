@@ -133,7 +133,7 @@ def sliding_mean_std(arr, window_size):
     return np.array(mean_stds)
 
 
-def xticks_frames_to_seconds(frames, fps=30):
+def xticks_frames_to_seconds(frames, fps=30.96):
     seconds = 5
     num_frames = fps * seconds
     num_x_ticks = 50
@@ -164,7 +164,7 @@ def traces(
     fluorescence_type="",
     is_wheel=True,
     is_wheel_color="lightgray",
-    fps=30,
+    fps=30.96,
     dpi=300,
 ):
     # plot fluorescence
@@ -201,7 +201,7 @@ def plot_raster(
     animal_id="",
     session_id="",
     fluorescence_type="",
-    fps=30,
+    fps=30.96,
 ):
     bin_traces = binarized_traces.transpose()
     plt.figure(figsize=(15, 5))
@@ -252,6 +252,56 @@ def plot_velocity(
     plt.grid(True, color="gray")
 
     plt.show()
+
+
+def subplot_histogram(
+    data,
+    ax,
+    bins=50,
+    fit_distribution: str = None,
+    label=None,
+    title="Histogram",
+    xlabel="Value",
+    ylabel="Frequency",
+    xlim=None,
+    ylim=None,
+    color=None,
+    alpha=None,
+    edgecolor=None,
+    density=True,
+):
+    bins = bins or 50
+
+    count, bins_location = np.histogram(data, bins=bins, density=density)
+    ax.bar(
+        x=bins_location[:-1],
+        height=count,
+        width=bins_location[1] - bins_location[0],
+        label=label,
+        color=color,
+        edgecolor=edgecolor,
+        alpha=alpha,
+    )
+
+    if fit_distribution == "log_normal":
+        import scipy.stats as stats
+
+        try:
+            shape, loc, scale = stats.lognorm.fit(data, floc=0)
+            # Plot the fitted log-normal distribution
+            xmin, xmax = ax.get_xlim()
+            x = np.linspace(xmin, xmax, 100)
+            pdf = stats.lognorm.pdf(x, shape, loc, scale)
+            ax.plot(x, pdf, "k", linewidth=2, label=f"log-normal fit")
+        except:
+            pass
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.legend()
 
 
 def color_background(plt, is_wheel, color="lightgray"):
@@ -544,7 +594,9 @@ class Session:
 
     def remove_geldrying_cells(self, cell_array):
         cell_drying = self.load_cell_drying()
-        cleaned_cell_array = None if cell_array is  None else np.array(cell_array)[cell_drying == False]
+        cleaned_cell_array = (
+            None if cell_array is None else np.array(cell_array)[cell_drying == False]
+        )
         return cleaned_cell_array
 
     def load_traces(self, clean=False):
@@ -619,3 +671,18 @@ class Session:
             os.path.join(self.session_dir, Session.corr_fname)
         )
         return self.corr_mat, self.pval_mat, self.zscore_mat
+
+    def get_activity_rates(self, clean=True, hertz=True, fps=None):
+        fps = fps or self.load_fps() or 30.96
+        binarized_traces = self.load_binarized_traces(clean=clean)
+        frames = binarized_traces.shape[1]
+        activity_rates = np.sum(binarized_traces, axis=1) / frames
+        if hertz:
+            activity_rates = activity_rates * fps
+        return activity_rates
+
+    def get_num_coactive_cells(self, clean=True):
+        # so here we just count vertically in the raster
+        binarized_traces = self.load_binarized_traces(clean=clean)
+        num_coactive_cells = np.sum(binarized_traces, axis=0)
+        return num_coactive_cells
