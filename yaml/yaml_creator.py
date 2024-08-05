@@ -34,21 +34,32 @@ def num_to_date(date_string):
     date = datetime.strptime(date_string, "%Y%m%d")
     return date
 
+def define_metadata_columns(sheet):
+    metadata_columns = {}
+    for column in range(1, sheet.max_column):
+        cell = sheet.cell(row=1, column=column)
+        if cell.value is not None:
+            metadata_columns[cell.value] = column
+    return metadata_columns
 
-def get_animal_dict_from_spreadsheet(fname):
+def get_animal_dict_from_spreadsheet(fname, sheet_title=None):
     """
     read animal_id, dob, sex from spreadsheet
     """
     org_exp_workbook = load_workbook(filename=fname)
-    sheet = org_exp_workbook.active
+    sheet_title = sheet_title if sheet_title else org_exp_workbook.sheetnames[0]
+    if sheet_title not in org_exp_workbook.sheetnames:
+        raise ValueError(f"sheet_title {sheet_title} not in sheetnames in {fname}")
+    sheet = org_exp_workbook[sheet_title]
     print(f"Warning cohort_year if defined by dob year.")
     print(f"Warning dob year 2020 is changed to 2021.")
+    metadata_columns = define_metadata_columns(sheet)
     animals = {}
     for row in range(2, sheet.max_row):
         # cell_obj = sheet.cell(row=row, column=j)
-        date = sheet.cell(row=row, column=2).value
+        date = sheet.cell(row=row, column=metadata_columns["date"]).value
         date = "20" + str(int(date)) if date else None
-        animal_id = sheet.cell(row=row, column=3).value
+        animal_id = sheet.cell(row=row, column=metadata_columns["mouse ID"]).value
         if not animal_id:
             continue
         else:
@@ -57,13 +68,13 @@ def get_animal_dict_from_spreadsheet(fname):
                 if len(animal_id) == 7
                 else "DON-0" + animal_id[3:]
             )
-        sex = sheet.cell(row=row, column=4).value
-        dob = sheet.cell(row=row, column=11).value
-        injected = sheet.cell(row=row, column=12).value
+        sex = sheet.cell(row=row, column=metadata_columns["sex"]).value
+        dob = sheet.cell(row=row, column=metadata_columns["DOB"]).value
+        injected = sheet.cell(row=row, column=metadata_columns["injected"]).value
         injected = "20" + str(int(injected)) if injected else None
-        implanted = sheet.cell(row=row, column=13).value
+        implanted = sheet.cell(row=row, column=metadata_columns["implanted"]).value
         implanted = "20" + str(int(implanted)) if implanted else None
-        duration = [sheet.cell(row=row, column=14).value]
+        duration = [sheet.cell(row=row, column=metadata_columns["duration [min]"]).value]
         duration = [
             (
                 None
@@ -72,26 +83,28 @@ def get_animal_dict_from_spreadsheet(fname):
             )
         ]
         method = "2P"
-        setup = sheet.cell(row=row, column=16).value
-        expt_pipeline = sheet.cell(row=row, column=17).value
-        underground = [sheet.cell(row=row, column=18).value]
-        cam_data = sheet.cell(row=row, column=23).value
+        setup = sheet.cell(row=row, column=metadata_columns["setup"]).value
+        cam_data = sheet.cell(row=row, column=metadata_columns["cam"]).value
         cam_data = [True if cam_data == "yes" else False]
-        movement_data = sheet.cell(row=row, column=24).value
+        movement_data = sheet.cell(row=row, column=metadata_columns["behaviour"]).value
         movement_data = [True if movement_data == "yes" else False]
-        light = sheet.cell(row=row, column=26).value
-        laser_power = sheet.cell(row=row, column=27).value
-        pockel_cell_bias = sheet.cell(row=row, column=28).value
-        n_channel = sheet.cell(row=row, column=29).value
-        fucntional_channel = sheet.cell(row=row, column=30).value
-        ug_gain = sheet.cell(row=row, column=31).value
-        ur_gain = sheet.cell(row=row, column=32).value
-        lens = sheet.cell(row=row, column=38).value
-        pixels = sheet.cell(row=row, column=39).value
-        n_planes = sheet.cell(row=row, column=41).value
-        session = [sheet.cell(row=row, column=46).value]
-        weight = sheet.cell(row=row, column=47).value
-        comment = sheet.cell(row=row, column=49).value
+        light = sheet.cell(row=row, column=metadata_columns["[nm]"]).value
+        laser_power = sheet.cell(row=row, column=metadata_columns["laser / LED power"]).value
+        underground = [sheet.cell(row=row, column=metadata_columns["treadmill"]).value]
+        pockel_cell_bias = sheet.cell(row=row, column=metadata_columns["PC bias"]).value
+        n_channel = sheet.cell(row=row, column=metadata_columns["n Ch."]).value
+        fucntional_channel = sheet.cell(row=row, column=metadata_columns["fct. channel"]).value
+        #fucntional_channel = sheet.cell(row=row, column=metadata_columns["fucntional_channel"]).value
+        ug_gain = sheet.cell(row=row, column=metadata_columns["UG gain"]).value
+        ur_gain = sheet.cell(row=row, column=metadata_columns["UR gain"]).value
+        pixels = sheet.cell(row=row, column=metadata_columns["pixels"]).value
+        n_planes = sheet.cell(row=row, column=metadata_columns["n planes"]).value
+        session = [sheet.cell(row=row, column=metadata_columns["session"]).value]
+        weight = sheet.cell(row=row, column=metadata_columns["weight [g]"]).value
+        comment = sheet.cell(row=row, column=metadata_columns["comment"]).value
+        expt_pipeline = sheet.cell(row=row, column=metadata_columns["paradigm"]).value
+        if "lens" in metadata_columns.keys():
+            lens = sheet.cell(row=row, column=metadata_columns["lens"]).value
 
         convert_to_int = [n_channel, fucntional_channel, n_planes]
         for i, value in enumerate(convert_to_int):
