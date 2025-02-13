@@ -69,54 +69,140 @@ squeue -u <username> -s
 ### Steps done for Correlation extraction
 Extract fluoresence information from a Session Dataset (1 Day recording). Some Steps are not mentioned in this description, since they are not relevant for the correlation extraction.
 
-1. Generate TIFF from MESC/RAW files ```session.generate_tiff```
-  1. Using h5py package
-  2. Create a RAW and TIFF file for every part (MUnit) of the MESC
-2. Extract Fluorescence Data of all parts (MUnits) ```session.generate_suite2p```
-  1. Run Suite2P on TIFF with [default parameters](#suite2p)
-3. Binarize Fluorescence Data and calculate correlations ```session.generate_cabincorr```
-   1. Run Catalins Binaraization and Correlation code for every Unit given [parameters](#catalins-binaraization-and-correlation)
-4. Merge all Units to one Unit ```session.merge_units```
-    1. Classify cells if they are real cells or gel drying artefacts ```unit.get_geldrying_cells```
-       1.  Calculate the mean and standard deviation of sliding window (default: 30*60 = 1 minute) fluorescence for each cell. ```Analyzer.get_all_sliding_cell_stat```
-       2. Geldrying detection ```Analyzer.geldrying```
-          1. Check if the **mean** of the data **increases for 1.5 minutes without a 0.5 minutes break** (at 30fps) ```Analyzer.cont_mean_increase```
-    2. Determine MUnit with most usefull cells (best MUnit without gel drying artefacts) ```session.get_most_good_cell_unit```
-    3. Determine the shift of every MUnits to the best MUnit ```session.calc_unit_yx_shifts```
-       1. get reference image of best MUnit ```unit.get_reference_image```
-          1. Load first 1000 frames of raw binary data ```Binary_loader.load_binary```
-          2. compute reference image ```suite2p.registration.register.compute_reference```
-       2. compute reference mask ```suite2p.registration.register.compute_reference_masks```
-       3. compute shift of every MUnit to the best MUnit ```unit.calc_yx_shift```
-          1. Load first 1000 frames of raw binary data ```Binary_loader.load_binary```
-          2. register frames to reference image ```suite2p.registration.register.register_frames```
-          3. calculate the mean shift in x and y direction
-    4. merge stats file of MUnits and deduplicate
-       1. For all units: remove cells that are out of view after shift ```Merger.remove_abroad_cells```
-          1. ```Merger.shift_rotate_contour_cloud```
-          2. remove out of bound cells
-       2. Merge and deduplicate duplicated cells ```Merger.merge_deduplicate_footprints```	(modified code from catalin)
-          1. ```Merger.generate_batch_cell_overlaps```
-          2. ```Merger.find_candidate_neurons_overlaps```
-          3. ```Merger.make_correlated_neuron_graph```
-          4. ```Merger.delete_duplicate_cells```
-    5. Update all MUnits using ```Merger.shift_update_unit_s2p_files```
-    6. Merge Suite2P files of all MUnits ```Merger.merge_s2p_files```
-       1. concatenate fluorescence and other Suite2P files in time
-    7. Create a new Unit object with all merged information
-       1. create a Unit object ```Unit```
-       2. Determine wrongly detected cells ```Unit.get_geldrying_cells```
- 5. Create Correlation Matrix ```session.load_corr_matrix(unit_id="merged")```
-    1. run catalins code on all cells ```session.get_cells(generate=True)```
-    2. combine to matrix
-       1. corr_matrix
-       2. pval_matrix
-       3. z_score_matrix
+1. Generate **TIFF** from **MESC**/**RAW** files ```session.generate_tiff```
+   1. Using **h5py** package
+   2. Create a **RAW** and **TIFF** file for every part (**MUnit**) of the **MESC**
+
+2. Extract **Fluorescence Data** of all parts (**MUnits**) ```session.generate_suite2p```
+3. Run **Suite2P** on **TIFF** with default parameters
+4. Binarize **Fluorescence Data** and calculate **correlations** ```session.generate_cabincorr```
+   1. Run **Catalins Binaraization** and **Correlation** code for every **Unit** given parameters
+   2. Merge all **Units** to one **Unit** ```session.merge_units```
+   3. Classify **cells** if they are real **cells** or **gel drying artefacts** ```unit.get_geldrying_cells```
+      1. Calculate the **mean** and **standard deviation** of **sliding window** (default: 30*60 = 1 minute) **fluorescence** for each **cell**. ```Analyzer.get_all_sliding_cell_stat```
+      2. **Geldrying detection** ```Analyzer.geldrying```
+      3. Check if the mean of the data increases for 1.5 minutes without a 0.5 minutes break (at 30fps) ```Analyzer.cont_mean_increase```
+   4. Determine **MUnit** with most **useful cells** (best **MUnit** without **gel drying artefacts**) ```session.get_most_good_cell_unit```
+   5. Determine the **shift** of every **MUnit** to the best **MUnit** ```session.calc_unit_yx_shifts```
+      1. Get **reference image** of best **MUnit** ```unit.get_reference_image```
+         1. Load first 1000 frames of **raw binary data** ```Binary_loader.load_binary```
+            1. Compute **reference image** ```suite2p.registration.register.compute_reference```
+         2. Compute **reference mask** ```suite2p.registration.register.compute_reference_masks```
+         3. Compute **shift** of every **MUnit** to the best **MUnit** ```unit.calc_yx_shift```
+            1. Load first 1000 frames of **raw binary data** ```Binary_loader.load_binary```
+            2. Register frames to **reference image** ```suite2p.registration.register.register_frames```
+            3. Calculate the **mean shift** in **x** and **y** direction
+   6. Merge **stats file** of **MUnits** and **deduplicate**
+      1. For all **units**: remove **cells** that are **out of view** after **shift** ```Merger.remove_abroad_cells```
+         1. ```Merger.shift_rotate_contour_cloud```
+         2. Remove **out of bound cells**
+      2. Merge and **deduplicate** **duplicated cells** ```Merger.merge_deduplicate_footprints``` (modified code from **Catalin**)
+         1. ```Merger.generate_batch_cell_overlaps```
+         2. ```Merger.find_candidate_neurons_overlaps```
+         3. ```Merger.make_correlated_neuron_graph```
+         4. ```Merger.delete_duplicate_cells```
+   7. Update all **MUnits** using ```Merger.shift_update_unit_s2p_files```
+   8. Merge **Suite2P files** of all **MUnits** ```Merger.merge_s2p_files```
+      1. Concatenate **fluorescence** and other **Suite2P files** in **time**
+   9. Create a new **Unit** object with all **merged information**
+      1.  Create a **Unit** object ```Unit```
+      2.  Determine **wrongly detected cells** ```Unit.get_geldrying_cells```
+5.  Create **Correlation Matrix** ```session.load_corr_matrix(unit_id="merged")```
+    1.  Run **Catalins code** on all **cells** ```session.get_cells(generate=True)```
+    2.  Combine to **matrix**
+        1.  **corr_matrix**
+        2.  **pval_matrix**
+        3.  **z_score_matrix**
 
 #### Provided data to people
-- [ ] everton
-- [ ] cecillia
-- [ ] rodrigo
+Here is a list of data that was provided to people. All data is from the **merged Unit** composed of all **MUnits** of a **Session**. All fluoresence data is based on all time frames and not on only stationary or moving frames.
+
+##### Everton
+1.	Run the code from Rodrigo for detecting graph properties and
+    - created an Excell Table with information about the graph properties,
+    - Boxplots as we saw already and
+    - Significants Plots based on a permutation test made by Rodrigo.
+2.	Run my code and generated the firing rates and coactivity counts (not normalized) for
+    - Stationary
+    - Moving
+    - Stationary+Moving ( was already provided before ) 
+
+##### Cecillia
+- Fluorescence Data
+  - F_detrended (without up or down trends)
+  - F_upphase (only up phases)
+- Suite2p files
+  - cell_drying (True/False)
+  - stat (Suite2p stats file)
+  - is_wheel (True/False if the mouse is running on the wheel) 
+- Movement Data
+  - velocity (**nan** if no data was available or mouse was on the platform)
+- FPS 
+- yaml files
+  - animal.yaml (one value for every unit)
+```yaml
+animal_id: DON-003343
+cohort_year: 2021
+dob: '20200826'
+sex: male
+```
+  - session.yaml
+```yaml
+cam_data:
+- true
+- true
+- true
+- true
+comment: low SNR; behav 30 min
+date: '20231108'
+duration:
+- 15.0
+- 15.0
+- 15.0
+- 15.0
+expt_pipeline: intrinsic CA3
+fucntional_channel: 1
+laser_power: 14.0
+lens: 16x
+light: 920.0
+method: 2P
+movement_data:
+- true
+- true
+- false
+- false
+n_channel: 1
+n_planes: 1
+pixels: 512x512
+pockel_cell_bias: 1650.0
+session_parts:
+- S1
+- S2
+- S3
+- S4
+setup: femtonics
+ug_gain: 74.0
+underground:
+- wheel
+- wheel
+- platform
+- platform
+ur_gain: null
+weight: 14.1
+```
+
+##### Rodrigo
+- Fluorescence Data
+  - F_upphase (only up phases)
+- Suite2p files
+  - allcell_clean_corr_pval_zscore (correlation, p-value, z-score of all cells)
+  - cell_drying (True/False if the cell is a gel drying artefact)
+- movement data
+  - velocity (**nan** if no data was available or mouse was on the platform)
+- FPS
+- yaml files
+  - animal.yaml
+  - session.yaml
 
 #### Parameters
 ##### Suite2p
@@ -133,8 +219,8 @@ Table of used parameters
 | animal_id | animal_id | **DON-XXXXXX** |
 | recompute_binarization | recomputes binarization of input data | **False** |
 | remove_ends | delete the first and last x seconds in case [ca] imaging had issues | **False** |
-| detrend_filter_threshold | this is a very low filter value that is applied to remove bleaching before computing mode|  0.001 |
-| mode_window | None: compute mode on entire time; Value: sliding window based - baseline detection # of frames to use to compute mode | 30 * 30 |
+| detrend_filter_threshold | this is a very low filter value that is applied to remove bleaching before computing mode|  **0.001** |
+| mode_window | None: compute mode on entire time; Value: sliding window based - baseline detection # of frames to use to compute mode | **30 * 30** |
 | dff_min | set the minimum dff value to be considered an event; required for weird negative dff values that sometimes come out of inscopix data | **0.02** |
 | data_type = "2p" | define 1p or 2p data structure | **"2p"** |
 | remove_bad_cells | removes cells not passing suite2ps criteria | **True** | 
