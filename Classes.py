@@ -2543,7 +2543,7 @@ class Analyzer:
         mode="mean",
     ):
         """
-        Calculate the mean and standard deviation of sliding window (default: 30*60 = 1 sec.) fluorescence for each cell.
+        Calculate the mean and standard deviation of sliding window (default: 30*60 = 1 minute) fluorescence for each cell.
 
         Args:
             fluorescence (numpy.ndarray): A 3D numpy array containing fluorescence data for each cell.

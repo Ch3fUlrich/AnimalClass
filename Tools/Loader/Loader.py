@@ -605,7 +605,7 @@ class Session:
 
     def load_fps(self):
         if self.fps:
-            return (self.fps,)
+            return self.fps
         fps_path = os.path.join(self.session_dir, "fps.npy")
         self.fps = np_load_if_exists(fps_path)
         return self.fps
@@ -708,20 +708,77 @@ class Session:
         )
         return self.corr_mat, self.pval_mat, self.zscore_mat
 
-    def get_activity_rates(self, clean=True, hertz=True, fps=None):
+    def get_moving(self, velocity=None, brain_area_lag=2):
+        """
+        Returns a boolean array indicating whether the animal is moving at each time step.
+        """
+        velocity = velocity or self.load_velocity()
+        raw_moving = velocity > 0.2  # 2 cm/s is the threshold for movement
+        moving = fill_in_gaps(
+            raw_moving, brain_area_lag=brain_area_lag, fps=self.load_fps()
+        )
+        return moving
+
+    def get_activity_rates(self, clean=True, movement_type=None, hertz=True, fps=None):
         fps = fps or self.load_fps() or 30.96
         binarized_traces = self.load_binarized_traces(clean=clean)
+        try:
+            binarized_traces = self.filter_by_movement(binarized_traces, movement_type)
+        except:
+            print(
+                "WARNING: frames of movement data does not match binarized traces. return None"
+            )
+            return None
         frames = binarized_traces.shape[1]
         activity_rates = np.sum(binarized_traces, axis=1) / frames
         if hertz:
             activity_rates = activity_rates * fps
         return activity_rates
 
-    def get_num_coactive_cells(self, clean=True):
+    def get_num_coactive_cells(self, movement_type=None, clean=True):
         # so here we just count vertically in the raster
         binarized_traces = self.load_binarized_traces(clean=clean)
+        try:
+            binarized_traces = self.filter_by_movement(binarized_traces, movement_type)
+        except:
+            print(
+                "WARNING: frames of movement data does not match binarized traces. return None"
+            )
+            return None
         num_coactive_cells = np.sum(binarized_traces, axis=0, dtype=int)
         return num_coactive_cells
+
+    def filter_by_movement(self, arr, condition: str):
+        """
+        Filter an array based on a boolean array and the condition stationary or moving.
+        """
+        if condition != None:
+            if condition == "stationary":
+                idx_to_keep = self.get_moving() == False
+            elif condition == "moving":
+                idx_to_keep = self.get_moving()
+            else:
+                raise ValueError("condition must be 'stationary' or 'moving'")
+            return arr[:, idx_to_keep]
+        return arr
+
+
+def fill_in_gaps(mobile, brain_area_lag, fps):
+    frame_threshold = round(
+        fps * brain_area_lag
+    )  # brain_area_lag seconds threshold for short shifts in behavior state
+    corrected_mobile = mobile.copy()
+    movement_change_frames = np.diff(corrected_mobile)
+    idx_change = np.where(movement_change_frames == True)[0]
+    before_frame = 0
+    for current_frame in idx_change:
+        diff = current_frame - before_frame
+        if diff < frame_threshold:
+            fill_value = corrected_mobile[before_frame - 1]  # Fill with previous state
+            # Fill the frames between before_frame and current_frame with the fill_value
+            corrected_mobile[before_frame : current_frame + 1] = fill_value
+        before_frame = current_frame + 1
+    return corrected_mobile
 
 
 # Math

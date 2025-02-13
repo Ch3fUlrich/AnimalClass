@@ -66,6 +66,94 @@ squeue -u <username> -s
 ```
 
 ## General Workflow
+### Steps done for Correlation extraction
+Extract fluoresence information from a Session Dataset (1 Day recording). Some Steps are not mentioned in this description, since they are not relevant for the correlation extraction.
+
+1. Generate TIFF from MESC/RAW files ```session.generate_tiff```
+  1. Using h5py package
+  2. Create a RAW and TIFF file for every part (MUnit) of the MESC
+2. Extract Fluorescence Data of all parts (MUnits) ```session.generate_suite2p```
+  1. Run Suite2P on TIFF with [default parameters](#suite2p)
+3. Binarize Fluorescence Data and calculate correlations ```session.generate_cabincorr```
+   1. Run Catalins Binaraization and Correlation code for every Unit given [parameters](#catalins-binaraization-and-correlation)
+4. Merge all Units to one Unit ```session.merge_units```
+    1. Classify cells if they are real cells or gel drying artefacts ```unit.get_geldrying_cells```
+       1.  Calculate the mean and standard deviation of sliding window (default: 30*60 = 1 minute) fluorescence for each cell. ```Analyzer.get_all_sliding_cell_stat```
+       2. Geldrying detection ```Analyzer.geldrying```
+          1. Check if the **mean** of the data **increases for 1.5 minutes without a 0.5 minutes break** (at 30fps) ```Analyzer.cont_mean_increase```
+    2. Determine MUnit with most usefull cells (best MUnit without gel drying artefacts) ```session.get_most_good_cell_unit```
+    3. Determine the shift of every MUnits to the best MUnit ```session.calc_unit_yx_shifts```
+       1. get reference image of best MUnit ```unit.get_reference_image```
+          1. Load first 1000 frames of raw binary data ```Binary_loader.load_binary```
+          2. compute reference image ```suite2p.registration.register.compute_reference```
+       2. compute reference mask ```suite2p.registration.register.compute_reference_masks```
+       3. compute shift of every MUnit to the best MUnit ```unit.calc_yx_shift```
+          1. Load first 1000 frames of raw binary data ```Binary_loader.load_binary```
+          2. register frames to reference image ```suite2p.registration.register.register_frames```
+          3. calculate the mean shift in x and y direction
+    4. merge stats file of MUnits and deduplicate
+       1. For all units: remove cells that are out of view after shift ```Merger.remove_abroad_cells```
+          1. ```Merger.shift_rotate_contour_cloud```
+          2. remove out of bound cells
+       2. Merge and deduplicate duplicated cells ```Merger.merge_deduplicate_footprints```	(modified code from catalin)
+          1. ```Merger.generate_batch_cell_overlaps```
+          2. ```Merger.find_candidate_neurons_overlaps```
+          3. ```Merger.make_correlated_neuron_graph```
+          4. ```Merger.delete_duplicate_cells```
+    5. Update all MUnits using ```Merger.shift_update_unit_s2p_files```
+    6. Merge Suite2P files of all MUnits ```Merger.merge_s2p_files```
+       1. concatenate fluorescence and other Suite2P files in time
+    7. Create a new Unit object with all merged information
+       1. create a Unit object ```Unit```
+       2. Determine wrongly detected cells ```Unit.get_geldrying_cells```
+ 5. Create Correlation Matrix ```session.load_corr_matrix(unit_id="merged")```
+    1. run catalins code on all cells ```session.get_cells(generate=True)```
+    2. combine to matrix
+       1. corr_matrix
+       2. pval_matrix
+       3. z_score_matrix
+
+#### Provided data to people
+- [ ] everton
+- [ ] cecillia
+- [ ] rodrigo
+
+#### Parameters
+##### Suite2p
+Table of not default [Suite2P Parameters](https://suite2p.readthedocs.io/en/latest/settings.html)
+| Parameter | Description | Value |
+| --- | --- | --- |
+| fs | frame rate of the movie | **30** |
+
+##### Catalins Binaraization and Correlation
+Table of used parameters
+| Parameter | Description | Value |
+| --- | --- | --- |
+| parallel_flag | parallel | **True** |
+| animal_id | animal_id | **DON-XXXXXX** |
+| recompute_binarization | recomputes binarization of input data | **False** |
+| remove_ends | delete the first and last x seconds in case [ca] imaging had issues | **False** |
+| detrend_filter_threshold | this is a very low filter value that is applied to remove bleaching before computing mode|  0.001 |
+| mode_window | None: compute mode on entire time; Value: sliding window based - baseline detection # of frames to use to compute mode | 30 * 30 |
+| dff_min | set the minimum dff value to be considered an event; required for weird negative dff values that sometimes come out of inscopix data | **0.02** |
+| data_type = "2p" | define 1p or 2p data structure | **"2p"** |
+| remove_bad_cells | removes cells not passing suite2ps criteria | **True** | 
+| detrend_model_order | ???????????? | **1** |
+| percentile_threshold | ???????????? | **0.000001** |
+| | | |
+| | | |
+| corr_parallel_flag | to run correlations in parallel or not | **True** |
+| recompute_correlation | recomputes correlation of input data | **False** |
+| binning_window | binning window in frames | **30** |
+| subsample | subsample traces by this factor | **1** |
+| scale_by_DFF | scale traces by DFF | **True** |
+| shuffle_data | shuffle data | **False** |
+| subselect_moving_only | subselect moving only | **False** |
+| subselect_quiescent_only | subselect quiescent only | **False** |
+| zscore | to generate zscores | **True** |
+| n_tests_zscore | number of tests for zscore | **1000** |
+| n_cores | number of cores to use | **32** |
+
 ### Folder Structure
 ```
 ───DON-019608
