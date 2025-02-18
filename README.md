@@ -1,5 +1,6 @@
-# AnimalClass
-Tool for working with brain imaging datasets.
+# Imaging-Artefact-Detector (previously called AnimalClass)
+This repository was created for automatically detect imaging artefacts in 2P datasets in the **Intrinsic Imaging** project from **Steffen Kandler**.
+A more detailed explanation about steps that were done can be found in [this section](#General-Workflow)
 
 ## Run MESC to TIFF to Suite2P + BINARIZATION + Pairwise Correlation
 ### Init Environment in Terminal
