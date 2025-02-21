@@ -74,9 +74,9 @@ Extract fluoresence information from a Session Dataset (1 Day recording). Some S
    2. Create a **RAW** and **TIFF** file for every part (**MUnit**) of the **MESC**
 
 2. Extract **Fluorescence Data** of all parts (**MUnits**) ```session.generate_suite2p```
-3. Run **Suite2P** on **TIFF** with default parameters
+3. Run **Suite2P** on **TIFF** with [default parameters](#suite2p)
 4. Binarize **Fluorescence Data** and calculate **correlations** ```session.generate_cabincorr```
-   1. Run **Catalins Binaraization** and **Correlation** code for every **Unit** given parameters
+   1. Run **Catalins Binaraization** and **Correlation** code for every **Unit** [given parameters](#Catalins-Binaraization-and-Correlation)
    2. Merge all **Units** to one **Unit** ```session.merge_units```
    3. Classify **cells** if they are real **cells** or **gel drying artefacts** ```unit.get_geldrying_cells```
       1. Calculate the **mean** and **standard deviation** of **sliding window** (default: 30*60 = 1 minute) **fluorescence** for each **cell**. ```Analyzer.get_all_sliding_cell_stat```

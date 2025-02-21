@@ -713,7 +713,7 @@ class Session:
         Returns a boolean array indicating whether the animal is moving at each time step.
         """
         velocity = velocity or self.load_velocity()
-        raw_moving = velocity > 0.2  # 2 cm/s is the threshold for movement
+        raw_moving = velocity > 0.02  # 2 cm/s is the threshold for movement
         moving = fill_in_gaps(
             raw_moving, brain_area_lag=brain_area_lag, fps=self.load_fps()
         )

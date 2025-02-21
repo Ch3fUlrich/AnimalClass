@@ -48,7 +48,9 @@ import math
 # Mesc file analysis
 import h5py
 from tifffile import tifffile, imread
-import pathlib
+from pathlib import Path
+
+from numba import njit, prange
 
 # run matlab code
 # octave needs to be installed in your PATH environment variable https://octave.org/download
@@ -4752,6 +4754,247 @@ def delete_bin_tiff_s2p_intermediate(
             s2p_path_ending = s2p_path.split("suite2p")[-1]
             if s2p_path_ending not in keep_endings:
                 del_file_dir(s2p_path)
+
+
+# numba functions
+@njit(parallel=True)
+def pairwise_cosine_similarity(vectors):
+    """
+    Compute the pairwise cosine similarity between vectors using matrix multiplication,
+    while avoiding unsupported multi-dimensional boolean indexing in Numba.
+
+    Parameters:
+    - vectors (np.ndarray): An array of shape (n, d), where each row is a vector.
+
+    Returns:
+    - np.ndarray: A (n, n) array containing the pairwise cosine similarities.
+    """
+    n = vectors.shape[0]
+    m = vectors.shape[1]
+
+    # Compute the full dot product matrix using matrix multiplication.
+    dot_matrix = np.dot(vectors, vectors.T)
+
+    # Compute L2 norms for each vector (row).
+    norms = np.empty(n, dtype=vectors.dtype)
+    for i in range(n):
+        s = 0.0
+        for j in range(m):
+            s += vectors[i, j] * vectors[i, j]
+        norms[i] = np.sqrt(s)
+
+    # Build the outer product of norms with explicit loops.
+    # This replaces np.outer(norms, norms) and handles zeros by setting them to 1 to avoid division by zero.
+    norm_matrix = np.empty((n, n), dtype=vectors.dtype)
+    for i in range(n):
+        for j in range(n):
+            prod = norms[i] * norms[j]
+            if prod == 0.0:
+                norm_matrix[i, j] = 1.0  # avoid division by zero
+            else:
+                norm_matrix[i, j] = prod
+
+    # Compute the cosine similarity matrix via elementwise division.
+    similarity_matrix = dot_matrix / norm_matrix
+    return similarity_matrix
+
+
+@njit(parallel=True)
+def pairwise_pearson_correlation(vectors):
+    """
+    Compute the pairwise Pearson correlation between vectors using matrix multiplication
+    for the heavy lifting while remaining compatible with Numba.
+
+    Parameters:
+    - vectors (np.ndarray): An array of shape (n, d) where each row is a vector.
+
+    Returns:
+    - np.ndarray: A (n, n) array containing the pairwise Pearson correlations.
+    """
+    n = vectors.shape[0]
+    d = vectors.shape[1]
+
+    # 1. Compute means and create a centered matrix.
+    means = np.empty(n, dtype=vectors.dtype)
+    centered = np.empty((n, d), dtype=vectors.dtype)
+    for i in range(n):
+        s = 0.0
+        for j in range(d):
+            s += vectors[i, j]
+        mean_val = s / d
+        means[i] = mean_val
+        for j in range(d):
+            centered[i, j] = vectors[i, j] - mean_val
+
+    # 2. Compute covariance matrix via matrix multiplication:
+    #    cov = (centered @ centered.T) / (d - 1)
+    cov = np.dot(centered, centered.T)
+    for i in range(n):
+        for j in range(n):
+            cov[i, j] = cov[i, j] / (d - 1)
+
+    # 3. Compute standard deviations from the diagonal of the covariance matrix.
+    std = np.empty(n, dtype=vectors.dtype)
+    for i in range(n):
+        std[i] = np.sqrt(cov[i, i])
+
+    # 4. Compute the correlation matrix, clamping results to [-1, 1] and handling zero std.
+    corr = np.empty((n, n), dtype=vectors.dtype)
+    for i in prange(n):
+        for j in range(n):
+            if std[i] == 0.0 or std[j] == 0.0:
+                corr[i, j] = 0.0
+            else:
+                c = cov[i, j] / (std[i] * std[j])
+                if c > 1.0:
+                    c = 1.0
+                elif c < -1.0:
+                    c = -1.0
+                corr[i, j] = c
+
+    return corr
+
+
+def pairwise_compare(vectors: np.ndarray, metric="pearson", parallel=True):
+    """ """
+    if metric == "cosine":
+        # normalized_vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+        # distances = normalized_vectors @ normalized_vectors.T
+        if parallel:
+            distances = pairwise_cosine_similarity(vectors)
+        else:
+            distances = sklearn.metrics.pairwise.cosine_similarity(vectors)
+    elif metric == "pearson":
+        if parallel:
+            distances = pairwise_pearson_correlation(vectors)
+        else:
+            distances = np.corrcoef(vectors)
+    else:
+        raise ValueError(f"{metric} not supported in function {pairwise_compare}")
+    return distances
+
+
+def profile_function(file_name="profile_output"):
+    """
+    Run a function and profile it using the Profiler class.
+
+    Installation via pip install pyinstrument.
+
+    Example:
+        @profile_function(file_name="profile_output_parallel")
+        def do_parallel(output_fname):
+            print("Running parallel function")
+
+        do_parallel()
+    """
+    from pyinstrument import Profiler
+
+    def decorator(func):
+        def wrap_func(*args, **kwargs):
+            profiler = Profiler()
+            profiler.start()
+            try:
+                result = func(*args, **kwargs)
+            except Exception as e:
+                print("Error in function")
+                result = e
+            profiler.stop()
+            output_text = profiler.output_text(unicode=True, color=True)
+            print(output_text)
+            # Save the output to an HTML file
+            logs_path = Path().cwd() / "logs"
+            logs_path.mkdir(exist_ok=True)
+            with open(f"./logs/{file_name}.html", "w") as f:
+                f.write(profiler.output_html())
+            return result
+
+        return wrap_func
+
+    return decorator
+
+
+# @profile_function(file_name="population_similarity")
+def population_similarity(
+    data: np.ndarray,
+    metric: str = "cosine",
+    parallel: bool = True,
+    axis: int = 0,
+    additional_title="",
+    xticks=None,
+    yticks=None,
+    yticks_pos=None,
+    xticks_pos=None,
+    title=None,
+    figsize=(6, 5),
+    cmap: str = "viridis",
+    plot: bool = False,
+):
+    """
+    Compute the pairwise similarity between vectors based on axis.
+    """
+    if axis == 1:
+        data = data.T
+        xlabel = ylabel = "Frame"
+    else:
+        xlabel = ylabel = "Cell"
+
+    similarities = pairwise_compare(data, metric=metric, parallel=parallel)
+
+    if plot:
+        title = f"{metric} Heatmap"
+        # if metric == "cosine":
+        #    cmap = cmap + "_r"
+        plot_heatmap(
+            data=similarities,
+            no_diag=True,
+            additional_title=additional_title,
+            cmap=cmap,
+            figsize=figsize,
+            title=title,
+            xticks=xticks,
+            yticks=yticks,
+            xticks_pos=xticks_pos,
+            yticks_pos=yticks_pos,
+            colorbar_label=metric,
+            xlabel="Frames",
+            ylabel="Frames",
+        )
+    return similarities
+
+
+def plot_heatmap(
+    data: np.ndarray,
+    no_diag: bool = False,
+    additional_title="",
+    cmap="viridis",
+    figsize=(6, 5),
+    title=None,
+    xticks=None,
+    yticks=None,
+    xticks_pos=None,
+    yticks_pos=None,
+    colorbar_label=None,
+    xlabel=None,
+    ylabel=None,
+    save_path=None,
+):
+    """
+    Plots a heatmap of the given data.
+    """
+    if no_diag:
+        np.fill_diagonal(data, np.nan)
+    plt.figure(figsize=figsize)
+    plt.imshow(data, cmap=cmap, interpolation="none")
+    plt.title(title + additional_title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.xticks(xticks_pos, xticks, rotation=45)
+    plt.yticks(yticks_pos, yticks, rotation=0)
+    plt.tight_layout()
+    plt.colorbar(label=colorbar_label)
+    if save_path:
+        plt.savefig(save_path)
+    plt.show()
 
 
 def fcp(contours, colors):
