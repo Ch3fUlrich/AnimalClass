@@ -1,54 +1,12 @@
 # imports
 # Statistics
 from typing import List, Union, Dict, Any, Tuple, Optional
-
-import seaborn as sns
-import pandas as pd
 import numpy as np
 
 # Plotting
-import matplotlib as mlp
-import matplotlib.pyplot as plt, mpld3  # plotting and html plots
+import matplotlib.pyplot as plt
 
 plt.style.use("dark_background")
-# plt.style.use('default')
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
-from matplotlib.patches import Rectangle
-
-# Regular Expression searching
-import re
-
-# Suite2p for TIFF file analysis
-import suite2p
-from suite2p.run_s2p import run_s2p, default_ops
-from suite2p.registration import register
-
-# Used for Popups
-import tkinter as tk
-
-import nest_asyncio
-
-import parmap
-
-# for progress bar support
-from tqdm import tqdm
-
-# interact with system
-import os
-import sys
-import copy
-import shutil
-import psutil
-
-# statistics
-import scipy
-import math
-
-# Mesc file analysis
-import h5py
-from tifffile import tifffile, imread
-from pathlib import Path
 
 from numba import njit, prange
 
