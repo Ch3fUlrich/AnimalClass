@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 plt.style.use("dark_background")
 
 from numba import njit, prange
+import pandas as pd
 
 # run matlab code
 # octave needs to be installed in your PATH environment variable https://octave.org/download
@@ -3569,7 +3570,6 @@ class Vizualizer:
         pday_cell_count_df = get_cells_pdays_df(
             cell_numbers_dict, suite2p_cells=suite2p_cells
         )
-        # from pandas import *
         # display(pday_cell_count_df)
         vals = np.around(pday_cell_count_df.values, 2)
         red = mlp.colors.TABLEAU_COLORS["tab:red"]

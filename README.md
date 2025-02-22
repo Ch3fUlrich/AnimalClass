@@ -12,13 +12,14 @@ A more detailed explanation about steps that were done can be found in [this sec
 This has do be done only 1 time:
 ```bash
 # 1. clone AnimalClass git repository 
-git clone https://github.com/Ch3fUlrich/AnimalClass.git
+git clone https://github.com/donatolab/Imaging-Artefact-Detector.git
 # 2. go into AnimalClass directory
-cd AnimalClass
+cd Imaging-Artefact-Detector
 # 3. clone manifolds git repository 
 git clone https://github.com/Ch3fUlrich/manifolds.git
 # 4. create conda environment
-conda create -n animal_env python=3.8
+conda create -n imgartdet python=3.8
+conda activate imgartdet
 pip install -r requirements.txt
 
 ```
@@ -31,7 +32,7 @@ pip install -r requirements.txt
 #### Terminal on Scicore
 If you run it in Terminal this procedure will be used **MESC-->TIFF-->Suite2p-->Binarize-->Pairwise Correlate**
 1. Define Animals and Sessions to be used: Only the Session will be used where Animal-ID and Sesssion-Date match
-2. conda activate your_animalclass_environment
+2. conda activate imgartdet
 3. create commands for sbatch script: Data is located in Project folder. Examples:
 4. run sbatch script
 This have do be done every time you want to run new sessions:
@@ -40,8 +41,8 @@ This have do be done every time you want to run new sessions:
 # writing "all" or "" will run all animals/sessions
 ANIMALS="DON-009191 DON-009192" 
 SESSIONS="20220303 20220304"
-# 2. conda activate your_animalclass_environment
-conda activate your_animalclass_environment
+# 2. conda activate imgartdet
+conda activate imgartdet
 # 3. create commands for sbatch script
 python create_commands_list.py ANIMALS SESSIONS #alls session from DON-009191
 # 4. run sbatch script
