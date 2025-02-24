@@ -16,9 +16,10 @@ from Helper import *
 
 # Init Directories and Notebook settings
 root_dir = Path(
-    "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments\\rodrigo"
+    #"\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments\\rodrigo"
+    "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments/rodrigo"
 )
-# root_dir = "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments"
+# root_dir = 
 Animal.root_dir = root_dir
 
 
@@ -61,12 +62,12 @@ def get_population_activity(animals):
     None
     """
     root_folder_path = Path(
-        # "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments/everton/population_activity/"
-        "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments\\everton\\population_activity"
+        "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments/everton/population_activity/"
+        #"\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments\\everton\\population_activity"
     )
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
-            frames = 10000
+            frames = 5000
             # movement_types = ["all", "stationary", "moving"]
             movement_types = ["all"]  # , "stationary", "moving"]
             for movement_type in movement_types:
@@ -132,5 +133,5 @@ if __name__ == "__main__":
     print(
         f"Generating population activity for animal {wanted_animal_id} and session {wanted_session_id}"
     )
-    main(wanted_animal_id=[wanted_animal_id], wanted_session_id=[wanted_session_id])
+    main(wanted_animal_id=wanted_animal_id, wanted_session_id=wanted_session_id)
     # main(wanted_animal_id=["DON-015078"], wanted_session_id=["20230217"])

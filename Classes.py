@@ -4730,6 +4730,8 @@ def pairwise_cosine_similarity(vectors):
     n = vectors.shape[0]
     m = vectors.shape[1]
 
+    # convert to C‐contiguous layout 
+    vectors = np.ascontiguousarray(vectors)
     # Compute the full dot product matrix using matrix multiplication.
     dot_matrix = np.dot(vectors, vectors.T)
 

@@ -1,1 +1,1 @@
-python c:\Users\mauls\OneDrive\Dokumente\Code\AnimalClass\Scicore\otherpopulation_activity.py DON-019608 20240126
+python /scicore/home/donafl00/mauser00/code/Imaging-Artefact-Detector/Scicore/other/population_activity.py DON-014847 20230126
