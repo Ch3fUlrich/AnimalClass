@@ -67,7 +67,7 @@ def get_population_activity(animals):
     )
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
-            frames = 5000
+            #frames = 5000
             # movement_types = ["all", "stationary", "moving"]
             movement_types = ["all"]  # , "stationary", "moving"]
             for movement_type in movement_types:
@@ -80,7 +80,7 @@ def get_population_activity(animals):
 
                 bin_fluorescence = session.load_binarized_traces(clean=True)
                 upphase = session.filter_by_movement(bin_fluorescence, condition=mtype)
-                upphase = upphase[:, :frames]
+                #upphase = upphase[:, :frames]
                 print("Generating cosine similarities")
                 cosine_similarity = population_similarity(
                     upphase, axis=1, metric="cosine", plot=False
