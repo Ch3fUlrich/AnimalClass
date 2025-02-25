@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #SBATCH --job-name=pop_act              #This is the name of your job
-#SBATCH --cpus-per-task=128             #This is the number of cores reserved
-#SBATCH --mem-per-cpu=2G                #This is the memory reserved per core.
+#SBATCH --cpus-per-task=64              #This is the number of cores reserved
+#SBATCH --mem-per-cpu=6G                #This is the memory reserved per core.
 
-#SBATCH --time=00:15:00                 #4-00:00:00    #This is the time that your task will run 01:00:00 or 1-00:00:00
-#SBATCH --qos=30min                     #1week      #You will run in this queue 30min or 6hours or 1day  or 1week
+#SBATCH --time=06:00:00                 #4-00:00:00    #This is the time that your task will run 01:00:00 or 1-00:00:00
+#SBATCH --qos=6hours                     #1week      #You will run in this queue 30min or 6hours or 1day  or 1week
 #SBATCH --array=1-389                   #1-200%20: This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory
