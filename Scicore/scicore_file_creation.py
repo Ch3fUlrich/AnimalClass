@@ -121,7 +121,7 @@ def main(
     end_line=None,
     output_name="converted",
     mail_user="",
-    conda_env_name="animal_sergej",
+    conda_env_name="imgartdet",
     username="mauser00",
     mesc_to_tiff=True,
     suite2p=True,

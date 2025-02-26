@@ -16,10 +16,10 @@ from Helper import *
 
 # Init Directories and Notebook settings
 root_dir = Path(
-    #"\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments\\rodrigo"
+    # "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments\\rodrigo"
     "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments/rodrigo"
 )
-# root_dir = 
+# root_dir =
 Animal.root_dir = root_dir
 
 
@@ -63,13 +63,13 @@ def get_population_activity(animals):
     """
     root_folder_path = Path(
         "/scicore/projects/donafl00-calcium/Users/Sergej/Steffen_Experiments/everton/population_activity/"
-        #"\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments\\everton\\population_activity"
+        # "\\\\toucan-all.scicore.unibas.ch\\donafl00-calcium$\\Users\\Sergej\\Steffen_Experiments\\everton\\population_activity"
     )
     for animal_id, animal in animals.items():
         for session_id, session in animal.sessions.items():
-            #frames = 5000
-            # movement_types = ["all", "stationary", "moving"]
-            movement_types = ["all"]  # , "stationary", "moving"]
+            # frames = 5000
+            # movement_types = ["stationary", "moving"]
+            movement_types = ["all", "stationary", "moving"]
             for movement_type in movement_types:
                 print(f"Movement Type: {movement_type}")
                 mtype = movement_type if movement_type != "all" else None
@@ -80,7 +80,7 @@ def get_population_activity(animals):
 
                 bin_fluorescence = session.load_binarized_traces(clean=True)
                 upphase = session.filter_by_movement(bin_fluorescence, condition=mtype)
-                #upphase = upphase[:, :frames]
+                # upphase = upphase[:, :frames]
                 print("Generating cosine similarities")
                 cosine_similarity = population_similarity(
                     upphase, axis=1, metric="cosine", plot=False
