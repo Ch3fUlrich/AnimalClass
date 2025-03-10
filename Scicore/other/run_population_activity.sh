@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=pop_act              #This is the name of your job
 #SBATCH --cpus-per-task=64              #This is the number of cores reserved
-#SBATCH --mem-per-cpu=6G                #This is the memory reserved per core.
+#SBATCH --mem-per-cpu=10G                #This is the memory reserved per core.
 
 #SBATCH --time=06:00:00                 #4-00:00:00    #This is the time that your task will run 01:00:00 or 1-00:00:00
 #SBATCH --qos=6hours                     #1week      #You will run in this queue 30min or 6hours or 1day  or 1week

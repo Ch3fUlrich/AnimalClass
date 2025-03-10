@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH --job-name=pop_act_stat_mov              #This is the name of your job
+#SBATCH --job-name=pop_act_stat_big              #This is the name of your job
 #SBATCH --cpus-per-task=64             #This is the number of cores reserved
-#SBATCH --mem-per-cpu=6G                #This is the memory reserved per core.
+#SBATCH --mem-per-cpu=10G                #This is the memory reserved per core.
 
 #SBATCH --time=06:00:00                 #4-00:00:00    #This is the time that your task will run 01:00:00 or 1-00:00:00
 #SBATCH --qos=6hours                     #1week      #You will run in this queue 30min or 6hours or 1day  or 1week
-#SBATCH --array=1-18                   #1-200%20: This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
+#SBATCH --array=1-5                   #1-200%20: This is an array job with 200 tasks with a maximum simultaneous number of 20 tasks
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory
 #SBATCH --output=outputs/intrinsic_pop_act2_%j_%A_%a.o       #These are the STDOUT and STDERR files #j for jobID
